@@ -3,9 +3,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import PlainTextResponse
 
 from functionality.calendar import create_google_calendar_event
+from functionality.nutrition import get_cals_from_image
 from functionality.image import logic_for_prompt_before_image, retrieve_calories_from_image
 from functionality.notion_ import *
 from functionality.search import *
+from functionality.automation import *
+from functionality.audio import retrieve_transcript_from_audio
 from utils.whatsapp import send_whatsapp_threaded
 from utils.gemini import *
 
@@ -23,7 +26,7 @@ app.add_middleware(
 
 @app.get('/')
 def home():
-    return 'Hello, World!'
+    return 'API v1.0 OK'
 
 
 @app.get('/webhook', response_class=PlainTextResponse)
@@ -51,6 +54,9 @@ def logic(message: dict):
 
     if message['type'] == 'image':
         return logic_for_prompt_before_image(message)
+    
+    if message['type'] == 'audio':
+        return retrieve_transcript_from_audio(message)
 
     # if message['type'] == 'audio':
     #     path = download_file(message['audio'])
@@ -60,6 +66,11 @@ def logic(message: dict):
 
     if text.lower().strip() == 'cals':  # special keyword for calories tracking
         return retrieve_calories_from_image()
+
+    # Get last two words of message if "food log" match.
+    isfoodlog:str = ' '.join(text.lower().strip().split()[-2:])
+    if (isfoodlog in['food log','foodlog','food log.','my diet','my diet.']):
+        return get_cals_from_image()
 
     operation_type = retrieve_message_type_from_message(text)
     print('operation_type', operation_type, len(operation_type))
@@ -82,6 +93,10 @@ def logic(message: dict):
         return ok
     elif operation_type == 'image':
         return logic_for_prompt_before_image(message)
+    elif operation_type == 'automation':
+        response = automation_command(text)
+        send_whatsapp_threaded(response)
+        return ok
     else:
         response = simple_prompt_request(text + '. Respond in 10 to 15 words.')
         send_whatsapp_threaded(response)

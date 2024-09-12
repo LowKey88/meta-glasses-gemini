@@ -1,9 +1,9 @@
 import os
-
 import google.ai.generativelanguage as glm
 import google.generativeai as genai
 import requests
 from PIL import Image
+from pydub import AudioSegment
 from datetime import datetime
 
 genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
@@ -14,6 +14,7 @@ Based on the message type, execute some different requests to APIs or other tool
 - image: types are related to anything with images, pictures, what's the user looking at, what's in front of the user, etc.
 - notion: anything related to storing a note, save an idea, notion, etc. 
 - search: types are related to anything with searching, finding, looking for, and it's about a recent event, or news etc.
+- automation: types are related to query states or send commands to home automation things, devices like lights, doors, alarm, etc.
 - other: types are related to anything else.
 
 Make sure to always return the message type, or default to `other` even if it doesn't match any of the types.
@@ -23,7 +24,7 @@ determine_calendar_event_inputs_description = f'''
 Based on the message, create an event using the Google Calendar API. 
 - title: The title of the event
 - description: The description of the event, if any, if not return an empty string
-- date: The date of the event in the format `YYYY-MM-DD`. Today is {datetime.now().strftime('%Y-%m-%d')}, so if the user says "tomorrow", or in 1 week, etc, make sure to calculate the correct date.
+- date: The date of the event in the format `YYYY-MM-DD`. Today is time_now, so if the user says "tomorrow", or in 1 week, etc, make sure to calculate the correct date.
 - time: The time of the event in the format `HH:MM`
 - duration: The duration of the event in hours
 - type: The type of message the user sent, default to `event`
@@ -85,19 +86,30 @@ def _get_tool(tool_name: str, description: str, parameters: dict, required: list
             )
         ])
 
-
 def analyze_image(img_url: str, prompt: str):
     image_path = 'media/' + img_url.split('/')[-1]
-    download_image = requests.get(img_url)
-    print('Downloaded image', download_image.status_code, image_path)
-    with open(image_path, 'wb') as f:
-        f.write(download_image.content)
+    # download_image = requests.get(img_url)
+    # print('Downloaded image', download_image.status_code, image_path)
+    print('Downloaded image', image_path)
+    # with open(image_path, 'wb') as f:
+    #     f.write(download_image.content)
 
     img = Image.open(image_path)
-    model = genai.GenerativeModel('gemini-pro-vision')
+    #model = genai.GenerativeModel('gemini-pro-vision')
+    model = genai.GenerativeModel('gemini-1.5-flash')
     response = model.generate_content([prompt, img], stream=False)
     return response.text.strip()
 
+def analyze_audio(audio_path: str, prompt):
+    # analyze_adio(pathfile, "Please transcribe this recording:")
+    audio = AudioSegment.from_ogg(audio_path)
+    model = genai.GenerativeModel('gemini-1.5-flash')
+    source = {
+        "mime_type": "audio/ogg",
+        "data": audio.export().read()
+    }
+    response = model.generate_content([prompt, source])
+    return response.text.strip()
 
 def retrieve_message_type_from_message(message: str):
     print('retrieve_message_type_from_message', message)
@@ -109,7 +121,7 @@ def retrieve_message_type_from_message(message: str):
         retrieve_message_type_from_message_description,
         {"message_type": _get_func_arg_parameter(
             'The type of message the user sent', 'string',
-            ["calendar", "image", "notion", "search", "other"])})
+            ["calendar", "image", "notion", "search", "automation", "other"])})
     model = genai.GenerativeModel(model_name='gemini-1.0-pro', tools=[tool])
     chat = model.start_chat(enable_automatic_function_calling=True)
     response = chat.send_message(message)
@@ -120,7 +132,8 @@ def retrieve_message_type_from_message(message: str):
 
 
 def determine_calendar_event_inputs(message: str):
-    tool = _get_tool('determine_calendar_event_inputs', determine_calendar_event_inputs_description, {
+    determine_with_date: str = determine_calendar_event_inputs_description.replace('time_now', datetime.now().strftime('%Y-%m-%d'))
+    tool = _get_tool('determine_calendar_event_inputs', determine_with_date, {
         "title": _get_func_arg_parameter('The title of the event'),
         "description": _get_func_arg_parameter('The description of the event, if any, if not return an empty string'),
         "date": _get_func_arg_parameter('The date of the event in the format `YYYY-MM-DD`'),

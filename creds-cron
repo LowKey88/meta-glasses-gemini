@@ -1,0 +1,1 @@
+0 0 * * * root cd /app && /usr/local/bin/python checkCred.py >> /var/log/creds.log 2>&1

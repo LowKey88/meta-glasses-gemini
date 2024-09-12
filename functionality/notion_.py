@@ -10,7 +10,7 @@ db_id = os.getenv('NOTION_DATABASE_ID')
 
 def add_new_page(title: str, category: str, content: str):
     data = {
-        "parent": {"database_id": 'abff2f35712b49a28379f595be2706e4'},
+        "parent": {"database_id": db_id},
         "properties": {
             "Title": {"title": [{"text": {"content": title}}]},
             "Category": {"select": {"name": category}},

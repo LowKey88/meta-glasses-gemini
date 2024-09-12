@@ -1,10 +1,12 @@
 annotated-types==0.6.0
 anyio==4.3.0
+async-timeout==4.0.3
 beautifulsoup4==4.12.3
 cachetools==5.3.3
 certifi==2024.2.2
 charset-normalizer==3.3.2
 click==8.1.7
+exceptiongroup==1.2.1
 fastapi==0.110.1
 google==3.0.0
 google-ai-generativelanguage==0.4.0
@@ -36,6 +38,7 @@ pyasn1==0.6.0
 pyasn1_modules==0.4.0
 pydantic==2.6.4
 pydantic_core==2.16.3
+pydub==0.25.1
 pyparsing==3.1.2
 python-dotenv==1.0.1
 PyYAML==6.0.1
