@@ -30,9 +30,26 @@ if not creds or not creds.valid:
         auth_url, _ = flow.authorization_url(prompt='consent')
         print('Please go to this URL: {}'.format(auth_url))
         code = input('Enter the authorization code: ')        
-        creds = flow.fetch_token(code=code)
+        # Fetch token using authorization code
+        flow.fetch_token(code=code)
         
+        # Get credentials
+        creds = flow.credentials
+
+        # Save token to file
+        token_data = {
+            'token': creds.token,
+            'refresh_token': creds.refresh_token,
+            'token_uri': creds.token_uri,
+            'client_id': creds.client_id,
+            'client_secret': creds.client_secret,
+            'scopes': creds.scopes,
+            'expiry': creds.expiry.isoformat()
+        }
+        
+        with open('creds/token.json', 'w') as token_file:
+            json.dump(token_data, token_file)
         
         # creds = flow.run_local_server(open_browser=False, bind_addr="0.0.0.0", port=0)
-    with open('creds/token.json', 'w') as token:
-        json.dump(creds, token)
+        # with open('creds/token.json', 'w') as token:
+        #     json.dump(creds, token)
