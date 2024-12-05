@@ -43,7 +43,9 @@ Make sure to return all the required inputs for the page creation.
 
 def simple_prompt_request(message: str):
     model = genai.GenerativeModel('gemini-pro')
-    response = model.generate_content(message)
+    actual_time = datetime.now().strftime('%Y-%m-%d')
+    message_2:str = f'''La hora actual es {actual_time}. {message}'''
+    response = model.generate_content(message_2)
     return response.text.strip()
 
 
