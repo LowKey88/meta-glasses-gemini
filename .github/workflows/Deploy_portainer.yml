@@ -1,0 +1,28 @@
+name: Deploy
+
+# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
+
+on:
+  # schedule:
+  #   - cron: '16 22 * * *'
+  push:
+    branches: [ "master" ]
+    # Publish semver tags as releases.
+    tags: [ 'v*.*.*' ]
+  pull_request:
+    branches: [ "master" ]
+jobs:
+  deploy:
+    environment: prod
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Webhook
+        env:
+          WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
+        run: |
+          curl -X POST \
+          $WEBHOOK_URL
+    
