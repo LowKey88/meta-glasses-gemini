@@ -51,11 +51,11 @@ def create_google_calendar_event(title, description, date, time, duration=1, col
         'description': description,  # Event description
         'start': {
             'dateTime': start_datetime.isoformat(),
-            'timeZone': 'America/Argentina/Buenos_Aires'  # User Timezone
+            'timeZone': 'Asia/Kuala_Lumpur'  # User Timezone
         },
         'end': {
             'dateTime': end_datetime.isoformat(),
-            'timeZone': 'America/Argentina/Buenos_Aires'  # User Timezone
+            'timeZone': 'Asia/Kuala_Lumpur'  # User Timezone
         },
         'colorId': color_id,
     }
