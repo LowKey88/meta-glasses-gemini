@@ -16,7 +16,7 @@ def send_whatsapp_message(text: str):
         'type': 'text',
         'text': {'body': text}
     }
-    url = 'https://graph.facebook.com/v18.0/396629766857077/messages'
+    url = 'https://graph.facebook.com/v18.0/455079707698811/messages'
     response = requests.post(url, headers=headers, json=json_data)
     print('send_whatsapp_message:', response.json())
 
