@@ -123,7 +123,7 @@ def retrieve_message_type_from_message(message: str):
         {"message_type": _get_func_arg_parameter(
             'The type of message the user sent', 'string',
             ["calendar", "image", "notion", "search", "automation", "other"])})
-    model = genai.GenerativeModel(model_name='gemini-2.0-flash-exp', tools=[tool])
+    model = genai.GenerativeModel(model_name='gemini-1.5-flash', tools=[tool])
     chat = model.start_chat(enable_automatic_function_calling=True)
     response = chat.send_message(message)
     fc = response.candidates[0].content.parts[0].function_call
@@ -146,7 +146,7 @@ def determine_calendar_event_inputs(message: str):
                                         ["reminder", "event", "time-block"])
     })
 
-    model = genai.GenerativeModel(model_name='gemini-2.0-flash-exp', tools=[tool])
+    model = genai.GenerativeModel(model_name='gemini-1.5-flash', tools=[tool])
     chat = model.start_chat(enable_automatic_function_calling=True)
     response = chat.send_message(message)
     fc = response.candidates[0].content.parts[0].function_call
@@ -176,7 +176,7 @@ def determine_notion_page_inputs(message: str):
             enum_options=["Note", "Idea", "Work", "Personal"]),
         "content": _get_func_arg_parameter('The content of the message in the user words (more detail)')
     })
-    model = genai.GenerativeModel(model_name='gemini-2.0-flash-exp', tools=[tool])
+    model = genai.GenerativeModel(model_name='gemini-1.5-flash', tools=[tool])
     chat = model.start_chat(enable_automatic_function_calling=True)
     response = chat.send_message(message)
     fc = response.candidates[0].content.parts[0].function_call
