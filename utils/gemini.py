@@ -42,7 +42,7 @@ Make sure to return all the required inputs for the page creation.
 
 
 def simple_prompt_request(message: str):
-    model = genai.GenerativeModel('gemini-pro')
+    model = genai.GenerativeModel('gemini-2.0-flash-exp')
     actual_time = datetime.now().strftime('%Y-%m-%d %H:%M')
     message_2:str = f'''Ahora es {actual_time}. {message}'''
     response = model.generate_content(message_2)
@@ -97,8 +97,6 @@ def analyze_image(img_url: str, prompt: str):
     #     f.write(download_image.content)
 
     img = Image.open(image_path)
-    #model = genai.GenerativeModel('gemini-pro-vision')
-    #model = genai.GenerativeModel('gemini-1.5-flash')
     model = genai.GenerativeModel('gemini-2.0-flash-exp')
     response = model.generate_content([prompt, img], stream=False)
     return response.text.strip()
@@ -106,7 +104,7 @@ def analyze_image(img_url: str, prompt: str):
 def analyze_audio(audio_path: str, prompt):
     # analyze_adio(pathfile, "Please transcribe this recording:")
     audio = AudioSegment.from_ogg(audio_path)
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-2.0-flash-exp')
     source = {
         "mime_type": "audio/ogg",
         "data": audio.export().read()
@@ -125,7 +123,7 @@ def retrieve_message_type_from_message(message: str):
         {"message_type": _get_func_arg_parameter(
             'The type of message the user sent', 'string',
             ["calendar", "image", "notion", "search", "automation", "other"])})
-    model = genai.GenerativeModel(model_name='gemini-1.0-pro', tools=[tool])
+    model = genai.GenerativeModel(model_name='gemini-2.0-flash-exp', tools=[tool])
     chat = model.start_chat(enable_automatic_function_calling=True)
     response = chat.send_message(message)
     fc = response.candidates[0].content.parts[0].function_call
@@ -148,7 +146,7 @@ def determine_calendar_event_inputs(message: str):
                                         ["reminder", "event", "time-block"])
     })
 
-    model = genai.GenerativeModel(model_name='gemini-1.0-pro', tools=[tool])
+    model = genai.GenerativeModel(model_name='gemini-2.0-flash-exp', tools=[tool])
     chat = model.start_chat(enable_automatic_function_calling=True)
     response = chat.send_message(message)
     fc = response.candidates[0].content.parts[0].function_call
@@ -178,7 +176,7 @@ def determine_notion_page_inputs(message: str):
             enum_options=["Note", "Idea", "Work", "Personal"]),
         "content": _get_func_arg_parameter('The content of the message in the user words (more detail)')
     })
-    model = genai.GenerativeModel(model_name='gemini-1.0-pro', tools=[tool])
+    model = genai.GenerativeModel(model_name='gemini-2.0-flash-exp', tools=[tool])
     chat = model.start_chat(enable_automatic_function_calling=True)
     response = chat.send_message(message)
     fc = response.candidates[0].content.parts[0].function_call
