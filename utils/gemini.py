@@ -14,7 +14,7 @@ Based on the message type, execute some different requests to APIs or other tool
 - image: types are related to anything with images, pictures, what's the user looking at, what's in front of the user, etc.
 - notion: anything related to storing a note, save an idea, notion, etc. 
 - search: types are related to anything with searching, finding, looking for, and it's about a recent event, or news etc.
-- automation: types are related to query states or send commands to home automation things, devices like lights, doors, alarm, etc.
+- automation: types are related to querying states, checking status, or sending commands to home automation devices like gates, lights, doors, alarm, etc.
 - other: types are related to anything else.
 
 Make sure to always return the message type, or default to `other` even if it doesn't match any of the types.
