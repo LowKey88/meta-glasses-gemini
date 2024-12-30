@@ -98,7 +98,8 @@ def analyze_image(img_url: str, prompt: str):
 
     img = Image.open(image_path)
     #model = genai.GenerativeModel('gemini-pro-vision')
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    #model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-2.0-flash-exp')
     response = model.generate_content([prompt, img], stream=False)
     return response.text.strip()
 
