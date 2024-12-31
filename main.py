@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import PlainTextResponse
-import logging, time, threading, os
+import logging, time, threading, os, json
 
 from functionality.calendar import create_google_calendar_event
 from functionality.nutrition import get_cals_from_image
@@ -55,6 +55,24 @@ def receive_whatsapp_message(request: Request, data: dict):
    threading.Thread(target=logic, args=(message,)).start()
    return ok
 
+@app.post('/send-notification')
+async def send_notification(request: Request):
+   try:
+       request_body = await request.body()
+       data = json.loads(request_body.decode())
+       message = data.get('message')
+       if not message:
+           raise HTTPException(status_code=400, detail="Missing message")
+       send_whatsapp_threaded(message)
+       logger.info(f"Notification sent: {message}")
+       return {'status': 'sent'}
+   except json.JSONDecodeError as e:
+       logger.error(f"JSON decode error: {e}")
+       raise HTTPException(status_code=400, detail="Invalid JSON")
+   except Exception as e:
+       logger.error(f"Error: {e}")
+       raise HTTPException(status_code=500)
+
 def process_text_message(text: str):
    text_lower = text.lower().strip()
    
@@ -96,14 +114,12 @@ def process_text_message(text: str):
            send_whatsapp_threaded(response)
            return ok
        else:
-           # General conversation through Gemini
            response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.')
            send_whatsapp_threaded(response)
            return ok
 
    except AssertionError:
        try:
-           # Try Gemini for general conversation
            response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.')
            send_whatsapp_threaded(response)
            return ok
