@@ -11,7 +11,7 @@ genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
 retrieve_message_type_from_message_description = '''
 Based on the message type, execute some different requests to APIs or other tools. 
 - calendar: types are related to anything with scheduling, events, reminders, etc. 
-- image: types are related to anything with images, pictures, what's the user looking at, what's in front of the user, etc.
+- image: types are related to anything with images, pictures, what's the user looking at, what's in front of the user, counting objects in images, questions about visual elements or quantities in images (how many, count, number of), all follow-up questions about previously shown images, etc.
 - notion: anything related to storing a note, save an idea, notion, etc. 
 - search: types are related to anything with searching, finding, looking for, and it's about a recent event, or news etc.
 - automation: types are related to querying states, checking status, or sending commands to home automation devices like gates, lights, doors, alarm, etc.
