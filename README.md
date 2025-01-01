@@ -63,6 +63,20 @@ For the best web hosting and domain registration services, visit [GB Network Sol
   uvicorn main:app --reload
   ```
 
+### Docker Installation
+
+You can also run this project using Docker. Pull the Docker image from GitHub Container Registry:
+
+```sh
+docker pull ghcr.io/lowkey88/meta-glasses-gemini:sha256-56c8e1c0be249b872193826b2796ccff7df50c32d81aa8f33df813205f07d011.sig
+```
+
+Run the Docker container:
+
+```sh
+docker run -d -p 8000:8000 --env-file .env ghcr.io/lowkey88/meta-glasses-gemini:sha256-56c8e1c0be249b872193826b2796ccff7df50c32d81aa8f33df813205f07d011.sig
+```
+
 ### Environment Variables
 
 You need to set the following environment variables in a `.env` file within the project directory:
@@ -95,6 +109,9 @@ HOME_ASSISTANT_AGENT_ID=
 - `NOTION_INTEGRATION_SECRET`, `NOTION_DATABASE_ID`: Create a Notion integration and a database with fields (Title, Category, Content, Created At, Completed). Share the database with the integration.
 - `SERPER_DEV_API_KEY`, `CRAWLBASE_API_KEY`: Obtain these API keys from the respective websites to enable advanced search and data retrieval functionalities.
 - `OAUTH_CREDENTIALS_ENCODED`: Base64 encode your Google OAuth credentials and set them here.
+- `HOME_ASSISTANT_TOKEN`: The token for authenticating with your Home Assistant instance.
+- `HOME_ASSISTANT_URL`: The URL of your Home Assistant instance.
+- `HOME_ASSISTANT_AGENT_ID`: The ID of the agent in Home Assistant that will handle the integration.
 
 ### Additional Configuration
 
