@@ -1,5 +1,4 @@
 import os
-
 import requests
 
 headers = {
@@ -20,6 +19,16 @@ def send_whatsapp_message(text: str):
     response = requests.post(url, headers=headers, json=json_data)
     print('send_whatsapp_message:', response.json())
 
+def send_whatsapp_image(content):
+   url = 'https://graph.facebook.com/v18.0/455079707698811/messages'
+   json_data = {
+       'messaging_product': 'whatsapp',
+       'to': os.getenv('WHATSAPP_PHONE_NUMBER'),
+       'type': 'image',
+       'image': {'link': content}
+   }
+   response = requests.post(url, headers=headers, json=json_data)
+   print('send_whatsapp_image:', response.json())
 
 def download_file(file_data):
     print('download_image', file_data)
