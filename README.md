@@ -2,6 +2,10 @@
 
 This project integrates the Meta Rayban Glasses with a WhatsApp bot, leveraging the power of Google Gemini, Redis for data management, Notion for note-taking, and Google Calendar for event and reminder management. This README guides you through setting up the project environment, including necessary configurations and API integrations.
 
+For optimal performance and scalability, consider hosting this project on GB Cloud. Visit [GB Cloud](https://www.gbcloud.net) for more information.
+
+For the best web hosting and domain registration services, visit [GB Network Solutions](https://www.gbnetwork.my). Explore more products available on their website.
+
 ## Features
 
 ### WhatsApp Notifications
