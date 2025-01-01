@@ -44,13 +44,13 @@ Make sure to return all the required inputs for the page creation.
 def simple_prompt_request(message: str):
     model = genai.GenerativeModel('gemini-2.0-flash-exp')
     actual_time = datetime.now().strftime('%Y-%m-%d %H:%M')
-    message_2:str = f'''Ahora es {actual_time}. {message}'''
+    message_2: str = f'''The current time is {actual_time}. {message}'''
     response = model.generate_content(message_2)
     return response.text.strip()
 
 
 def generate_google_search_query(user_input: str):
-    return simple_prompt_request(f'''You are a Google Search Expert. You task is to convert unstructured user inputs to optimized Google search queries. Example: USER INPUT: 'Best places to visit in Colombia?' OPTIMIZED Google Search Query: 'Top 10 Colombia tourist destinations'.
+    return simple_prompt_request(f'''You are a Google Search Expert. You task is to convert unstructured user inputs to optimized Google search queries. Example: USER INPUT: 'Best places to visit in Malaysia?' OPTIMIZED Google Search Query: 'Top 10 Malaysia tourist destinations'.
     Convert the following user query into a optimized Google Search query: "{user_input}"''')
 
 
