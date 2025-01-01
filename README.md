@@ -66,15 +66,14 @@ For the best web hosting and domain registration services, visit [GB Network Sol
 ### Docker Installation
 
 You can also run this project using Docker. Pull the Docker image from GitHub Container Registry:
-
 ```sh
-docker pull ghcr.io/lowkey88/meta-glasses-gemini:sha256-56c8e1c0be249b872193826b2796ccff7df50c32d81aa8f33df813205f07d011.sig
+docker pull ghcr.io/lowkey88/meta-glasses-gemini:latest
 ```
 
 Run the Docker container:
 
 ```sh
-docker run -d -p 8000:8000 --env-file .env ghcr.io/lowkey88/meta-glasses-gemini:sha256-56c8e1c0be249b872193826b2796ccff7df50c32d81aa8f33df813205f07d011.sig
+docker run -d -p 8000:8000 --env-file .env ghcr.io/lowkey88/meta-glasses-gemini:latest
 ```
 
 ### Environment Variables
