@@ -10,7 +10,7 @@ from functionality.notion_ import add_new_page
 from functionality.search import google_search_pipeline
 from functionality.automation import automation_command
 from functionality.audio import retrieve_transcript_from_audio
-from utils.whatsapp import send_whatsapp_threaded
+from utils.whatsapp import send_whatsapp_threaded, send_whatsapp_image
 from utils.gemini import *
 
 logging.basicConfig(level=logging.INFO)
@@ -58,17 +58,21 @@ def receive_whatsapp_message(request: Request, data: dict):
 @app.post('/send-notification')
 async def send_notification(request: Request):
    try:
-       request_body = await request.body()
-       data = json.loads(request_body.decode())
+       data = json.loads(await request.body())
        message = data.get('message')
+       image_url = data.get('image_url')
+       
        if not message:
            raise HTTPException(status_code=400, detail="Missing message")
+           
        send_whatsapp_threaded(message)
        logger.info(f"Notification sent: {message}")
+
+       if image_url:
+           send_whatsapp_image(image_url)
+           logger.info(f"Image sent from URL: {image_url}")
+
        return {'status': 'sent'}
-   except json.JSONDecodeError as e:
-       logger.error(f"JSON decode error: {e}")
-       raise HTTPException(status_code=400, detail="Invalid JSON")
    except Exception as e:
        logger.error(f"Error: {e}")
        raise HTTPException(status_code=500)
