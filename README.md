@@ -44,6 +44,9 @@ NOTION_DATABASE_ID=
 SERPER_DEV_API_KEY=
 CRAWLBASE_API_KEY=
 OAUTH_CREDENTIALS_ENCODED=
+HOME_ASSISTANT_TOKEN=
+HOME_ASSISTANT_URL=
+HOME_ASSISTANT_AGENT_ID=
 ```
 
 - `WHATSAPP_AUTH_TOKEN`: Create an app at [Meta for Developers](https://developers.facebook.com/) and retrieve the
