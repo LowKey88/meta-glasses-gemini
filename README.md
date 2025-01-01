@@ -1,8 +1,41 @@
 # Meta Rayban Glasses + Gemini Integration Project
 
-This project integrates the Meta Rayban Glasses with a WhatsApp bot, leveraging the power of Google Gemini, Redis for
-data management, Notion for note-taking, and Google Calendar for event and reminder management. This README guides you
-through setting up the project environment, including necessary configurations and API integrations.
+This project integrates the Meta Rayban Glasses with a WhatsApp bot, leveraging the power of Google Gemini, Redis for data management, Notion for note-taking, and Google Calendar for event and reminder management. This README guides you through setting up the project environment, including necessary configurations and API integrations.
+
+## Features
+
+### WhatsApp Notifications
+
+- Text messages
+- Image sharing
+- AI-powered responses
+
+### Home Assistant Integration
+
+- Automation support
+- Camera snapshots
+- Device state notifications
+
+### Additional Services
+
+- Calendar management
+- Notion note-taking
+- Home automation control
+
+### API Endpoints
+
+- `POST /send-notification`: Send WhatsApp notifications with optional images
+- `GET /webhook`: WhatsApp webhook verification
+- `POST /webhook`: WhatsApp message processing
+
+### Services Integration
+
+- **WhatsApp**: Message handling and notifications
+- **Google Gemini**: AI processing and responses
+- **Redis**: Data and session management
+- **Notion**: Note-taking and data organization
+- **Google Calendar**: Event and reminder management
+- **Home Assistant**: Home automation control
 
 ## Getting Started
 
@@ -17,14 +50,14 @@ through setting up the project environment, including necessary configurations a
 2. Navigate to the project directory.
 3. Install the required Python packages:
 
-    ```sh
-    pip install -r requirements.txt
-    ```
+  ```sh
+  pip install -r requirements.txt
+  ```
 4. Run the project:
 
-    ```sh
-    uvicorn main:app --reload
-    ```
+  ```sh
+  uvicorn main:app --reload
+  ```
 
 ### Environment Variables
 
@@ -49,26 +82,86 @@ HOME_ASSISTANT_URL=
 HOME_ASSISTANT_AGENT_ID=
 ```
 
-- `WHATSAPP_AUTH_TOKEN`: Create an app at [Meta for Developers](https://developers.facebook.com/) and retrieve the
-  WhatsApp authentication token.
+- `WHATSAPP_AUTH_TOKEN`: Create an app at [Meta for Developers](https://developers.facebook.com/) and retrieve the WhatsApp authentication token.
 - `WHATSAPP_PHONE_NUMBER`: The phone number associated with your WhatsApp API.
-- `WHATSAPP_WEBHOOK_VERIFICATION_TOKEN`: Set a verification token of your choice and use it in the Meta for Developers
-  dashboard to verify the webhook.
-- `REDIS_DB_HOST`, `REDIS_DB_PORT`, `REDIS_DB_PASSWORD`: Credentials for your Redis database. This project uses Redis
-  for managing data, including storing images for analysis.
+- `WHATSAPP_WEBHOOK_VERIFICATION_TOKEN`: Set a verification token of your choice and use it in the Meta for Developers dashboard to verify the webhook.
+- `REDIS_DB_HOST`, `REDIS_DB_PORT`, `REDIS_DB_PASSWORD`: Credentials for your Redis database. This project uses Redis for managing data, including storing images for analysis.
 - `GEMINI_API_KEY`: Obtain this from the Google Gemini API for image analysis and AI capabilities.
 - `CLOUD_STORAGE_BUCKET_NAME`: The name of your Google Cloud Storage bucket for storing images and data.
-- `NOTION_INTEGRATION_SECRET`, `NOTION_DATABASE_ID`: Create a Notion integration and a database with fields (Title,
-  Category, Content, Created At, Completed). Share the database with the integration.
-- `SERPER_DEV_API_KEY`, `CRAWLBASE_API_KEY`: Obtain these API keys from the respective websites to enable advanced
-  search and data retrieval functionalities.
-- OAUTH_CREDENTIALS_ENCODED: Base64 encode your Google OAuth credentials and set them here.
+- `NOTION_INTEGRATION_SECRET`, `NOTION_DATABASE_ID`: Create a Notion integration and a database with fields (Title, Category, Content, Created At, Completed). Share the database with the integration.
+- `SERPER_DEV_API_KEY`, `CRAWLBASE_API_KEY`: Obtain these API keys from the respective websites to enable advanced search and data retrieval functionalities.
+- `OAUTH_CREDENTIALS_ENCODED`: Base64 encode your Google OAuth credentials and set them here.
 
 ### Additional Configuration
 
-- **Google Cloud Platform Credentials**: Place your `google-credentials.json` file in the project root. This file should
-  contain credentials for your GCP project.
-- **Google OAuth Token**: Ensure you have a `credentials.json` file for OAuth to enable Google Calendar integrations.
-  Follow the Google Calendar API documentation to obtain this token.
-- **Create a Meta App**: Create an app at [Meta for Developers](https://developers.facebook.com/) to obtain the WhatsApp
-  API credentials, and setup the webhook to your URL.
+- **Google Cloud Platform Credentials**: Place your `google-credentials.json` file in the project root. This file should contain credentials for your GCP project.
+- **Google OAuth Token**: Ensure you have a `credentials.json` file for OAuth to enable Google Calendar integrations. Follow the Google Calendar API documentation to obtain this token.
+- **Create a Meta App**: Create an app at [Meta for Developers](https://developers.facebook.com/) to obtain the WhatsApp API credentials, and set up the webhook to your URL.
+
+### Home Assistant Integration
+
+**Configuration**
+
+Add to `configuration.yaml`:
+
+```yaml
+rest_command:
+  whatsapp_notify:
+  url: "https://your-api/send-notification"
+  method: POST
+  content_type: "application/json"
+  payload: >-
+    {"message": "{{ message }}"
+    {%- if image_url is defined -%}
+    , "image_url": "{{ image_url }}"
+    {%- endif -%}}
+```
+
+**Example Automations**
+
+1. Text Notification
+
+```yaml
+automation:
+  - alias: "Door Alert"
+  trigger:
+    - platform: state
+    entity_id: binary_sensor.front_door
+    to: "on"
+  action:
+    - service: rest_command.whatsapp_notify
+    data:
+      message: "Front door opened"
+```
+
+2. Camera Notification
+
+```yaml
+automation:
+  - alias: "Camera Alert"
+  trigger:
+    - platform: state
+    entity_id: binary_sensor.motion_sensor
+    to: "on"
+  action:
+    - service: camera.snapshot
+    target:
+      entity_id: camera.front_door
+    data:
+      filename: "/config/www/snapshot.jpg"
+    - service: rest_command.whatsapp_notify
+    data:
+      message: "Motion detected"
+      image_url: "https://your-ha-instance.com/local/snapshot.jpg?t={{ now().timestamp() | int }}"
+```
+
+### Contributing
+
+Pull requests are welcome. For major changes, please open an issue first.
+
+### Credits
+
+I would like to thank and credit the following repositories from which this project is forked:
+
+- [Meta Glasses Gemini by marcpata](https://github.com/marcpata/meta-glasses-gemini)
+- [Meta Glasses Gemini by josancamon19](https://github.com/josancamon19)
