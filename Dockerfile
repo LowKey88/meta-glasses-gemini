@@ -1,8 +1,6 @@
 FROM tiangolo/uvicorn-gunicorn-fastapi:python3.9
 
-# RUN apt-get -y update
-# RUN apt-get -y upgrade
-LABEL org.opencontainers.image.authors="marcpata@gmail.com"
+LABEL org.opencontainers.image.authors="Hisyam Nasir"
 RUN apt-get -y update
 RUN apt-get -y install ffmpeg cron
 COPY . /app
