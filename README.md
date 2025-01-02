@@ -121,6 +121,7 @@ You need to set the following environment variables in a `.env` file within the 
 ```dotenv
 WHATSAPP_AUTH_TOKEN=
 WHATSAPP_PHONE_NUMBER=
+WHATSAPP_PHONE_ID=
 WHATSAPP_WEBHOOK_VERIFICATION_TOKEN=
 REDIS_DB_HOST=
 REDIS_DB_PORT=
@@ -139,7 +140,8 @@ HOME_ASSISTANT_AGENT_ID=
 ```
 
 - `WHATSAPP_AUTH_TOKEN`: Create an app at [Meta for Developers](https://developers.facebook.com/) and retrieve the WhatsApp authentication token.
-- `WHATSAPP_PHONE_NUMBER`: The phone number associated with your WhatsApp API.
+- `WHATSAPP_PHONE_NUMBER`: The sender’s phone number associated with your WhatsApp API. This is the number from which the bot sends messages to your WhatsApp account.
+- `WHATSAPP_PHONE_ID`: The unique identifier associated with your WhatsApp Business phone number.
 - `WHATSAPP_WEBHOOK_VERIFICATION_TOKEN`: Set a verification token of your choice and use it in the Meta for Developers dashboard to verify the webhook.
 - `REDIS_DB_HOST`, `REDIS_DB_PORT`, `REDIS_DB_PASSWORD`: Credentials for your Redis database. This project uses Redis for managing data, including storing images for analysis.
 - `GEMINI_API_KEY`: Obtain this from the Google Gemini API for image analysis and AI capabilities.
