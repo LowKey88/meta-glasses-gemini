@@ -66,14 +66,52 @@ For the best web hosting and domain registration services, visit [GB Network Sol
 ### Docker Installation
 
 You can also run this project using Docker. Pull the Docker image from GitHub Container Registry:
+
 ```sh
-docker pull ghcr.io/lowkey88/meta-glasses-gemini:latest
+docker pull ghcr.io/lowkey88/meta-glasses-gemini:master
 ```
 
 Run the Docker container:
 
 ```sh
-docker run -d -p 8000:8000 --env-file .env ghcr.io/lowkey88/meta-glasses-gemini:latest
+docker run -d -p 8000:8000 --env-file .env ghcr.io/lowkey88/meta-glasses-gemini:master
+```
+
+You can also use Docker Compose to manage the services. Create a `docker-compose.yml` file in the project directory with the following content:
+
+```yaml
+version: '3.8'
+
+services:
+  app:
+    container_name: raybanmeta
+    image: ghcr.io/lowkey88/meta-glasses-gemini:master
+    restart: always
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      - cache
+    volumes:
+      - ./creds:/app/creds
+
+  cache:
+    container_name: redismeta
+    image: redis:7.2.5
+    restart: always
+    ports:
+      - "6379:6379"
+    environment:
+      - REDIS_PASSWORD=${REDIS_DB_PASSWORD}
+    volumes:
+      - ./db:/data/
+```
+
+To start the services, run:
+
+```sh
+docker-compose up -d
 ```
 
 ### Environment Variables
@@ -91,6 +129,7 @@ GEMINI_API_KEY=
 CLOUD_STORAGE_BUCKET_NAME=
 NOTION_INTEGRATION_SECRET=
 NOTION_DATABASE_ID=
+NOTION_FOOD_DATABASE_ID=
 SERPER_DEV_API_KEY=
 CRAWLBASE_API_KEY=
 OAUTH_CREDENTIALS_ENCODED=
@@ -105,7 +144,7 @@ HOME_ASSISTANT_AGENT_ID=
 - `REDIS_DB_HOST`, `REDIS_DB_PORT`, `REDIS_DB_PASSWORD`: Credentials for your Redis database. This project uses Redis for managing data, including storing images for analysis.
 - `GEMINI_API_KEY`: Obtain this from the Google Gemini API for image analysis and AI capabilities.
 - `CLOUD_STORAGE_BUCKET_NAME`: The name of your Google Cloud Storage bucket for storing images and data.
-- `NOTION_INTEGRATION_SECRET`, `NOTION_DATABASE_ID`: Create a Notion integration and a database with fields (Title, Category, Content, Created At, Completed). Share the database with the integration.
+- `NOTION_INTEGRATION_SECRET`, `NOTION_DATABASE_ID`, `NOTION_FOOD_DATABASE_ID`: Create a Notion integration and databases with fields (Title, Category, Content, Created At, Completed). Share the databases with the integration.
 - `SERPER_DEV_API_KEY`, `CRAWLBASE_API_KEY`: Obtain these API keys from the respective websites to enable advanced search and data retrieval functionalities.
 - `OAUTH_CREDENTIALS_ENCODED`: Base64 encode your Google OAuth credentials and set them here.
 - `HOME_ASSISTANT_TOKEN`: The token for authenticating with your Home Assistant instance.
