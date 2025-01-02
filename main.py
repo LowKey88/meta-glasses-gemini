@@ -28,14 +28,15 @@ COMMON_RESPONSES = {
 }
 
 app.add_middleware(
-   CORSMiddleware,
-   allow_origins=[
-       "https://www.messenger.com",
-       "https://www.facebook.com"
-   ],
-   allow_credentials=True,
-   allow_methods=["*"],
-   allow_headers=["*"],
+    CORSMiddleware,
+    allow_origins=[
+         "https://www.messenger.com",
+         "https://www.facebook.com",
+         os.getenv('HOME_ASSISTANT_URL')
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 @app.get('/')
