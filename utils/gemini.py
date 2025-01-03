@@ -88,14 +88,23 @@ def _get_tool(tool_name: str, description: str, parameters: dict, required: list
             )
         ])
 
-def analyze_image(image_path: str, question: str = None):
-    try:
-        img = Image.open(image_path)
-        prompt = f"{question or 'Describe what you see in this image'} using 25 words maximum."
-        response = genai.GenerativeModel('gemini-2.0-flash-exp').generate_content([prompt, img], stream=False)
-        return response.text.strip()
-    except Exception as e:
-        return f"Error analyzing image: {e}"
+def analyze_image(img_url: str, question: str = None):
+   if img_url.startswith('media/'):
+       image_path = img_url
+   else:
+       image_path = 'media/' + img_url.split('/')[-1]
+   print('Using image path:', image_path)
+
+   try:
+       img = Image.open(image_path)
+       prompt = f"{question or 'Describe what you see in this image'} using 25 words maximum."
+       response = genai.GenerativeModel('gemini-2.0-flash-exp').generate_content([prompt, img], stream=False)
+       response_text = response.text.strip()
+       if response_text.startswith('```'):
+           response_text = response_text.replace('```json\n', '').replace('\n```', '')
+       return response_text.strip()
+   except Exception as e:
+       return f"Error analyzing image: {e}"
 
 def analyze_audio(audio_path: str, prompt):
     # analyze_adio(pathfile, "Please transcribe this recording:")

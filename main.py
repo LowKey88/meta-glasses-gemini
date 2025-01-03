@@ -161,6 +161,7 @@ def logic(message: dict):
 
        if message['type'] == 'image':
            logger.info("Processing image message")
+           logic_for_prompt_before_image(message)
            image_path = download_file(message['image'])
            if image_path:
                try:
