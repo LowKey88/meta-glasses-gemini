@@ -10,7 +10,7 @@ from functionality.notion_ import add_new_page
 from functionality.search import google_search_pipeline
 from functionality.automation import automation_command
 from functionality.audio import retrieve_transcript_from_audio
-from utils.whatsapp import send_whatsapp_threaded, send_whatsapp_image
+from utils.whatsapp import send_whatsapp_threaded, send_whatsapp_image, download_file
 from utils.gemini import *
 
 logging.basicConfig(level=logging.INFO)
@@ -18,6 +18,9 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 ok = {'status': 'Ok'}
+
+class ImageContext:
+   last_image_path = None
 
 COMMON_RESPONSES = {
    "thank you": "You're welcome!",
@@ -28,15 +31,15 @@ COMMON_RESPONSES = {
 }
 
 app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-         "https://www.messenger.com",
-         "https://www.facebook.com",
-         os.getenv('HOME_ASSISTANT_URL')
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+   CORSMiddleware,
+   allow_origins=[
+       "https://www.messenger.com",
+       "https://www.facebook.com",
+       os.getenv('HOME_ASSISTANT_URL')
+   ],
+   allow_credentials=True,
+   allow_methods=["*"],
+   allow_headers=["*"],
 )
 
 @app.get('/')
@@ -96,7 +99,11 @@ def process_text_message(text: str):
        operation_type = retrieve_message_type_from_message(text)
        logger.info(f"Detected operation type: {operation_type}")
 
-       if operation_type == 'calendar':
+       if operation_type == 'image' and ImageContext.last_image_path:
+           analysis = analyze_image(ImageContext.last_image_path, text)
+           send_whatsapp_threaded(analysis)
+           return ok
+       elif operation_type == 'calendar':
            args = determine_calendar_event_inputs(text)
            args['color_id'] = 9 if args['type'] == 'reminder' and args['duration'] == 0.5 else 0
            del args['type']
@@ -112,8 +119,6 @@ def process_text_message(text: str):
            response = google_search_pipeline(text)
            send_whatsapp_threaded(response)
            return ok
-       elif operation_type == 'image':
-           return logic_for_prompt_before_image({"type": "text", "text": {"body": text}})
        elif operation_type == 'automation':
            response = automation_command(text)
            send_whatsapp_threaded(response)
@@ -156,7 +161,16 @@ def logic(message: dict):
 
        if message['type'] == 'image':
            logger.info("Processing image message")
-           result = logic_for_prompt_before_image(message)
+           image_path = download_file(message['image'])
+           if image_path:
+               try:
+                   ImageContext.last_image_path = image_path
+                   analysis = analyze_image(image_path)
+                   send_whatsapp_threaded(analysis)
+               except Exception as e:
+                   logger.error(f"Image analysis error: {e}")
+                   send_whatsapp_threaded("Sorry, I couldn't analyze that image.")
+           return ok
        elif message['type'] == 'audio':
            logger.info("Processing audio message")
            result = retrieve_transcript_from_audio(message)
