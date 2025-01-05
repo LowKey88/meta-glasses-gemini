@@ -40,53 +40,48 @@ determine_notion_page_inputs_description = f'''Based on the message, create a ne
 Make sure to return all the required inputs for the page creation.
 '''.replace('    ', '')
 
-
 def simple_prompt_request(message: str):
-    model = genai.GenerativeModel('gemini-2.0-flash-exp')
-    actual_time = datetime.now().strftime('%Y-%m-%d %H:%M')
-    message_2: str = f'''The current time is {actual_time}. {message}'''
-    response = model.generate_content(message_2)
-    return response.text.strip()
-
+   model = genai.GenerativeModel('gemini-2.0-flash-exp')
+   actual_time = datetime.now().strftime('%Y-%m-%d %H:%M')
+   message_2: str = f'''The current time is {actual_time}. {message}'''
+   response = model.generate_content(message_2)
+   return response.text.strip()
 
 def generate_google_search_query(user_input: str):
-    return simple_prompt_request(f'''You are a Google Search Expert. You task is to convert unstructured user inputs to optimized Google search queries. Example: USER INPUT: 'Best places to visit in Malaysia?' OPTIMIZED Google Search Query: 'Top 10 Malaysia tourist destinations'.
-    Convert the following user query into a optimized Google Search query: "{user_input}"''')
-
+   return simple_prompt_request(f'''Create a simple search query for: "{user_input}".
+   Return only the search terms, no formatting or explanation.''')
 
 def retrieve_scraped_data_short_answer(news_content: str, user_query: str):
-    return simple_prompt_request(f'''You are a helpful assistant, You take the user query and the text from scraped data of articles/news/pages, and return a short condenseated answer to the user query based on the scraped data, use 10 to 15 words.
-    Context: {news_content}\nUser Query: {user_query}''')
-
+   return simple_prompt_request(f'''You are a helpful assistant, You take the user query and the text from scraped data of articles/news/pages, and return a short condenseated answer to the user query based on the scraped data, use 10 to 15 words.
+   Context: {news_content}\nUser Query: {user_query}''')
 
 def _get_func_arg_parameter(description: str, param_type: str = 'string', enum_options: list = None):
-    if enum_options:
-        return glm.Schema(
-            type=glm.Type.STRING,
-            enum=enum_options,
-            description=description
-        )
-    return glm.Schema(
-        type=glm.Type.STRING if param_type == 'string' else glm.Type.NUMBER,
-        description=description
-    )
-
+   if enum_options:
+       return glm.Schema(
+           type=glm.Type.STRING,
+           enum=enum_options,
+           description=description
+       )
+   return glm.Schema(
+       type=glm.Type.STRING if param_type == 'string' else glm.Type.NUMBER,
+       description=description
+   )
 
 def _get_tool(tool_name: str, description: str, parameters: dict, required: list = None):
-    if not required:
-        required = list(parameters.keys())
-    return glm.Tool(
-        function_declarations=[
-            glm.FunctionDeclaration(
-                name=tool_name,
-                description=description,
-                parameters=glm.Schema(
-                    type=glm.Type.OBJECT,
-                    properties=parameters,
-                    required=required
-                )
-            )
-        ])
+   if not required:
+       required = list(parameters.keys())
+   return glm.Tool(
+       function_declarations=[
+           glm.FunctionDeclaration(
+               name=tool_name,
+               description=description,
+               parameters=glm.Schema(
+                   type=glm.Type.OBJECT,
+                   properties=parameters,
+                   required=required
+               )
+           )
+       ])
 
 def analyze_image(img_url: str, question: str = None):
    if img_url.startswith('media/'):
@@ -108,86 +103,84 @@ def analyze_image(img_url: str, question: str = None):
 
 def analyze_audio(audio_path: str, prompt):
     # analyze_adio(pathfile, "Please transcribe this recording:")
-    audio = AudioSegment.from_ogg(audio_path)
-    model = genai.GenerativeModel('gemini-2.0-flash-exp')
-    source = {
-        "mime_type": "audio/ogg",
-        "data": audio.export().read()
-    }
-    response = model.generate_content([prompt, source])
-    return response.text.strip()
+   audio = AudioSegment.from_ogg(audio_path)
+   model = genai.GenerativeModel('gemini-1.5-flash')
+   source = {
+       "mime_type": "audio/ogg",
+       "data": audio.export().read()
+   }
+   response = model.generate_content([prompt, source])
+   return response.text.strip()
 
 def retrieve_message_type_from_message(message: str):
-    print('retrieve_message_type_from_message', message)
-    if not message:
-        return ''
+   print('retrieve_message_type_from_message', message)
+   if not message:
+       return ''
 
-    tool = _get_tool(
-        'execute_based_on_message_type',
-        retrieve_message_type_from_message_description,
-        {"message_type": _get_func_arg_parameter(
-            'The type of message the user sent', 'string',
-            ["calendar", "image", "notion", "search", "automation", "other"])})
-    model = genai.GenerativeModel(model_name='gemini-1.5-flash', tools=[tool])
-    chat = model.start_chat(enable_automatic_function_calling=True)
-    response = chat.send_message(message)
-    fc = response.candidates[0].content.parts[0].function_call
-    assert fc.name == 'execute_based_on_message_type'
-    print('retrieve_message_type_from_message response:', fc.args['message_type'])
-    return fc.args['message_type']
-
+   tool = _get_tool(
+       'execute_based_on_message_type',
+       retrieve_message_type_from_message_description,
+       {"message_type": _get_func_arg_parameter(
+           'The type of message the user sent', 'string',
+           ["calendar", "image", "notion", "search", "automation", "other"])})
+   model = genai.GenerativeModel(model_name='gemini-1.5-flash', tools=[tool])
+   chat = model.start_chat(enable_automatic_function_calling=True)
+   response = chat.send_message(message)
+   fc = response.candidates[0].content.parts[0].function_call
+   assert fc.name == 'execute_based_on_message_type'
+   print('retrieve_message_type_from_message response:', fc.args['message_type'])
+   return fc.args['message_type']
 
 def determine_calendar_event_inputs(message: str):
-    determine_with_date: str = determine_calendar_event_inputs_description.replace('time_now', datetime.now().strftime('%Y-%m-%d'))
-    tool = _get_tool('determine_calendar_event_inputs', determine_with_date, {
-        "title": _get_func_arg_parameter('The title of the event'),
-        "description": _get_func_arg_parameter('The description of the event, if any, if not return an empty string'),
-        "date": _get_func_arg_parameter('The date of the event in the format `YYYY-MM-DD`'),
-        "time": _get_func_arg_parameter('The time of the event in the format `HH:MM`'),
-        "duration": _get_func_arg_parameter(
-            'The duration of the event in hours, default is 1 hour, but if the type is a `reminder`, default to 0.5 hours.',
-            'integer'),
-        "type": _get_func_arg_parameter('The type of message the user sent, default to `event`', 'string',
-                                        ["reminder", "event", "time-block"])
-    })
+   determine_with_date: str = determine_calendar_event_inputs_description.replace('time_now', datetime.now().strftime('%Y-%m-%d'))
+   tool = _get_tool('determine_calendar_event_inputs', determine_with_date, {
+       "title": _get_func_arg_parameter('The title of the event'),
+       "description": _get_func_arg_parameter('The description of the event, if any, if not return an empty string'), 
+       "date": _get_func_arg_parameter('The date of the event in the format `YYYY-MM-DD`'),
+       "time": _get_func_arg_parameter('The time of the event in the format `HH:MM`'),
+       "duration": _get_func_arg_parameter(
+           'The duration of the event in hours, default is 1 hour, but if the type is a `reminder`, default to 0.5 hours.',
+           'integer'),
+       "type": _get_func_arg_parameter('The type of message the user sent, default to `event`', 'string',
+                                       ["reminder", "event", "time-block"])
+   })
 
-    model = genai.GenerativeModel(model_name='gemini-1.5-flash', tools=[tool])
-    chat = model.start_chat(enable_automatic_function_calling=True)
-    response = chat.send_message(message)
-    fc = response.candidates[0].content.parts[0].function_call
-    print(fc)
-    assert fc.name == 'determine_calendar_event_inputs'
-    return {
-        'title': fc.args['title'],
-        'description': fc.args.get('description', ''),
-        'date': fc.args['date'],
-        'time': fc.args['time'],
-        'duration': fc.args.get('duration', 1),
-        'type': fc.args.get('type', 'event')
-    }
-
+   model = genai.GenerativeModel(model_name='gemini-1.5-flash', tools=[tool])
+   chat = model.start_chat(enable_automatic_function_calling=True)
+   response = chat.send_message(message)
+   fc = response.candidates[0].content.parts[0].function_call
+   print(fc)
+   assert fc.name == 'determine_calendar_event_inputs'
+   return {
+       'title': fc.args['title'],
+       'description': fc.args.get('description', ''),
+       'date': fc.args['date'],
+       'time': fc.args['time'],
+       'duration': fc.args.get('duration', 1),
+       'type': fc.args.get('type', 'event')
+   }
 
 def determine_notion_page_inputs(message: str):
-    tool = _get_tool('determine_notion_page_inputs', determine_notion_page_inputs_description, {
-        "title": _get_func_arg_parameter('The title of the page'),
-        "category": _get_func_arg_parameter(
-            '''
-            The category of the page, default to `Note`. 
-            If it is a business idea, or something about entrepreneurship, or about making money, use `Idea`.
-            If it is about work, or a project, use `Work`.
-            If it is about personal stuff, or something about the user, use `Personal`, either money on a personal level, relationships, etc.
-            Else, use `Note`.
-            ''',
-            enum_options=["Note", "Idea", "Work", "Personal"]),
-        "content": _get_func_arg_parameter('The content of the message in the user words (more detail)')
-    })
-    model = genai.GenerativeModel(model_name='gemini-1.5-flash', tools=[tool])
-    chat = model.start_chat(enable_automatic_function_calling=True)
-    response = chat.send_message(message)
-    fc = response.candidates[0].content.parts[0].function_call
-    assert fc.name == 'determine_notion_page_inputs'
-    return {
-        'title': fc.args['title'],
-        'category': fc.args['category'],
-        'content': fc.args['content']
-    }
+   tool = _get_tool('determine_notion_page_inputs', determine_notion_page_inputs_description, {
+       "title": _get_func_arg_parameter('The title of the page'),
+       "category": _get_func_arg_parameter(
+           '''
+           The category of the page, default to `Note`. 
+           If it is a business idea, or something about entrepreneurship, or about making money, use `Idea`.
+           If it is about work, or a project, use `Work`.
+           If it is about personal stuff, or something about the user, use `Personal`, either money on a personal level, relationships, etc.
+           Else, use `Note`.
+           ''',
+           enum_options=["Note", "Idea", "Work", "Personal"]),
+       "content": _get_func_arg_parameter('The content of the message in the user words (more detail)')
+   })
+   model = genai.GenerativeModel(model_name='gemini-1.5-flash', tools=[tool])
+   chat = model.start_chat(enable_automatic_function_calling=True)
+   response = chat.send_message(message)
+   fc = response.candidates[0].content.parts[0].function_call
+   assert fc.name == 'determine_notion_page_inputs'
+   return {
+       'title': fc.args['title'],
+       'category': fc.args['category'],
+       'content': fc.args['content']
+   }
