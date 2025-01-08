@@ -1,17 +1,24 @@
-from fastapi import FastAPI, Request, HTTPException
+import json
+import logging
+import os
+import threading
+import time
+from typing import Optional
+
+from fastapi import FastAPI, Request, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import PlainTextResponse
-import logging, time, threading, os, json
 
+from functionality.audio import retrieve_transcript_from_audio
+from functionality.automation import automation_command
 from functionality.calendar import create_google_calendar_event
-from functionality.nutrition import get_cals_from_image
 from functionality.image import logic_for_prompt_before_image, retrieve_calories_from_image
 from functionality.notion_ import add_new_page
+from functionality.nutrition import get_cals_from_image
 from functionality.search import google_search_pipeline
-from functionality.automation import automation_command
-from functionality.audio import retrieve_transcript_from_audio
-from utils.whatsapp import send_whatsapp_threaded, send_whatsapp_image, download_file
 from utils.gemini import *
+from utils.google_auth import GoogleAuth
+from utils.whatsapp import send_whatsapp_threaded, send_whatsapp_image, download_file
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -45,6 +52,14 @@ app.add_middleware(
 @app.get('/')
 def home():
    return 'API v1.0 OK'
+
+@app.get('/auth/google')
+async def google_auth_endpoint(x_api_key: Optional[str] = Header(None)):
+   return await GoogleAuth.get_instance().get_auth_url(x_api_key)
+
+@app.get("/auth/callback")
+async def auth_callback(code: str, state: str = None, x_api_key: Optional[str] = Header(None)):
+   return await GoogleAuth.get_instance().handle_callback(code, state, x_api_key)
 
 @app.get('/webhook', response_class=PlainTextResponse)
 def webhook_verification(request: Request):
