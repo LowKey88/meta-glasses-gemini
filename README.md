@@ -137,6 +137,8 @@ OAUTH_CREDENTIALS_ENCODED=
 HOME_ASSISTANT_TOKEN=
 HOME_ASSISTANT_URL=
 HOME_ASSISTANT_AGENT_ID=
+APP_URL=
+API_SECRET_KEY=
 ```
 
 - `WHATSAPP_AUTH_TOKEN`: Create an app at [Meta for Developers](https://developers.facebook.com/) and retrieve the WhatsApp authentication token.
@@ -152,6 +154,8 @@ HOME_ASSISTANT_AGENT_ID=
 - `HOME_ASSISTANT_TOKEN`: The token for authenticating with your Home Assistant instance.
 - `HOME_ASSISTANT_URL`: The URL of your Home Assistant instance.
 - `HOME_ASSISTANT_AGENT_ID`: The ID of the agent in Home Assistant that will handle the integration.
+- `APP_URL`: The base URL of your application, used for OAuth redirects and callbacks.
+- `API_SECRET_KEY`: A secure random key used to protect OAuth endpoints. This key must be provided in the x-api-key header when accessing OAuth-related endpoints.
 
 ### Additional Configuration
 
