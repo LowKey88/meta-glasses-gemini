@@ -14,6 +14,60 @@ For the best web hosting and domain registration services, visit [GB Network Sol
 - Image sharing
 - AI-powered responses
 
+### Calendar Management
+
+The system provides natural language commands for managing your calendar:
+
+#### Checking Schedule
+You can check your schedule using various commands:
+
+1. Single Day Queries:
+   - "Check my meeting today"
+   - "Check my meeting tomorrow"
+   - "What meetings do I have today"
+
+2. General Schedule Queries:
+   - "What's my schedule"
+   - "Show my schedule"
+   - "Tell me my schedule"
+   (These will show both today's and tomorrow's schedules)
+
+3. Weekly Schedule Queries:
+   - "What's my schedule this week"
+   - "What meetings do I have next week"
+   - "Show me this week's schedule"
+
+#### Creating Events
+You can create different types of calendar events:
+
+1. Regular Meetings:
+   - "Schedule a meeting with the team tomorrow at 2pm"
+   - "Add a client meeting next Monday at 10am for 2 hours"
+   - "Create a meeting with vendors on Friday at 3pm"
+
+2. Reminders:
+   - "Add a reminder for gym tomorrow at 7am"
+   - "Set a reminder for medicine at 9pm"
+   - "Remind me about project deadline next Tuesday at 5pm"
+
+3. Time Blocks:
+   - "Block 3 hours for project work tomorrow at 1pm"
+   - "Add time block for studying from 9am to 12pm"
+   - "Schedule focus time today at 4pm for 2 hours"
+
+You can include additional details in your commands:
+- Location: "...at Starbucks KLCC"
+- Description: "...to discuss Q4 planning"
+- Duration: "...for 45 minutes" (default is 1 hour if not specified)
+
+Events are color-coded in your calendar:
+- Green (default): Regular meetings and appointments
+- Purple: Important meetings and deadlines
+- Green Teal: Personal appointments and breaks
+- Pink: Social events and celebrations
+- Red: Urgent or high-priority meetings
+- Yellow: Reminders and tasks
+
 ### Home Assistant Integration
 
 - Automation support
@@ -22,7 +76,6 @@ For the best web hosting and domain registration services, visit [GB Network Sol
 
 ### Additional Services
 
-- Calendar management
 - Notion note-taking
 - Home automation control
 
@@ -31,6 +84,8 @@ For the best web hosting and domain registration services, visit [GB Network Sol
 - `POST /send-notification`: Send WhatsApp notifications with optional images
 - `GET /webhook`: WhatsApp webhook verification
 - `POST /webhook`: WhatsApp message processing
+- `GET /auth/google`: Initiate Google OAuth flow (requires x-api-key header)
+- `GET /auth/callback`: Handle OAuth callback (requires x-api-key header)
 
 ### Services Integration
 
@@ -142,7 +197,7 @@ API_SECRET_KEY=
 ```
 
 - `WHATSAPP_AUTH_TOKEN`: Create an app at [Meta for Developers](https://developers.facebook.com/) and retrieve the WhatsApp authentication token.
-- `WHATSAPP_PHONE_NUMBER`: The sender’s phone number associated with your WhatsApp API. This is the number from which the bot sends messages to your WhatsApp account.
+- `WHATSAPP_PHONE_NUMBER`: The sender's phone number associated with your WhatsApp API. This is the number from which the bot sends messages to your WhatsApp account.
 - `WHATSAPP_PHONE_ID`: The unique identifier associated with your WhatsApp Business phone number.
 - `WHATSAPP_WEBHOOK_VERIFICATION_TOKEN`: Set a verification token of your choice and use it in the Meta for Developers dashboard to verify the webhook.
 - `REDIS_DB_HOST`, `REDIS_DB_PORT`, `REDIS_DB_PASSWORD`: Credentials for your Redis database. This project uses Redis for managing data, including storing images for analysis.
@@ -229,4 +284,4 @@ Pull requests are welcome. For major changes, please open an issue first.
 I would like to thank and credit the following repositories from which this project is forked:
 
 - [Meta Glasses Gemini by marcpata](https://github.com/marcpata/meta-glasses-gemini)
-- [Meta Glasses Gemini by josancamon19](https://github.com/josancamon19)
+- [Meta Glasses Gemini by josancamon19](https://github.com/josancamon19/meta-glasses-gemini)

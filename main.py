@@ -119,11 +119,21 @@ def process_text_message(text: str):
            send_whatsapp_threaded(analysis)
            return ok
        elif operation_type == 'calendar':
-           args = determine_calendar_event_inputs(text)
-           args['color_id'] = 9 if args['type'] == 'reminder' and args['duration'] == 0.5 else 0
-           del args['type']
-           create_google_calendar_event(**args)
-           send_whatsapp_threaded('Event created successfully!')
+           calendar_input = determine_calendar_event_inputs(text)
+           
+           if calendar_input['intent'] == 'check_schedule':
+               send_whatsapp_threaded(calendar_input['response'])
+           else:  # intent == 'create_event'
+               create_args = {
+                   'title': calendar_input['title'],
+                   'description': calendar_input['description'],
+                   'date': calendar_input['date'],
+                   'time': calendar_input['time'],
+                   'duration': calendar_input['duration'],
+                   'color_id': 9 if calendar_input['type'] == 'reminder' and calendar_input['duration'] == 0.5 else 0
+               }
+               create_google_calendar_event(**create_args)
+               send_whatsapp_threaded('I have added that to your calendar!')
            return ok
        elif operation_type == 'notion':
            arguments = determine_notion_page_inputs(text)
