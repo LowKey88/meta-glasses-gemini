@@ -175,6 +175,54 @@ def get_tomorrows_schedule() -> List[Dict]:
     tomorrow = datetime.now() + timedelta(days=1)
     return get_schedule_for_date(tomorrow)
 
+def cancel_last_meeting() -> Optional[str]:
+    """Cancel the last created meeting.
+    Returns the cancelled meeting title if successful, None if no meeting found."""
+    creds = get_credentials()
+    if not creds:
+        raise Exception("No valid credentials")
+
+    service = build('calendar', 'v3', credentials=creds)
+    
+    # Get today's start and end time
+    today_start = datetime.combine(datetime.now().date(), datetime.min.time())
+    today_end = datetime.combine(datetime.now().date(), datetime.max.time())
+    
+    # Get events for today
+    events_result = service.events().list(
+        calendarId='primary',
+        timeMin=today_start.isoformat() + 'Z',
+        timeMax=today_end.isoformat() + 'Z',
+        orderBy='startTime',
+        singleEvents=True
+    ).execute()
+    
+    events = events_result.get('items', [])
+    if not events:
+        # If no events today, get upcoming events
+        future_events = service.events().list(
+            calendarId='primary',
+            timeMin=today_end.isoformat() + 'Z',
+            maxResults=1,
+            orderBy='startTime',
+            singleEvents=True
+        ).execute()
+        events = future_events.get('items', [])
+        if not events:
+            return None
+    
+    # Get the last event (most recent for today, or next upcoming)
+    last_event = events[-1]
+    event_title = last_event.get('summary', 'Untitled event')
+    
+    # Delete the event
+    service.events().delete(
+        calendarId='primary',
+        eventId=last_event['id']
+    ).execute()
+    
+    return event_title
+
 def format_time(start_time: str, end_time: str, all_day: bool = False) -> str:
     """Format time into friendly, conversational string."""
     if all_day:

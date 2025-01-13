@@ -4,6 +4,7 @@ credentials.json
 google-credentials.json
 token.json
 .env
+.clinerules
 venv
 __pycache__/
 */__pycache__/

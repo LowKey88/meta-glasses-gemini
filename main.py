@@ -121,7 +121,7 @@ def process_text_message(text: str):
        elif operation_type == 'calendar':
            calendar_input = determine_calendar_event_inputs(text)
            
-           if calendar_input['intent'] == 'check_schedule':
+           if calendar_input['intent'] in ['check_schedule', 'cancel_event']:
                send_whatsapp_threaded(calendar_input['response'])
            else:  # intent == 'create_event'
                # Use title as both title and description to ensure keywords are checked in both
@@ -133,8 +133,9 @@ def process_text_message(text: str):
                    'time': calendar_input['time'],
                    'duration': calendar_input['duration']
                }
-               create_google_calendar_event(**create_args)
-               send_whatsapp_threaded('I have added that to your calendar!')
+               event_link = create_google_calendar_event(**create_args)
+               meeting_time = datetime.strptime(f"{create_args['date']} {create_args['time']}", '%Y-%m-%d %H:%M').strftime('%I:%M %p')
+               send_whatsapp_threaded(f"I've scheduled \"{create_args['title']}\" for {meeting_time}!")
            return ok
        elif operation_type == 'notion':
            arguments = determine_notion_page_inputs(text)
