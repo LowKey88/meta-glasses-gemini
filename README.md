@@ -37,36 +37,47 @@ You can check your schedule using various commands:
    - "What meetings do I have next week"
    - "Show me this week's schedule"
 
-#### Creating Events
-You can create different types of calendar events:
+#### Managing Events
+You can create and manage different types of calendar events:
 
-1. Regular Meetings:
+1. Creating Regular Meetings:
    - "Schedule a meeting with the team tomorrow at 2pm"
    - "Add a client meeting next Monday at 10am for 2 hours"
    - "Create a meeting with vendors on Friday at 3pm"
 
-2. Reminders:
+2. Setting Reminders:
    - "Add a reminder for gym tomorrow at 7am"
    - "Set a reminder for medicine at 9pm"
    - "Remind me about project deadline next Tuesday at 5pm"
 
-3. Time Blocks:
+3. Managing Time Blocks:
    - "Block 3 hours for project work tomorrow at 1pm"
    - "Add time block for studying from 9am to 12pm"
    - "Schedule focus time today at 4pm for 2 hours"
+
+4. Canceling Meetings:
+   - "Cancel my last meeting"
+   - "Cancel my latest meeting"
+   - "Cancel my most recent meeting"
+   - "Delete last meeting"
+   - "Remove my last meeting"
 
 You can include additional details in your commands:
 - Location: "...at Starbucks KLCC"
 - Description: "...to discuss Q4 planning"
 - Duration: "...for 45 minutes" (default is 1 hour if not specified)
 
-Events are color-coded in your calendar:
-- Green (default): Regular meetings and appointments
-- Purple: Important meetings and deadlines
-- Green Teal: Personal appointments and breaks
-- Pink: Social events and celebrations
-- Red: Urgent or high-priority meetings
-- Yellow: Reminders and tasks
+Events are automatically color-coded in your calendar based on keywords:
+- Blueberry (Blue): Regular meetings (default)
+- Graphite (Dark Gray): Important meetings and deadlines
+- Basil (Green): Personal appointments and breaks
+- Flamingo (Pink): Social events and celebrations
+- Tomato (Red): Urgent meetings
+- Banana (Yellow): Reminders and tasks
+
+The system provides clear confirmations for all actions:
+- Creating: "I've scheduled 'Meeting Title' for 3:00 PM!"
+- Canceling: "I've cancelled your last meeting: Meeting Title"
 
 ### Home Assistant Integration
 
