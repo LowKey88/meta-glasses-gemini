@@ -238,6 +238,10 @@ def determine_calendar_event_inputs(message: str):
     print(fc)
     assert fc.name == 'determine_calendar_event_inputs'
     
+    # Set default date to today if not provided
+    if 'date' not in fc.args:
+        fc.args['date'] = datetime.now().strftime('%Y-%m-%d')
+        
     return {
         'intent': 'create_event',
         'title': fc.args['title'],
