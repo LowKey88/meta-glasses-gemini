@@ -7,16 +7,30 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 
-# Calendar colorId
-# 0 green default
-# 1 purple
-# 2 green teal
-# 3 pink
-# 4 red
-# 5 yellow
+# Google Calendar colorId mapping:
+# 4 - Flamingo (Pink)
+# 5 - Banana (Yellow)
+# 8 - Graphite (Dark Gray)
+# 9 - Blueberry (Blue)
+# 10 - Basil (Green)
+# 11 - Tomato (Red)
 
 SCOPES = ['https://www.googleapis.com/auth/calendar']
 TIME_ZONE = 'Asia/Kuala_Lumpur'
+
+def verify_calendar_colors() -> bool:
+    """Verify if calendar colors API is accessible and working."""
+    try:
+        creds = get_credentials()
+        if not creds:
+            return False
+            
+        service = build('calendar', 'v3', credentials=creds)
+        colors = service.colors().get().execute()
+        return 'calendar' in colors and len(colors['calendar']) > 0
+    except Exception as e:
+        print(f"Error verifying calendar colors: {str(e)}")
+        return False
 
 def get_credentials():
     """Get and refresh Google Calendar credentials."""
@@ -28,11 +42,54 @@ def get_credentials():
             creds.refresh(Request())
     return creds
 
-def create_google_calendar_event(title: str, description: str, date: str, time: str, duration: int = 1, color_id: int = 0) -> str:
+def get_event_color(title: str, description: str) -> int:
+    """Determine event color based on title and description."""
+    # Ensure inputs are strings
+    title = str(title).lower()
+    description = str(description).lower()
+    
+    # Default color for regular meetings (Blueberry)
+    color_id = 9
+    
+    # Check for important meetings/deadlines (Graphite)
+    important_keywords = ['important', 'deadline', 'critical', 'priority']
+    if any(word in title or word in description for word in important_keywords):
+        return 8
+    
+    # Check for personal appointments (Basil)
+    personal_keywords = ['personal', 'break', 'lunch', 'doctor', 'appointment']
+    if any(word in title or word in description for word in personal_keywords):
+        return 10
+    
+    # Check for social events (Flamingo)
+    social_keywords = ['party', 'celebration', 'dinner', 'social', 'event']
+    if any(word in title or word in description for word in social_keywords):
+        return 4
+    
+    # Check for urgent meetings (Tomato)
+    urgent_keywords = ['urgent', 'emergency', 'asap', 'immediate']
+    if any(word in title or word in description for word in urgent_keywords):
+        return 11
+    
+    # Check for reminders/tasks (Banana)
+    task_keywords = ['reminder', 'task', 'todo', 'follow up']
+    if any(word in title or word in description for word in task_keywords):
+        return 5
+    
+    return color_id
+
+def create_google_calendar_event(title: str, description: str, date: str, time: str, duration: int = 1, color_id: Optional[int] = None) -> str:
     """Create a new Google Calendar event."""
     creds = get_credentials()
     if not creds:
         raise Exception("No valid credentials")
+
+    # If no description provided, use empty string to prevent None
+    description = description or ""
+    
+    # Get color based on title and description if not explicitly provided
+    if color_id is None:
+        color_id = get_event_color(title, description)
 
     service = build('calendar', 'v3', credentials=creds)
     start_datetime = datetime.strptime(f'{date} {time}', '%Y-%m-%d %H:%M')
@@ -49,7 +106,7 @@ def create_google_calendar_event(title: str, description: str, date: str, time: 
             'dateTime': end_datetime.isoformat(),
             'timeZone': TIME_ZONE
         },
-        'colorId': str(color_id),
+        'colorId': color_id,  # Google Calendar API expects colorId as an integer
     }
     result = service.events().insert(calendarId='primary', body=event).execute()
     return result.get("htmlLink")

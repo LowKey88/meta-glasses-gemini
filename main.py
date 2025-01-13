@@ -124,13 +124,14 @@ def process_text_message(text: str):
            if calendar_input['intent'] == 'check_schedule':
                send_whatsapp_threaded(calendar_input['response'])
            else:  # intent == 'create_event'
+               # Use title as both title and description to ensure keywords are checked in both
+               title = calendar_input['title']
                create_args = {
-                   'title': calendar_input['title'],
-                   'description': calendar_input['description'],
+                   'title': title,
+                   'description': title,  # Use title as description to ensure color keywords are checked
                    'date': calendar_input['date'],
                    'time': calendar_input['time'],
-                   'duration': calendar_input['duration'],
-                   'color_id': 9 if calendar_input['type'] == 'reminder' and calendar_input['duration'] == 0.5 else 0
+                   'duration': calendar_input['duration']
                }
                create_google_calendar_event(**create_args)
                send_whatsapp_threaded('I have added that to your calendar!')
