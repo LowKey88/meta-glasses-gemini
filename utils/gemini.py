@@ -136,6 +136,30 @@ def retrieve_message_type_from_message(message: str):
     print('retrieve_message_type_from_message', message)
     if not message:
         return ''
+        
+    # Check for explicit calendar commands first
+    msg_lower = message.lower()
+    calendar_keywords = [
+        'set a meeting',
+        'schedule a meeting',
+        'set an appointment',
+        'schedule an appointment',
+        'cancel my last meeting',
+        'cancel last meeting',
+        'cancel the last meeting',
+        'cancel my latest meeting',
+        'cancel my most recent meeting',
+        'remove my last meeting',
+        'remove last meeting',
+        'delete my last meeting',
+        'delete last meeting',
+        'check my schedule',
+        'what meetings do i have',
+        'show my schedule'
+    ]
+    
+    if any(keyword in msg_lower for keyword in calendar_keywords):
+        return 'calendar'
 
     tool = _get_tool(
         'execute_based_on_message_type',
@@ -161,6 +185,29 @@ def determine_calendar_event_inputs(message: str):
         "do i have", "my meeting", "my schedule"
     ])
     
+    # Check if this is a cancel command
+    is_cancel_command = any(phrase in message.lower() for phrase in [
+        "cancel my last meeting",
+        "cancel last meeting",
+        "delete my last meeting",
+        "delete last meeting",
+        "remove my last meeting",
+        "remove last meeting"
+    ])
+    
+    if is_cancel_command:
+        from functionality.calendar import cancel_last_meeting
+        cancelled_event = cancel_last_meeting()
+        if cancelled_event:
+            return {
+                'intent': 'cancel_event',
+                'response': f"I've cancelled your last meeting: {cancelled_event}"
+            }
+        return {
+            'intent': 'cancel_event',
+            'response': "I couldn't find any upcoming meetings to cancel."
+        }
+        
     if is_schedule_query:
         from functionality.calendar import (
             get_todays_schedule,
