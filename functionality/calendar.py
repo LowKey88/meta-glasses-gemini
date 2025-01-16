@@ -175,9 +175,43 @@ def get_tomorrows_schedule() -> List[Dict]:
     tomorrow = datetime.now() + timedelta(days=1)
     return get_schedule_for_date(tomorrow)
 
+def cancel_specific_meeting(event_id: str) -> bool:
+    """
+    Cancel a specific meeting by its event ID.
+    
+    Args:
+        event_id (str): The Google Calendar event ID
+        
+    Returns:
+        bool: True if successfully cancelled, False otherwise
+    """
+    try:
+        creds = get_credentials()
+        if not creds:
+            raise Exception("No valid credentials")
+
+        service = build('calendar', 'v3', credentials=creds)
+        
+        # Delete the event
+        service.events().delete(
+            calendarId='primary',
+            eventId=event_id
+        ).execute()
+        
+        return True
+        
+    except Exception as e:
+        print(f"Error cancelling meeting: {e}")
+        return False
+
 def cancel_last_meeting() -> Optional[str]:
-    """Cancel the last created meeting.
-    Returns the cancelled meeting title if successful, None if no meeting found."""
+    """
+    Cancel the last created meeting.
+    Returns the cancelled meeting title if successful, None if no meeting found.
+    
+    Note: This function is kept for backward compatibility.
+    For better control, use cancel_specific_meeting with a specific event ID.
+    """
     creds = get_credentials()
     if not creds:
         raise Exception("No valid credentials")
@@ -187,22 +221,23 @@ def cancel_last_meeting() -> Optional[str]:
     # Get today's start and end time
     today_start = datetime.combine(datetime.now().date(), datetime.min.time())
     today_end = datetime.combine(datetime.now().date(), datetime.max.time())
+    tomorrow_end = today_end + timedelta(days=1)
     
-    # Get events for today
+    # Get events for today and tomorrow
     events_result = service.events().list(
         calendarId='primary',
         timeMin=today_start.isoformat() + 'Z',
-        timeMax=today_end.isoformat() + 'Z',
+        timeMax=tomorrow_end.isoformat() + 'Z',
         orderBy='startTime',
         singleEvents=True
     ).execute()
     
     events = events_result.get('items', [])
     if not events:
-        # If no events today, get upcoming events
+        # If no events today/tomorrow, get upcoming events
         future_events = service.events().list(
             calendarId='primary',
-            timeMin=today_end.isoformat() + 'Z',
+            timeMin=tomorrow_end.isoformat() + 'Z',
             maxResults=1,
             orderBy='startTime',
             singleEvents=True
@@ -211,17 +246,14 @@ def cancel_last_meeting() -> Optional[str]:
         if not events:
             return None
     
-    # Get the last event (most recent for today, or next upcoming)
+    # Get the last event
     last_event = events[-1]
     event_title = last_event.get('summary', 'Untitled event')
     
-    # Delete the event
-    service.events().delete(
-        calendarId='primary',
-        eventId=last_event['id']
-    ).execute()
-    
-    return event_title
+    # Try to cancel the event
+    if cancel_specific_meeting(last_event['id']):
+        return event_title
+    return None
 
 def format_time(start_time: str, end_time: str, all_day: bool = False) -> str:
     """Format time into friendly, conversational string."""
@@ -247,10 +279,9 @@ def format_item_for_speech(item: Dict) -> str:
     
     time_str = format_time(start, end, is_all_day)
     title = item.get('summary', 'something untitled')
-    location = f" happening at {item['location']}" if 'location' in item else ""
-    description = f". Just to remind you: {item['description']}" if 'description' in item else ""
+    location = f" at {item['location']}" if 'location' in item else ""
     
-    return f"you have {title}{location} {time_str}{description}"
+    return f"You have {title}{location} {time_str}"
 
 def format_schedule_response(items: List[Dict], target_date: Optional[datetime] = None, show_both_days: bool = False, show_weekly: bool = False) -> str:
     """Format schedule items into a friendly, conversational message."""
@@ -276,10 +307,9 @@ def format_schedule_response(items: List[Dict], target_date: Optional[datetime] 
         
         if not messages:
             week_type = "this week" if target_date and target_date.date() <= datetime.now().date() + timedelta(days=7) else "next week"
-            return f"You have no meetings scheduled for {week_type}."
+            return f"You've no meeting for {week_type}."
         
-        intro = "Here's your schedule:"
-        return f"{intro} {'. '.join(messages)}"
+        return '. '.join(messages)
     
     if show_both_days:
         # Get both today's and tomorrow's schedules
@@ -288,19 +318,19 @@ def format_schedule_response(items: List[Dict], target_date: Optional[datetime] 
         
         today_msg = ""
         if not today_items:
-            today_msg = "You have no meetings scheduled today"
+            today_msg = "You've no meeting for today"
         else:
             formatted_items = [format_item_for_speech(item) for item in today_items]
-            today_msg = "Today " + ". Then, ".join(formatted_items)
+            today_msg = "Today: " + ". Then, ".join(formatted_items)
         
         tomorrow_msg = ""
         if not tomorrow_items:
-            tomorrow_msg = "You have no meetings scheduled tomorrow"
+            tomorrow_msg = "You've no meeting for tomorrow"
         else:
             formatted_items = [format_item_for_speech(item) for item in tomorrow_items]
-            tomorrow_msg = "Tomorrow " + ". Then, ".join(formatted_items)
+            tomorrow_msg = "Tomorrow: " + ". Then, ".join(formatted_items)
         
-        return f"Let me tell you about your schedule. {today_msg}. {tomorrow_msg}."
+        return f"{today_msg}. {tomorrow_msg}"
     
     # Single day response
     date_str = "today"
@@ -313,12 +343,12 @@ def format_schedule_response(items: List[Dict], target_date: Optional[datetime] 
             date_str = target_date.strftime("on %A, %B %d")
     
     if not items:
-        return f"You have no meetings scheduled {date_str}."
+        return f"You've no meeting for {date_str}."
     
     if len(items) == 1:
-        return f"Let me tell you about your schedule {date_str}. " + format_item_for_speech(items[0])
+        return f"Your schedule {date_str}: " + format_item_for_speech(items[0])
     
     formatted_items = [format_item_for_speech(item) for item in items]
     items_text = ". Then, ".join(formatted_items)
     
-    return f"Let me walk you through your schedule {date_str}. {items_text}"
+    return f"Your schedule {date_str}: {items_text}"
