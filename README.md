@@ -40,7 +40,7 @@ You can check your schedule using various commands:
 #### Managing Events
 You can create and manage different types of calendar events:
 
-1. Creating Regular Meetings:
+1. Creating Normal Meetings:
    - "Schedule a meeting with the team tomorrow at 2pm"
    - "Add a client meeting next Monday at 10am for 2 hours"
    - "Create a meeting with vendors on Friday at 3pm"
