@@ -75,9 +75,24 @@ Events are automatically color-coded in your calendar based on keywords:
 - Tomato (Red): Urgent meetings
 - Banana (Yellow): Reminders and tasks
 
-The system provides clear confirmations for all actions:
+The system provides clear confirmations and reminders:
 - Creating: "I've scheduled 'Meeting Title' for 3:00 PM!"
 - Canceling: "I've cancelled your last meeting: Meeting Title"
+
+#### WhatsApp Reminders
+The system automatically sends WhatsApp notifications for your meetings:
+
+1. Morning Reminder:
+   - Sent at 8:00 AM on the day of the meeting
+   - Example: "Good morning! You have a meeting 'Team Sync' scheduled for 3:00 PM today"
+
+2. Hour-Before Reminder:
+   - Sent one hour before the meeting starts
+   - Example: "Reminder: Your meeting 'Team Sync' starts in 1 hour at 3:00 PM"
+
+3. Start-Time Reminder:
+   - Sent when the meeting is about to begin
+   - Example: "Your meeting 'Team Sync' is starting now!"
 
 ### Home Assistant Integration
 
@@ -102,7 +117,7 @@ The system provides clear confirmations for all actions:
 
 - **WhatsApp**: Message handling and notifications
 - **Google Gemini**: AI processing and responses
-- **Redis**: Data and session management
+- **Redis**: Data, session, and reminder management. Stores meeting reminders and tracks notification states
 - **Notion**: Note-taking and data organization
 - **Google Calendar**: Event and reminder management
 - **Home Assistant**: Home automation control
