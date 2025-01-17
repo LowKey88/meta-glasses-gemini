@@ -1,10 +1,13 @@
 import os
+import logging
 from datetime import datetime, timedelta
 import json
 from typing import Dict, Optional
 
 from utils.redis_utils import r, try_catch_decorator
 from utils.whatsapp import send_whatsapp_message
+
+logger = logging.getLogger("uvicorn")
 
 REMINDER_KEY_PREFIX = "josancamon:rayban-meta-glasses-api:reminder:"
 MORNING_REMINDER_HOUR = 8  # Send morning reminders at 8 AM
@@ -28,7 +31,8 @@ class ReminderManager:
             "title": title,
             "start_time": start_time.isoformat(),
             "morning_reminder_sent": False,
-            "hour_before_reminder_sent": False
+            "hour_before_reminder_sent": False,
+            "start_reminder_sent": False
         }
         
         # Store reminder data in Redis
@@ -39,6 +43,7 @@ class ReminderManager:
         expiration = start_time + timedelta(days=1)
         r.expireat(key, expiration)
         
+        logger.info(f"Scheduled reminders for meeting '{title}' at {start_time.strftime('%I:%M %p')}.")
         return True
 
     @staticmethod
@@ -63,6 +68,8 @@ class ReminderManager:
             reminder_data["morning_reminder_sent"] = True
         elif reminder_type == "hour_before":
             reminder_data["hour_before_reminder_sent"] = True
+        elif reminder_type == "start":
+            reminder_data["start_reminder_sent"] = True
             
         r.set(key, json.dumps(reminder_data))
         return True
@@ -112,6 +119,14 @@ class ReminderManager:
                     )
                     send_whatsapp_message(message)
                     ReminderManager.mark_reminder_sent(event_id, "hour_before")
+            
+            # Check meeting start reminder
+            if not reminder_data["start_reminder_sent"]:
+                time_until_start = start_time - now
+                if timedelta(minutes=-1) <= time_until_start <= timedelta(minutes=1):
+                    message = f"Your meeting '{reminder_data['title']}' is starting now!"
+                    send_whatsapp_message(message)
+                    ReminderManager.mark_reminder_sent(event_id, "start")
 
 # Function to be called by scheduler/cron job
 def check_reminders():
