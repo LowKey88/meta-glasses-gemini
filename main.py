@@ -3,9 +3,11 @@ import logging
 import os
 import threading
 import time
+import asyncio
 from typing import Optional
+from datetime import datetime
 
-from fastapi import FastAPI, Request, HTTPException, Header
+from fastapi import FastAPI, Request, HTTPException, Header, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import PlainTextResponse
 
@@ -216,6 +218,23 @@ def logic(message: dict):
        logger.error(f"Error processing message after {processing_time:.2f} seconds: {str(e)}")
        raise
 
+async def check_reminders_task():
+    """Background task to check and send meeting reminders."""
+    from utils.reminder import ReminderManager
+    
+    while True:
+        try:
+            ReminderManager.check_and_send_pending_reminders()
+        except Exception as e:
+            logger.error(f"Error checking reminders: {str(e)}")
+        await asyncio.sleep(60)  # Check every minute
+
+@app.on_event("startup")
+async def startup_event():
+    """Start background tasks when the application starts."""
+    asyncio.create_task(check_reminders_task())
+    logger.info("Started reminder checker background task")
+
 if __name__ == "__main__":
-   import uvicorn
-   uvicorn.run(app, host="0.0.0.0", port=8000)
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

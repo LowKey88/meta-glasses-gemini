@@ -1,5 +1,6 @@
 .idea/misc.xml
 media/
+cline_docs/
 credentials.json
 google-credentials.json
 token.json

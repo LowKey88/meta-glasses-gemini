@@ -49,5 +49,17 @@ def delete_generic_cache(path: str):
     key = key.decode('utf-8')
     r.delete(f'josancamon:rayban-meta-glasses-api{key}')
 
+# ------------ Reminder Management ------------
+@try_catch_decorator
+def get_reminder_keys():
+    """Get all reminder keys."""
+    return r.keys('josancamon:rayban-meta-glasses-api:reminder:*')
+
+@try_catch_decorator
+def delete_reminder(event_id: str):
+    """Delete a reminder by event ID."""
+    key = f'josancamon:rayban-meta-glasses-api:reminder:{event_id}'
+    r.delete(key)
+
 # Code to connect to Redis from local machine from GCP
 # gcloud compute ssh redis-proxy --project=$project-id --zone us-central1-a -- -N -L 6379:$redis-private-ip:6379
