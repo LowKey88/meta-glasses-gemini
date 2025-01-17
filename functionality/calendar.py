@@ -109,6 +109,19 @@ def create_google_calendar_event(title: str, description: str, date: str, time: 
         'colorId': color_id,  # Google Calendar API expects colorId as an integer
     }
     result = service.events().insert(calendarId='primary', body=event).execute()
+    
+    # Schedule WhatsApp reminders for the event
+    try:
+        from utils.reminder import ReminderManager
+        ReminderManager.schedule_meeting_reminders(
+            event_id=result['id'],
+            title=title,
+            start_time=start_datetime
+        )
+    except Exception as e:
+        print(f"Failed to schedule reminders: {str(e)}")
+        # Don't raise the exception as we still want to return the calendar link
+        
     return result.get("htmlLink")
 
 def get_schedule_for_date_range(start_date: datetime, end_date: datetime) -> List[Dict]:
