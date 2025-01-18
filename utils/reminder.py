@@ -6,27 +6,13 @@ from typing import Dict, Optional
 
 from utils.redis_utils import r, try_catch_decorator, delete_reminder
 from utils.whatsapp import send_whatsapp_message
-from google.oauth2.credentials import Credentials
-from google.auth.transport.requests import Request
-from googleapiclient.discovery import build
+from utils.google_api import get_calendar_service
 
 logger = logging.getLogger("uvicorn")
 
 REMINDER_KEY_PREFIX = "josancamon:rayban-meta-glasses-api:reminder:"
 MORNING_REMINDER_HOUR = 8  # Send morning reminders at 8 AM
 TIME_ZONE = 'Asia/Kuala_Lumpur'
-
-def get_calendar_service():
-    """Get authenticated Google Calendar service."""
-    if not os.path.exists('creds/token.json'):
-        return None
-    creds = Credentials.from_authorized_user_file('creds/token.json', ['https://www.googleapis.com/auth/calendar'])
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            return None
-    return build('calendar', 'v3', credentials=creds)
 
 def verify_event_exists(event_id: str) -> bool:
     """
