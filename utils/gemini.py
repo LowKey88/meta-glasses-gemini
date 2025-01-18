@@ -1,4 +1,5 @@
 import os
+import re
 import logging
 import google.ai.generativelanguage as glm
 import google.generativeai as genai
@@ -471,16 +472,28 @@ def determine_calendar_event_inputs(message: str) -> dict:
         logger.debug(f"Detected calendar intent: {intent}")
         
         if intent == 'cancel_event':
-            from functionality.calendar import cancel_last_meeting
-            cancelled_event = cancel_last_meeting()
-            if cancelled_event:
+            from functionality.calendar import get_upcoming_events, format_events_for_cancellation, cancel_event_by_index
+            
+            # Check if message contains a number (user selecting an event to cancel)
+            number_match = re.search(r'\b(\d+)\b', message)
+            if number_match:
+                index = int(number_match.group(1))
+                cancelled_event = cancel_event_by_index(index)
+                if cancelled_event:
+                    return {
+                        'intent': 'cancel_event',
+                        'response': f"I've cancelled '{cancelled_event}'"
+                    }
                 return {
                     'intent': 'cancel_event',
-                    'response': f"I've cancelled your last meeting: {cancelled_event}"
+                    'response': "Sorry, I couldn't cancel that event. Please try again."
                 }
+            
+            # If no number in message, show list of events to cancel
+            events = get_upcoming_events()
             return {
                 'intent': 'cancel_event',
-                'response': "I couldn't find any upcoming meetings to cancel."
+                'response': format_events_for_cancellation(events)
             }
             
         elif intent == 'check_schedule':
