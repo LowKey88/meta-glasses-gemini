@@ -248,7 +248,7 @@ def get_upcoming_events() -> List[Dict]:
         timeMin=now.isoformat(),
         orderBy='startTime',
         singleEvents=True,
-        maxResults=10  # Limit to 10 upcoming events
+        maxResults=5  # Limit to 5 upcoming events
     ).execute()
     
     return events_result.get('items', [])
@@ -260,7 +260,7 @@ def format_events_for_cancellation(events: List[Dict]) -> str:
     if not events:
         return "You have no upcoming events to cancel."
     
-    formatted_events = ["Here are your upcoming events:"]
+    formatted_events = ["Select event to cancel:"]
     for i, event in enumerate(events, 1):
         start = event['start'].get('dateTime', event['start'].get('date'))
         end = event['end'].get('dateTime', event['end'].get('date'))
@@ -278,7 +278,7 @@ def format_events_for_cancellation(events: List[Dict]) -> str:
         event_str = f"{i}. {event.get('summary', 'Untitled event')} ({date_str} {start_dt.strftime('%I:%M %p')} - {end_dt.strftime('%I:%M %p')})"
         formatted_events.append(event_str)
     
-    formatted_events.append("\nWhich event would you like to cancel? (Reply with the number)")
+    formatted_events.append("\nWhich event would you like to cancel?")
     return "\n".join(formatted_events)
 
 def cancel_event_by_index(index: int) -> Optional[str]:
