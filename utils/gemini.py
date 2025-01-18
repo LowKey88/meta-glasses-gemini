@@ -11,16 +11,17 @@ from datetime import datetime, timedelta
 # Configure logging
 logger = logging.getLogger("uvicorn")
 
-# Configure Gemini API
-try:
-    api_key = os.getenv('GEMINI_API_KEY')
-    if not api_key:
-        raise ValueError("GEMINI_API_KEY environment variable not set")
-    genai.configure(api_key=api_key)
-    logger.info("Gemini API configured successfully")
-except Exception as e:
-    logger.error(f"Failed to configure Gemini API: {e}")
-    raise
+def initialize_gemini_api():
+    """Initialize the Gemini API configuration."""
+    try:
+        api_key = os.getenv('GEMINI_API_KEY')
+        if not api_key:
+            raise ValueError("GEMINI_API_KEY environment variable not set")
+        genai.configure(api_key=api_key)
+        logger.info("Gemini API configured successfully")
+    except Exception as e:
+        logger.error(f"Failed to configure Gemini API: {e}")
+        raise
 
 # Model constants
 GEMINI_VISION_MODEL = 'gemini-2.0-flash-exp'

@@ -253,6 +253,8 @@ async def check_reminders_task():
 @app.on_event("startup")
 async def startup_event():
     """Start background tasks when the application starts."""
+    from utils.gemini import initialize_gemini_api
+    initialize_gemini_api()
     asyncio.create_task(check_reminders_task())
     logger.info("Started reminder checker background task.")
 
