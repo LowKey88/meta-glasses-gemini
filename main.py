@@ -98,131 +98,131 @@ async def send_notification(request: Request):
        logger.error(f"Error: {e}")
        raise HTTPException(status_code=500)
 
-def process_text_message(text: str):
-   text_lower = text.lower().strip()
-   
-   if text_lower in COMMON_RESPONSES:
-       send_whatsapp_threaded(COMMON_RESPONSES[text_lower])
-       return ok
+def process_text_message(text: str, message_data: dict):
+    text_lower = text.lower().strip()
+    
+    if text_lower in COMMON_RESPONSES:
+        send_whatsapp_threaded(COMMON_RESPONSES[text_lower])
+        return ok
 
-   if text_lower == 'cals':
-       return retrieve_calories_from_image()
+    if text_lower == 'cals':
+        return retrieve_calories_from_image()
 
-   isfoodlog = ' '.join(text_lower.split()[-2:])
-   if isfoodlog in ['food log', 'foodlog', 'food log.', 'my diet', 'my diet.']:
-       return get_cals_from_image()
+    isfoodlog = ' '.join(text_lower.split()[-2:])
+    if isfoodlog in ['food log', 'foodlog', 'food log.', 'my diet', 'my diet.']:
+        return get_cals_from_image()
 
-   try:
-       operation_type = retrieve_message_type_from_message(text)
-       logger.info(f"Detected operation type: {operation_type}")
+    try:
+        operation_type = retrieve_message_type_from_message(text)
+        logger.info(f"Detected operation type: {operation_type}")
 
-       if operation_type == 'image' and ImageContext.last_image_path:
-           analysis = analyze_image(ImageContext.last_image_path, text)
-           send_whatsapp_threaded(analysis)
-           return ok
-       elif operation_type == 'calendar':
-           # Get user's phone number from the message
-           phone_number = message.get('from', 'default')
-           calendar_input = determine_calendar_event_inputs(text, phone_number)
-           
-           if calendar_input is None:
-               # If calendar processing returns None, fall through to default processing
-               response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.')
-               send_whatsapp_threaded(response)
-           elif calendar_input['intent'] in ['check_schedule', 'cancel_event']:
-               send_whatsapp_threaded(calendar_input['response'])
-           else:  # intent == 'create_event'
-               # Use title as both title and description to ensure keywords are checked in both
-               title = calendar_input['title']
-               create_args = {
-                   'title': title,
-                   'description': title,  # Use title as description to ensure color keywords are checked
-                   'date': calendar_input['date'],
-                   'time': calendar_input['time'],
-                   'duration': calendar_input['duration']
-               }
-               event_link = create_google_calendar_event(**create_args)
-               meeting_time = datetime.strptime(f"{create_args['date']} {create_args['time']}", '%Y-%m-%d %H:%M').strftime('%I:%M %p')
-               send_whatsapp_threaded(f"I've scheduled \"{create_args['title']}\" for {meeting_time}!")
-           return ok
-       elif operation_type == 'notion':
-           arguments = determine_notion_page_inputs(text)
-           add_new_page(**arguments)
-           send_whatsapp_threaded('Notion page created successfully!')
-           return ok
-       elif operation_type == 'search':
-           response = google_search_pipeline(text)
-           send_whatsapp_threaded(response)
-           return ok
-       elif operation_type == 'automation':
-           response = automation_command(text)
-           send_whatsapp_threaded(response)
-           return ok
-       else:
-           response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.')
-           send_whatsapp_threaded(response)
-           return ok
+        if operation_type == 'image' and ImageContext.last_image_path:
+            analysis = analyze_image(ImageContext.last_image_path, text)
+            send_whatsapp_threaded(analysis)
+            return ok
+        elif operation_type == 'calendar':
+            # Get user's phone number from the message data
+            phone_number = message_data.get('from', 'default')
+            calendar_input = determine_calendar_event_inputs(text, phone_number)
+            
+            if calendar_input is None:
+                # If calendar processing returns None, fall through to default processing
+                response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.')
+                send_whatsapp_threaded(response)
+            elif calendar_input['intent'] in ['check_schedule', 'cancel_event']:
+                send_whatsapp_threaded(calendar_input['response'])
+            else:  # intent == 'create_event'
+                # Use title as both title and description to ensure keywords are checked in both
+                title = calendar_input['title']
+                create_args = {
+                    'title': title,
+                    'description': title,  # Use title as description to ensure color keywords are checked
+                    'date': calendar_input['date'],
+                    'time': calendar_input['time'],
+                    'duration': calendar_input['duration']
+                }
+                event_link = create_google_calendar_event(**create_args)
+                meeting_time = datetime.strptime(f"{create_args['date']} {create_args['time']}", '%Y-%m-%d %H:%M').strftime('%I:%M %p')
+                send_whatsapp_threaded(f"I've scheduled \"{create_args['title']}\" for {meeting_time}!")
+            return ok
+        elif operation_type == 'notion':
+            arguments = determine_notion_page_inputs(text)
+            add_new_page(**arguments)
+            send_whatsapp_threaded('Notion page created successfully!')
+            return ok
+        elif operation_type == 'search':
+            response = google_search_pipeline(text)
+            send_whatsapp_threaded(response)
+            return ok
+        elif operation_type == 'automation':
+            response = automation_command(text)
+            send_whatsapp_threaded(response)
+            return ok
+        else:
+            response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.')
+            send_whatsapp_threaded(response)
+            return ok
 
-   except AssertionError:
-       try:
-           response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.')
-           send_whatsapp_threaded(response)
-           return ok
-       except:
-           error_messages = {
-               'image': ["image", "picture", "photo", "see"],
-               'calendar': ["schedule", "event", "remind", "calendar"],
-               'notion': ["note", "save", "store", "write"],
-               'search': ["find", "search", "look up", "what is"],
-               'automation': ["turn", "check", "status", "device"]
-           }
-           
-           for type_, keywords in error_messages.items():
-               if any(word in text_lower for word in keywords):
-                   send_whatsapp_threaded(f"For {type_} requests, try including words like: {', '.join(keywords)}")
-                   return ok
-           
-           send_whatsapp_threaded("I'm not sure what you want. Could you rephrase your question?")
-           return ok
+    except AssertionError:
+        try:
+            response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.')
+            send_whatsapp_threaded(response)
+            return ok
+        except:
+            error_messages = {
+                'image': ["image", "picture", "photo", "see"],
+                'calendar': ["schedule", "event", "remind", "calendar"],
+                'notion': ["note", "save", "store", "write"],
+                'search': ["find", "search", "look up", "what is"],
+                'automation': ["turn", "check", "status", "device"]
+            }
+            
+            for type_, keywords in error_messages.items():
+                if any(word in text_lower for word in keywords):
+                    send_whatsapp_threaded(f"For {type_} requests, try including words like: {', '.join(keywords)}")
+                    return ok
+            
+            send_whatsapp_threaded("I'm not sure what you want. Could you rephrase your question?")
+            return ok
 
 def logic(message: dict):
-   start_time = time.time()
-   logger.info(f"Starting message processing at {start_time}")
+    start_time = time.time()
+    logger.info(f"Starting message processing at {start_time}")
 
-   try:
-       if not message:
-           logger.info("Empty message received")
-           return ok
+    try:
+        if not message:
+            logger.info("Empty message received")
+            return ok
 
-       if message['type'] == 'image':
-           logger.info("Processing image message")
-           logic_for_prompt_before_image(message)
-           image_path = download_file(message['image'])
-           if image_path:
-               try:
-                   ImageContext.last_image_path = image_path
-                   analysis = analyze_image(image_path)
-                   send_whatsapp_threaded(analysis)
-               except Exception as e:
-                   logger.error(f"Image analysis error: {e}")
-                   send_whatsapp_threaded("Sorry, I couldn't analyze that image.")
-           return ok
-       elif message['type'] == 'audio':
-           logger.info("Processing audio message")
-           result = retrieve_transcript_from_audio(message)
-       else:
-           text = message['text']['body']
-           logger.info(f"Processing text message: {text}")
-           result = process_text_message(text)
+        if message['type'] == 'image':
+            logger.info("Processing image message")
+            logic_for_prompt_before_image(message)
+            image_path = download_file(message['image'])
+            if image_path:
+                try:
+                    ImageContext.last_image_path = image_path
+                    analysis = analyze_image(image_path)
+                    send_whatsapp_threaded(analysis)
+                except Exception as e:
+                    logger.error(f"Image analysis error: {e}")
+                    send_whatsapp_threaded("Sorry, I couldn't analyze that image.")
+            return ok
+        elif message['type'] == 'audio':
+            logger.info("Processing audio message")
+            result = retrieve_transcript_from_audio(message)
+        else:
+            text = message['text']['body']
+            logger.info(f"Processing text message: {text}")
+            result = process_text_message(text, message)
 
-       processing_time = time.time() - start_time
-       logger.info(f"Message processing completed in {processing_time:.2f} seconds")
-       return result
+        processing_time = time.time() - start_time
+        logger.info(f"Message processing completed in {processing_time:.2f} seconds")
+        return result
 
-   except Exception as e:
-       processing_time = time.time() - start_time
-       logger.error(f"Error processing message after {processing_time:.2f} seconds: {str(e)}")
-       raise
+    except Exception as e:
+        processing_time = time.time() - start_time
+        logger.error(f"Error processing message after {processing_time:.2f} seconds: {str(e)}")
+        raise
 
 async def check_reminders_task():
     """Background task to check and send meeting reminders."""
