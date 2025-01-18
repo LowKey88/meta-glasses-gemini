@@ -64,6 +64,11 @@ class ReminderManager:
             return False
             
         reminder_data = json.loads(data)
+        # Ensure all fields exist with default False
+        reminder_data.setdefault("morning_reminder_sent", False)
+        reminder_data.setdefault("hour_before_reminder_sent", False)
+        reminder_data.setdefault("start_reminder_sent", False)
+
         if reminder_type == "morning":
             reminder_data["morning_reminder_sent"] = True
         elif reminder_type == "hour_before":
@@ -121,7 +126,7 @@ class ReminderManager:
                     ReminderManager.mark_reminder_sent(event_id, "hour_before")
             
             # Check meeting start reminder
-            if not reminder_data["start_reminder_sent"]:
+            if not reminder_data.get("start_reminder_sent", False):  # Use .get() with default False for backward compatibility
                 time_until_start = start_time - now
                 if timedelta(minutes=-1) <= time_until_start <= timedelta(minutes=1):
                     message = f"Your meeting '{reminder_data['title']}' is starting now!"
