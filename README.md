@@ -95,18 +95,22 @@ You can create and manage different types of calendar events:
    2. Wait for your numeric selection
    3. Process the cancellation and confirm
    
-   Example Interaction:
-   You: "Cancel my meeting"
-   Bot: "Here are your upcoming events:
-        1. Team Standup (Today 09:00 AM - 10:00 AM)
-        2. Project Planning (Today 02:00 PM - 03:00 PM)
-        3. Client Demo (Tomorrow 11:00 AM - 12:00 PM)
-        4. Sprint Review (Tuesday, January 21 02:00 PM - 03:00 PM)
-        5. Quarterly Planning (Thursday, January 23 10:00 AM - 12:00 PM)
+   Example:
 
-        Which event would you like to cancel? (Reply with the number)"
-   You: "1"
-   Bot: "I've cancelled 'Team Standup'"
+   > User: Cancel my meeting
+
+   > System: Here are your upcoming events:
+   > 1. Daily Standup (Today 10:00 AM - 11:00 AM)
+   > 2. Project Review (Today 02:00 PM - 03:00 PM)
+   > 3. Team Training (Tomorrow 11:00 AM - 12:00 PM)
+   > 4. Client Meeting (Tuesday 02:00 PM - 03:00 PM)
+   > 5. Strategy Session (Thursday 10:00 AM - 11:00 AM)
+   >
+   > Which event would you like to cancel? (Reply with the number)
+
+   > User: 1
+
+   > System: I've cancelled 'Daily Standup'
 
 You can include additional details in your commands:
 - Location:
