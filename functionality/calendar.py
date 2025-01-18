@@ -216,11 +216,15 @@ def cancel_specific_meeting(event_id: str) -> bool:
 
         service = build('calendar', 'v3', credentials=creds)
         
-        # Delete the event
+        # Delete the event from Google Calendar
         service.events().delete(
             calendarId='primary',
             eventId=event_id
         ).execute()
+        
+        # Delete the associated reminder from Redis
+        from utils.redis_utils import delete_reminder
+        delete_reminder(event_id)
         
         return True
         
