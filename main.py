@@ -23,7 +23,7 @@ from utils.google_auth import GoogleAuth
 from utils.whatsapp import send_whatsapp_threaded, send_whatsapp_image, download_file
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("uvicorn")
 
 app = FastAPI()
 ok = {'status': 'Ok'}
@@ -233,7 +233,7 @@ async def check_reminders_task():
 async def startup_event():
     """Start background tasks when the application starts."""
     asyncio.create_task(check_reminders_task())
-    logger.info("Started reminder checker background task")
+    logger.info("Started reminder checker background task.")
 
 if __name__ == "__main__":
     import uvicorn
