@@ -473,12 +473,19 @@ def determine_calendar_event_inputs(message: str) -> dict:
         
         if intent == 'cancel_event':
             from functionality.calendar import get_upcoming_events, format_events_for_cancellation, cancel_event_by_index
+            from utils.redis_utils import get_cancellation_state, set_cancellation_state, clear_cancellation_state
             
-            # Check if message contains a number (user selecting an event to cancel)
+            # Get user ID from message context (assuming it's in the phone number)
+            user_id = message.split()[-1] if message else "default"
+            
+            # Check if message contains a number and user is in cancellation state
             number_match = re.search(r'\b(\d+)\b', message)
-            if number_match:
+            if number_match and get_cancellation_state(user_id):
                 index = int(number_match.group(1))
                 cancelled_event = cancel_event_by_index(index)
+                # Clear cancellation state regardless of outcome
+                clear_cancellation_state(user_id)
+                
                 if cancelled_event:
                     return {
                         'intent': 'cancel_event',
@@ -489,8 +496,14 @@ def determine_calendar_event_inputs(message: str) -> dict:
                     'response': "Sorry, I couldn't cancel that event. Please try again."
                 }
             
-            # If no number in message, show list of events to cancel
+            # If it's a number but not in cancellation state, treat as normal message
+            if number_match and not get_cancellation_state(user_id):
+                return None  # Let it fall through to normal message processing
+            
+            # If no number in message or not in cancellation state, show list of events to cancel
             events = get_upcoming_events()
+            # Set cancellation state with 30-second timeout
+            set_cancellation_state(user_id)
             return {
                 'intent': 'cancel_event',
                 'response': format_events_for_cancellation(events)
