@@ -338,7 +338,21 @@ def retrieve_message_type_from_message(message: str, user_id: str = None) -> str
     if user_id and re.match(r'^\s*\d+\s*$', message):
         from utils.redis_utils import get_cancellation_state
         if get_cancellation_state(user_id):
-            return 'calendar'
+            from functionality.calendar import cancel_event_by_index
+            # Handle cancellation number response
+            number_match = re.match(r'^\s*(\d+)\s*$', message)
+            if number_match:
+                index = int(number_match.group(1))
+                cancelled_event = cancel_event_by_index(index)
+                if cancelled_event:
+                    return {
+                        'intent': 'cancel_event',
+                        'response': f"I've cancelled '{cancelled_event}'"
+                    }
+                return {
+                    'intent': 'cancel_event',
+                    'response': "Sorry, I couldn't cancel that event. Please try again."
+                }
 
     # Enhanced calendar intent detection using AI
     calendar_intent_prompt = """
@@ -424,6 +438,7 @@ def determine_calendar_event_inputs(message: str, user_id: str = 'default') -> d
     
     Args:
         message (str): The user's message to analyze
+        user_id (str): The user's ID for state tracking
         
     Returns:
         dict: Calendar event details with the following structure:
@@ -479,32 +494,10 @@ def determine_calendar_event_inputs(message: str, user_id: str = 'default') -> d
         logger.debug(f"Detected calendar intent: {intent}")
         
         if intent == 'cancel_event':
-            from functionality.calendar import get_upcoming_events, format_events_for_cancellation, cancel_event_by_index
-            from utils.redis_utils import get_cancellation_state, set_cancellation_state, clear_cancellation_state
+            from functionality.calendar import get_upcoming_events, format_events_for_cancellation
+            from utils.redis_utils import set_cancellation_state
             
-            # Check if message is just a number (for cancellation selection)
-            number_match = re.search(r'^\s*(\d+)\s*$', message)
-            if number_match and get_cancellation_state(user_id):
-                index = int(number_match.group(1))
-                cancelled_event = cancel_event_by_index(index)
-                # Clear cancellation state regardless of outcome
-                clear_cancellation_state(user_id)
-                
-                if cancelled_event:
-                    return {
-                        'intent': 'cancel_event',
-                        'response': f"I've cancelled '{cancelled_event}'"
-                    }
-                return {
-                    'intent': 'cancel_event',
-                    'response': "Sorry, I couldn't cancel that event. Please try again."
-                }
-            
-            # If it's a number but not in cancellation state, treat as normal message
-            if number_match and not get_cancellation_state(user_id):
-                return None  # Let it fall through to normal message processing
-            
-            # If no number in message or not in cancellation state, show list of events to cancel
+            # Show list of events to cancel
             events = get_upcoming_events()
             # Set cancellation state with 30-second timeout
             set_cancellation_state(user_id)
