@@ -108,7 +108,7 @@ class ReminderManager:
             if not reminder_data["morning_reminder_sent"]:
                 if now.hour == MORNING_REMINDER_HOUR and start_time.date() == now.date():
                     message = (
-                        f"Good morning! You have a meeting '{reminder_data['title']}' "
+                        f"Good morning! '{reminder_data['title']}' is "
                         f"scheduled for {ReminderManager._format_time(start_time)} today"
                     )
                     send_whatsapp_message(message)
@@ -119,7 +119,7 @@ class ReminderManager:
                 time_until_start = start_time - now
                 if timedelta(minutes=55) <= time_until_start <= timedelta(minutes=65):
                     message = (
-                        f"Reminder: Your meeting '{reminder_data['title']}' starts in 1 hour "
+                        f"Reminder: '{reminder_data['title']}' starts in 1 hour "
                         f"at {ReminderManager._format_time(start_time)}"
                     )
                     send_whatsapp_message(message)
@@ -129,7 +129,7 @@ class ReminderManager:
             if not reminder_data.get("start_reminder_sent", False):  # Use .get() with default False for backward compatibility
                 time_until_start = start_time - now
                 if timedelta(minutes=-1) <= time_until_start <= timedelta(minutes=1):
-                    message = f"Your meeting '{reminder_data['title']}' is starting now!"
+                    message = f"'{reminder_data['title']}' is starting now!"
                     send_whatsapp_message(message)
                     ReminderManager.mark_reminder_sent(event_id, "start")
 
