@@ -144,15 +144,26 @@ def get_schedule_for_date_range(start_date: datetime, end_date: datetime) -> Lis
         orderBy='startTime'
     ).execute()
     
-    # Filter events to ensure they fall within the specified date range
+    # Filter events to ensure they fall within the specified date range and haven't ended
     filtered_items = []
+    current_time = datetime.now().astimezone()  # Get current time in local timezone
+    
     for item in result.get('items', []):
         event_start = item['start'].get('dateTime', item['start'].get('date'))
-        event_start_dt = datetime.fromisoformat(event_start.replace('Z', '+00:00'))
-        event_start_dt = event_start_dt.astimezone()  # Convert to local timezone
+        event_end = item['end'].get('dateTime', item['end'].get('date'))
         
-        # Only include events that start on the specified date(s)
-        if start_date.date() <= event_start_dt.date() <= end_date.date():
+        event_start_dt = datetime.fromisoformat(event_start.replace('Z', '+00:00'))
+        event_end_dt = datetime.fromisoformat(event_end.replace('Z', '+00:00'))
+        
+        # Convert to local timezone
+        event_start_dt = event_start_dt.astimezone()
+        event_end_dt = event_end_dt.astimezone()
+        
+        # Only include events that:
+        # 1. Start on the specified date(s)
+        # 2. Haven't ended yet (end time is in the future)
+        if (start_date.date() <= event_start_dt.date() <= end_date.date() and
+            event_end_dt > current_time):
             filtered_items.append(item)
     
     return filtered_items
@@ -298,10 +309,19 @@ def format_item_for_speech(item: Dict) -> str:
 
 def format_schedule_response(items: List[Dict], target_date: Optional[datetime] = None, show_both_days: bool = False, show_weekly: bool = False) -> str:
     """Format schedule items into a friendly, conversational message."""
+    # Filter out past events
+    current_time = datetime.now().astimezone()
+    active_items = []
+    for item in items:
+        end = item['end'].get('dateTime', item['end'].get('date'))
+        end_dt = datetime.fromisoformat(end.replace('Z', '+00:00')).astimezone()
+        if end_dt > current_time:
+            active_items.append(item)
+    
     if show_weekly:
         # Group items by date
         schedule_by_date = {}
-        for item in items:
+        for item in active_items:
             start = item['start'].get('dateTime', item['start'].get('date'))
             start_dt = datetime.fromisoformat(start.replace('Z', '+00:00'))
             date_key = start_dt.date()
@@ -329,16 +349,25 @@ def format_schedule_response(items: List[Dict], target_date: Optional[datetime] 
         today_items = get_todays_schedule()
         tomorrow_items = get_tomorrows_schedule()
         
+        # Filter today's items
+        current_time = datetime.now().astimezone()
+        active_today_items = []
+        for item in today_items:
+            end = item['end'].get('dateTime', item['end'].get('date'))
+            end_dt = datetime.fromisoformat(end.replace('Z', '+00:00')).astimezone()
+            if end_dt > current_time:
+                active_today_items.append(item)
+        
         today_msg = ""
-        if not today_items:
-            today_msg = "You've no meeting for today"
+        if not active_today_items:
+            today_msg = "You've no active meetings for today"
         else:
-            formatted_items = [format_item_for_speech(item) for item in today_items]
+            formatted_items = [format_item_for_speech(item) for item in active_today_items]
             today_msg = "Today: " + ". Then, ".join(formatted_items)
         
         tomorrow_msg = ""
         if not tomorrow_items:
-            tomorrow_msg = "You've no meeting for tomorrow"
+            tomorrow_msg = "You've no meetings for tomorrow"
         else:
             formatted_items = [format_item_for_speech(item) for item in tomorrow_items]
             tomorrow_msg = "Tomorrow: " + ". Then, ".join(formatted_items)
@@ -355,13 +384,13 @@ def format_schedule_response(items: List[Dict], target_date: Optional[datetime] 
         else:
             date_str = target_date.strftime("on %A, %B %d")
     
-    if not items:
-        return f"You've no meeting for {date_str}."
+    if not active_items:
+        return f"You've no active meetings for {date_str}."
     
-    if len(items) == 1:
-        return f"Your schedule {date_str}: " + format_item_for_speech(items[0])
+    if len(active_items) == 1:
+        return f"Your schedule {date_str}: " + format_item_for_speech(active_items[0])
     
-    formatted_items = [format_item_for_speech(item) for item in items]
+    formatted_items = [format_item_for_speech(item) for item in active_items]
     items_text = ". Then, ".join(formatted_items)
     
     return f"Your schedule {date_str}: {items_text}"
