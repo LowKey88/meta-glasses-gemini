@@ -52,7 +52,6 @@ class ReminderManager:
         Sync Redis reminders with Google Calendar events.
         Removes reminders for deleted events and adds reminders for new events.
         """
-        logger.info("Starting calendar sync...")
         service = get_calendar_service()
         if not service:
             logger.error("Failed to get calendar service during sync")
@@ -100,8 +99,6 @@ class ReminderManager:
                         title=event.get('summary', 'Untitled'),
                         start_time=start_time
                     )
-
-        logger.info("Calendar sync completed")
 
     @staticmethod
     @try_catch_decorator
