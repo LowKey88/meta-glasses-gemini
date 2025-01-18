@@ -28,13 +28,20 @@ GEMINI_VISION_MODEL = 'gemini-2.0-flash-exp'
 GEMINI_CHAT_MODEL = 'gemini-1.5-flash'
 
 retrieve_message_type_from_message_description = '''
-Based on the message type, execute some different requests to APIs or other tools. 
+Based on the message type, execute some different requests to APIs or other tools.
 
 - calendar: types are related to:
   * Checking schedule/meetings/appointments (e.g. "check my meeting", "check my meetings", "what's my schedule", "do I have any meetings")
   * Creating events/meetings/reminders
-  * Anything with scheduling, calendar, or time management
-  
+  * Anything with scheduling, calendar events, or time management
+
+- task: types are related to:
+  * Creating, checking, or managing tasks/to-dos
+  * Task lists and task completion
+  * Due dates and deadlines
+  * Task priorities and status
+  * Examples: "add task", "create todo", "check my tasks", "mark task complete"
+
 - image: types are related to:
   * Images, pictures, what's the user looking at
   * What's in front of the user
@@ -42,7 +49,7 @@ Based on the message type, execute some different requests to APIs or other tool
   * Questions about visual elements or quantities in images (how many, count, number of)
   * All follow-up questions about previously shown images
 
-- notion: anything related to storing a note, save an idea, notion, etc. 
+- notion: anything related to storing a note, save an idea, notion, etc.
 - search: types are related to anything with searching, finding, looking for, and it's about a recent event, or news etc.
 - automation: types are related to querying states, checking status, or sending commands to home automation devices like gates, lights, doors, alarm, etc.
 - other: types are related to anything else.
@@ -72,7 +79,37 @@ For creating events (examples: "add meeting", "schedule appointment", "create ev
 Make sure to return all required fields based on the intent.
 '''.replace('    ', '')
 
-determine_notion_page_inputs_description = f'''Based on the message, create a new page in your Notion database. 
+determine_task_inputs_description = f'''
+First determine if the user wants to:
+1. Check their tasks/to-dos
+2. Create a new task
+3. Update task status (complete/incomplete)
+4. Delete a task
+
+For checking tasks (examples: "show my tasks", "what tasks do I have", "list todos"):
+- intent: Must be "check_tasks"
+- include_completed: boolean, whether to include completed tasks
+- days_ahead: number of days to look ahead for upcoming tasks (default 7)
+
+For creating tasks (examples: "add task", "create todo", "new task"):
+- intent: Must be "create_task"
+- title: The title/description of the task
+- notes: Additional notes about the task, if any (optional)
+- due_date: The due date in YYYY-MM-DD format, if specified (optional)
+
+For updating task status (examples: "mark task complete", "finish task", "complete todo"):
+- intent: Must be "update_task"
+- task_id: The ID of the task to update (will be provided in task list)
+- completed: boolean, whether to mark as completed or not
+
+For deleting tasks (examples: "delete task", "remove todo"):
+- intent: Must be "delete_task"
+- task_id: The ID of the task to delete (will be provided in task list)
+
+Make sure to return all required fields based on the intent.
+'''.replace('    ', '')
+
+determine_notion_page_inputs_description = f'''Based on the message, create a new page in your Notion database.
 - title: The title of the page
 - category: The category of the page, default to `Note`
 - content: The content of the message in the user words (without more detail, just in user words)
@@ -621,6 +658,120 @@ def determine_calendar_event_inputs(message: str, user_id: str = 'default') -> d
         logger.error(f"Error in calendar event processing: {e}")
         return {'intent': 'error', 'response': f"Failed to process calendar request: {e}"}
     
+
+def determine_task_inputs(message: str) -> dict:
+    """
+    Determine task inputs from a message using AI-driven analysis.
+    
+    Args:
+        message (str): The user's message to analyze
+        
+    Returns:
+        dict: Task details with the following structure:
+            For check_tasks:
+                {
+                    'intent': 'check_tasks',
+                    'include_completed': bool,
+                    'days_ahead': int
+                }
+            For create_task:
+                {
+                    'intent': 'create_task',
+                    'title': str,
+                    'notes': str (optional),
+                    'due_date': str (optional, YYYY-MM-DD)
+                }
+            For update_task:
+                {
+                    'intent': 'update_task',
+                    'task_id': str,
+                    'completed': bool
+                }
+            For delete_task:
+                {
+                    'intent': 'delete_task',
+                    'task_id': str
+                }
+    """
+    try:
+        if not message:
+            raise ValueError("Message cannot be empty")
+
+        tool = _get_tool('determine_task_inputs', determine_task_inputs_description, {
+            "intent": _get_func_arg_parameter(
+                'The type of task operation',
+                'string',
+                ["check_tasks", "create_task", "update_task", "delete_task"]
+            ),
+            "title": _get_func_arg_parameter(
+                'For task creation, the title/description of the task'
+            ),
+            "notes": _get_func_arg_parameter(
+                'For task creation, additional notes about the task'
+            ),
+            "due_date": _get_func_arg_parameter(
+                'For task creation, the due date in YYYY-MM-DD format if specified'
+            ),
+            "task_id": _get_func_arg_parameter(
+                'For update/delete operations, the ID of the task'
+            ),
+            "completed": _get_func_arg_parameter(
+                'For update operations, whether to mark as completed',
+                'boolean'
+            ),
+            "include_completed": _get_func_arg_parameter(
+                'For check operations, whether to include completed tasks',
+                'boolean'
+            ),
+            "days_ahead": _get_func_arg_parameter(
+                'For check operations, number of days to look ahead',
+                'integer'
+            )
+        })
+
+        model = genai.GenerativeModel(model_name=GEMINI_CHAT_MODEL, tools=[tool])
+        chat = model.start_chat(enable_automatic_function_calling=True)
+        response = chat.send_message(message)
+        fc = response.candidates[0].content.parts[0].function_call
+        logger.debug(f"Function call response: {fc}")
+
+        assert fc.name == 'determine_task_inputs'
+
+        # Process based on intent
+        intent = fc.args.get('intent')
+        if intent == 'check_tasks':
+            return {
+                'intent': 'check_tasks',
+                'include_completed': fc.args.get('include_completed', False),
+                'days_ahead': fc.args.get('days_ahead', 7)
+            }
+        elif intent == 'create_task':
+            return {
+                'intent': 'create_task',
+                'title': fc.args['title'],
+                'notes': fc.args.get('notes', ''),
+                'due_date': fc.args.get('due_date')
+            }
+        elif intent == 'update_task':
+            return {
+                'intent': 'update_task',
+                'task_id': fc.args['task_id'],
+                'completed': fc.args['completed']
+            }
+        elif intent == 'delete_task':
+            return {
+                'intent': 'delete_task',
+                'task_id': fc.args['task_id']
+            }
+        else:
+            raise ValueError(f"Invalid intent: {intent}")
+
+    except ValueError as e:
+        logger.error(f"Invalid input error: {e}")
+        return {'intent': 'error', 'response': str(e)}
+    except Exception as e:
+        logger.error(f"Error in task input processing: {e}")
+        return {'intent': 'error', 'response': f"Failed to process task request: {e}"}
 
 def determine_notion_page_inputs(message: str) -> dict:
     """
