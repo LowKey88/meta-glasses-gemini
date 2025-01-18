@@ -14,6 +14,7 @@ logger = logging.getLogger("uvicorn")
 
 REMINDER_KEY_PREFIX = "josancamon:rayban-meta-glasses-api:reminder:"
 MORNING_REMINDER_HOUR = 8  # Send morning reminders at 8 AM
+TIME_ZONE = 'Asia/Kuala_Lumpur'
 
 def get_calendar_service():
     """Get authenticated Google Calendar service."""
@@ -80,10 +81,10 @@ class ReminderManager:
                 existing_reminders[event_id] = json.loads(data)
 
         # Get upcoming events from Google Calendar
-        now = datetime.now().isoformat() + 'Z'
+        now = datetime.now().astimezone()
         events_result = service.events().list(
             calendarId='primary',
-            timeMin=now,
+            timeMin=now.isoformat(),
             maxResults=100,
             singleEvents=True,
             orderBy='startTime'
@@ -100,10 +101,13 @@ class ReminderManager:
         for event_id, event in calendar_events.items():
             if event_id not in existing_reminders:
                 start = event['start'].get('dateTime', event['start'].get('date'))
-                start_time = datetime.fromisoformat(start.replace('Z', '+00:00'))
+                start_time = datetime.fromisoformat(start.replace('Z', '+00:00')).astimezone()
+                
+                # Convert to timezone-aware datetime for comparison
+                now = datetime.now().astimezone()
                 
                 # Only add reminder if event is in the future
-                if start_time > datetime.now():
+                if start_time > now:
                     logger.info(f"Adding reminder for new event: {event.get('summary', 'Untitled')}")
                     ReminderManager.schedule_meeting_reminders(
                         event_id=event_id,
@@ -195,7 +199,7 @@ class ReminderManager:
                 
             reminder_data = json.loads(data)
             event_id = key.decode().replace(REMINDER_KEY_PREFIX, "")
-            start_time = datetime.fromisoformat(reminder_data["start_time"])
+            start_time = datetime.fromisoformat(reminder_data["start_time"]).astimezone()
             
             # Skip if event is in the past
             if start_time < now:
@@ -217,7 +221,7 @@ class ReminderManager:
     @try_catch_decorator
     def check_and_send_pending_reminders():
         """Check for and send any pending reminders."""
-        now = datetime.now()
+        now = datetime.now().astimezone()
         
         # Handle morning reminders - collect all events for today
         if now.hour == MORNING_REMINDER_HOUR:
@@ -260,7 +264,7 @@ class ReminderManager:
             if not verify_event_exists(event_id):
                 continue
                 
-            start_time = datetime.fromisoformat(reminder_data["start_time"])
+            start_time = datetime.fromisoformat(reminder_data["start_time"]).astimezone()
             
             # Skip if event is in the past
             if start_time < now:
