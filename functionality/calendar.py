@@ -228,13 +228,10 @@ def cancel_specific_meeting(event_id: str) -> bool:
         print(f"Error cancelling meeting: {e}")
         return False
 
-def cancel_last_meeting() -> Optional[str]:
+def get_upcoming_events() -> List[Dict]:
     """
-    Cancel the last created meeting.
-    Returns the cancelled meeting title if successful, None if no meeting found.
-    
-    Note: This function is kept for backward compatibility.
-    For better control, use cancel_specific_meeting with a specific event ID.
+    Get all upcoming events sorted by start time.
+    Returns a list of event dictionaries.
     """
     creds = get_credentials()
     if not creds:
@@ -242,39 +239,89 @@ def cancel_last_meeting() -> Optional[str]:
 
     service = build('calendar', 'v3', credentials=creds)
     
-    # Get today's start and end time
-    today_start = datetime.combine(datetime.now().date(), datetime.min.time())
-    today_end = datetime.combine(datetime.now().date(), datetime.max.time())
-    tomorrow_end = today_end + timedelta(days=1)
+    # Get current time
+    now = datetime.now().astimezone()
     
-    # Get events for today and tomorrow
+    # Get events from now onwards
     events_result = service.events().list(
         calendarId='primary',
-        timeMin=today_start.isoformat() + 'Z',
-        timeMax=tomorrow_end.isoformat() + 'Z',
+        timeMin=now.isoformat(),
         orderBy='startTime',
-        singleEvents=True
+        singleEvents=True,
+        maxResults=10  # Limit to 10 upcoming events
     ).execute()
     
-    events = events_result.get('items', [])
+    return events_result.get('items', [])
+
+def format_events_for_cancellation(events: List[Dict]) -> str:
+    """
+    Format a list of events into a numbered list for cancellation selection.
+    """
     if not events:
-        # If no events today/tomorrow, get upcoming events
-        future_events = service.events().list(
-            calendarId='primary',
-            timeMin=tomorrow_end.isoformat() + 'Z',
-            maxResults=1,
-            orderBy='startTime',
-            singleEvents=True
-        ).execute()
-        events = future_events.get('items', [])
-        if not events:
-            return None
+        return "You have no upcoming events to cancel."
     
-    # Get the last event
-    last_event = events[-1]
+    formatted_events = ["Here are your upcoming events:"]
+    for i, event in enumerate(events, 1):
+        start = event['start'].get('dateTime', event['start'].get('date'))
+        end = event['end'].get('dateTime', event['end'].get('date'))
+        start_dt = datetime.fromisoformat(start.replace('Z', '+00:00')).astimezone()
+        end_dt = datetime.fromisoformat(end.replace('Z', '+00:00')).astimezone()
+        
+        # Format date differently if event is today
+        if start_dt.date() == datetime.now().date():
+            date_str = "Today"
+        elif start_dt.date() == (datetime.now().date() + timedelta(days=1)):
+            date_str = "Tomorrow"
+        else:
+            date_str = start_dt.strftime("%A, %B %d")
+        
+        event_str = f"{i}. {event.get('summary', 'Untitled event')} ({date_str} {start_dt.strftime('%I:%M %p')} - {end_dt.strftime('%I:%M %p')})"
+        formatted_events.append(event_str)
+    
+    formatted_events.append("\nWhich event would you like to cancel? (Reply with the number)")
+    return "\n".join(formatted_events)
+
+def cancel_event_by_index(index: int) -> Optional[str]:
+    """
+    Cancel an event by its index in the upcoming events list.
+    Returns the cancelled event title if successful, None if failed.
+    
+    Args:
+        index (int): The 1-based index of the event to cancel
+        
+    Returns:
+        Optional[str]: The title of the cancelled event, or None if cancellation failed
+    """
+    try:
+        events = get_upcoming_events()
+        if not events or index < 1 or index > len(events):
+            return None
+        
+        event = events[index - 1]  # Convert to 0-based index
+        event_title = event.get('summary', 'Untitled event')
+        
+        if cancel_specific_meeting(event['id']):
+            return event_title
+        return None
+    except Exception as e:
+        print(f"Error cancelling event by index: {e}")
+        return None
+
+def cancel_last_meeting() -> Optional[str]:
+    """
+    Cancel the last created meeting.
+    Returns the cancelled meeting title if successful, None if no meeting found.
+    
+    Note: This function is kept for backward compatibility.
+    For better control, use cancel_event_by_index with event selection.
+    """
+    events = get_upcoming_events()
+    if not events:
+        return None
+    
+    last_event = events[0]  # First event is the next upcoming one
     event_title = last_event.get('summary', 'Untitled event')
     
-    # Try to cancel the event
     if cancel_specific_meeting(last_event['id']):
         return event_title
     return None
