@@ -215,7 +215,13 @@ def logic(message: dict):
         else:
             text = message['text']['body']
             logger.info(f"Processing text message: {text}")
-            result = process_text_message(text, message)
+            # Pass the full message object for proper user identification
+            result = process_text_message(text, {
+                'from': message.get('from'),
+                'wa_id': message.get('from'),  # WhatsApp ID is the same as 'from' in this case
+                'type': message.get('type'),
+                'text': message.get('text')
+            })
 
         processing_time = time.time() - start_time
         logger.info(f"Message processing completed in {processing_time:.2f} seconds")

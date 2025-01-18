@@ -475,8 +475,8 @@ def determine_calendar_event_inputs(message: str, user_id: str = 'default') -> d
             from functionality.calendar import get_upcoming_events, format_events_for_cancellation, cancel_event_by_index
             from utils.redis_utils import get_cancellation_state, set_cancellation_state, clear_cancellation_state
             
-            # Check if message contains a number and user is in cancellation state
-            number_match = re.search(r'\b(\d+)\b', message)
+            # Check if message is just a number (for cancellation selection)
+            number_match = re.search(r'^\s*(\d+)\s*$', message)
             if number_match and get_cancellation_state(user_id):
                 index = int(number_match.group(1))
                 cancelled_event = cancel_event_by_index(index)
