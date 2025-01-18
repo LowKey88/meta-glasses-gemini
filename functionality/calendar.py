@@ -2,10 +2,8 @@ import base64
 import os
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
-from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
+from utils.google_api import get_calendar_service
 
 # Google Calendar colorId mapping:
 # 4 - Flamingo (Pink)
@@ -21,26 +19,15 @@ TIME_ZONE = 'Asia/Kuala_Lumpur'
 def verify_calendar_colors() -> bool:
     """Verify if calendar colors API is accessible and working."""
     try:
-        creds = get_credentials()
-        if not creds:
+        service = get_calendar_service()
+        if not service:
             return False
             
-        service = build('calendar', 'v3', credentials=creds)
         colors = service.colors().get().execute()
         return 'calendar' in colors and len(colors['calendar']) > 0
     except Exception as e:
         print(f"Error verifying calendar colors: {str(e)}")
         return False
-
-def get_credentials():
-    """Get and refresh Google Calendar credentials."""
-    creds = None
-    if os.path.exists('creds/token.json'):
-        creds = Credentials.from_authorized_user_file('creds/token.json', SCOPES)
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-    return creds
 
 def get_event_color(title: str, description: str) -> int:
     """Determine event color based on title and description."""
@@ -80,8 +67,8 @@ def get_event_color(title: str, description: str) -> int:
 
 def create_google_calendar_event(title: str, description: str, date: str, time: str, duration: int = 1, color_id: Optional[int] = None) -> str:
     """Create a new Google Calendar event."""
-    creds = get_credentials()
-    if not creds:
+    service = get_calendar_service()
+    if not service:
         raise Exception("No valid credentials")
 
     # If no description provided, use empty string to prevent None
@@ -91,7 +78,6 @@ def create_google_calendar_event(title: str, description: str, date: str, time: 
     if color_id is None:
         color_id = get_event_color(title, description)
 
-    service = build('calendar', 'v3', credentials=creds)
     start_datetime = datetime.strptime(f'{date} {time}', '%Y-%m-%d %H:%M')
     end_datetime = start_datetime + timedelta(hours=duration)
 
@@ -126,11 +112,9 @@ def create_google_calendar_event(title: str, description: str, date: str, time: 
 
 def get_schedule_for_date_range(start_date: datetime, end_date: datetime) -> List[Dict]:
     """Get schedule for a date range."""
-    creds = get_credentials()
-    if not creds:
+    service = get_calendar_service()
+    if not service:
         raise Exception("No valid credentials")
-
-    service = build('calendar', 'v3', credentials=creds)
     
     # Get the start and end of the date range
     start = datetime.combine(start_date.date(), datetime.min.time())
@@ -210,11 +194,9 @@ def cancel_specific_meeting(event_id: str) -> bool:
         bool: True if successfully cancelled, False otherwise
     """
     try:
-        creds = get_credentials()
-        if not creds:
+        service = get_calendar_service()
+        if not service:
             raise Exception("No valid credentials")
-
-        service = build('calendar', 'v3', credentials=creds)
         
         # Delete the event from Google Calendar
         service.events().delete(
@@ -237,11 +219,9 @@ def get_upcoming_events() -> List[Dict]:
     Get all upcoming events sorted by start time.
     Returns a list of event dictionaries.
     """
-    creds = get_credentials()
-    if not creds:
+    service = get_calendar_service()
+    if not service:
         raise Exception("No valid credentials")
-
-    service = build('calendar', 'v3', credentials=creds)
     
     # Get current time
     now = datetime.now().astimezone()
