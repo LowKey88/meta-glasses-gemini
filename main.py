@@ -113,9 +113,16 @@ def process_text_message(text: str, message_data: dict):
         return get_cals_from_image()
 
     try:
-        operation_type = retrieve_message_type_from_message(text, message_data.get('from'))
-        logger.info(f"Detected operation type: {operation_type}")
+        operation_result = retrieve_message_type_from_message(text, message_data.get('from'))
+        logger.info(f"Detected operation type: {operation_result}")
 
+        # Handle cancellation response
+        if isinstance(operation_result, dict) and operation_result.get('intent') == 'cancel_event':
+            send_whatsapp_threaded(operation_result['response'])
+            return ok
+
+        # Normal operation type handling
+        operation_type = operation_result if isinstance(operation_result, str) else 'other'
         if operation_type == 'image' and ImageContext.last_image_path:
             analysis = analyze_image(ImageContext.last_image_path, text)
             send_whatsapp_threaded(analysis)
