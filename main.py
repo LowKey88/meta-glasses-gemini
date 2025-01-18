@@ -259,7 +259,13 @@ async def startup_event():
     try:
         # Initialize APIs and services
         from utils.gemini import initialize_gemini_api
+        from utils.reminder import ReminderManager
         initialize_gemini_api()
+        
+        # Sync calendar events with Redis
+        logger.info("Starting calendar sync...")
+        ReminderManager.sync_with_calendar()
+        logger.info("Calendar sync completed")
         
         # Start background tasks
         asyncio.create_task(check_reminders_task())
