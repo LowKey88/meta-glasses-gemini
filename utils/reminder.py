@@ -43,7 +43,7 @@ class ReminderManager:
         expiration = start_time + timedelta(days=1)
         r.expireat(key, expiration)
         
-        logger.info(f"Scheduled reminders for meeting '{title}' at {start_time.strftime('%I:%M %p')}.")
+        logger.info(f"Scheduled reminders for '{title}' at {start_time.strftime('%I:%M %p')}.")
         return True
 
     @staticmethod
