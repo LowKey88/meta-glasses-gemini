@@ -243,6 +243,9 @@ async def check_reminders_task():
     """Background task to check and send meeting reminders."""
     from utils.reminder import ReminderManager
     
+    # Wait for initial startup to complete
+    await asyncio.sleep(2)
+    
     while True:
         try:
             ReminderManager.check_and_send_pending_reminders()
@@ -253,10 +256,20 @@ async def check_reminders_task():
 @app.on_event("startup")
 async def startup_event():
     """Start background tasks when the application starts."""
-    from utils.gemini import initialize_gemini_api
-    initialize_gemini_api()
-    asyncio.create_task(check_reminders_task())
-    logger.info("Started reminder checker background task.")
+    try:
+        # Initialize APIs and services
+        from utils.gemini import initialize_gemini_api
+        initialize_gemini_api()
+        
+        # Start background tasks
+        asyncio.create_task(check_reminders_task())
+        logger.info("Started reminder checker background task.")
+        
+        # Ensure all initializations are complete before marking startup as complete
+        await asyncio.sleep(0)  # Allow other async tasks to complete
+    except Exception as e:
+        logger.error(f"Error during startup: {e}")
+        raise
 
 if __name__ == "__main__":
     import uvicorn
