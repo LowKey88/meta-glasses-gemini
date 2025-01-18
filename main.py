@@ -123,7 +123,11 @@ def process_text_message(text: str):
        elif operation_type == 'calendar':
            calendar_input = determine_calendar_event_inputs(text)
            
-           if calendar_input['intent'] in ['check_schedule', 'cancel_event']:
+           if calendar_input is None:
+               # If calendar processing returns None, fall through to default processing
+               response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.')
+               send_whatsapp_threaded(response)
+           elif calendar_input['intent'] in ['check_schedule', 'cancel_event']:
                send_whatsapp_threaded(calendar_input['response'])
            else:  # intent == 'create_event'
                # Use title as both title and description to ensure keywords are checked in both
