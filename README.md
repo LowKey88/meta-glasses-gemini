@@ -1,6 +1,6 @@
 # Meta Rayban Glasses + Gemini Integration Project
 
-This project integrates the Meta Rayban Glasses with a WhatsApp bot, leveraging the power of Google Gemini, Redis for data management, Notion for note-taking, and Google Calendar for event and reminder management. This README guides you through setting up the project environment, including necessary configurations and API integrations.
+This project integrates the Meta Rayban Glasses with a WhatsApp bot, leveraging the power of Google Gemini, Redis for data management, Notion for note-taking, Google Calendar for event and reminder management, and Google Tasks for task management and to-do lists. This README guides you through setting up the project environment, including necessary configurations and API integrations.
 
 For optimal performance and scalability, consider hosting this project on GB Cloud. Visit [GB Cloud](https://www.gbcloud.net) for more information.
 
@@ -13,6 +13,62 @@ For the best web hosting and domain registration services, visit [GB Network Sol
 - Text messages
 - Image sharing
 - AI-powered responses
+
+### Calendar Management
+
+The system provides natural language commands for managing your calendar:
+
+### Task Management
+
+The system provides natural language commands for managing your Google Tasks:
+
+#### Checking Tasks
+You can check your tasks using various commands:
+
+1. View All Tasks:
+   - "Show my tasks"
+   - "List all tasks"
+   - "What tasks do I have"
+
+2. View Specific Tasks:
+   - "Show my completed tasks"
+   - "Show my upcoming tasks"
+   - "What tasks are due this week"
+
+#### Managing Tasks
+You can create and manage tasks with natural language:
+
+1. Creating Tasks:
+   - "Add a task to review documents"
+   - "Create a todo to call John"
+   - "Add task buy groceries due tomorrow"
+   - "Create new task finish report due next Friday"
+
+2. Updating Tasks:
+   - "Mark task complete"
+   - "Complete the task"
+   - "Mark task as done"
+   - "Set task as incomplete"
+
+3. Deleting Tasks:
+   - "Delete task"
+   - "Remove task"
+   - "Delete the completed tasks"
+
+Tasks can include:
+- Title: The main task description
+- Notes: Additional details about the task
+- Due Date: When the task needs to be completed
+- Status: Whether the task is completed or not
+
+The system provides clear confirmations:
+- Creating: "Created task: ☐ Review documents (Due: 2024-01-20)"
+- Updating: "Task marked as completed."
+- Deleting: "Task deleted successfully."
+
+Tasks are displayed with clear status indicators:
+- ☐ Incomplete tasks
+- ✓ Completed tasks
 
 ### Calendar Management
 
@@ -185,6 +241,7 @@ The system features a robust three-stage notification system with improved error
 - **Redis**: Enhanced data, session, and reminder management with improved error handling and default values
 - **Notion**: Note-taking and data organization
 - **Google Calendar**: Event and reminder management
+- **Google Tasks**: Task management and to-do list organization
 - **Home Assistant**: Home automation control
 
 ## Getting Started

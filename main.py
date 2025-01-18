@@ -16,6 +16,13 @@ from functionality.automation import automation_command
 from functionality.calendar import create_google_calendar_event
 from functionality.image import logic_for_prompt_before_image, retrieve_calories_from_image
 from functionality.notion_ import add_new_page
+from functionality.task import (
+    create_task,
+    get_tasks,
+    update_task_status,
+    delete_task,
+    format_task_for_display
+)
 from functionality.nutrition import get_cals_from_image
 from functionality.search import google_search_pipeline
 from utils.gemini import *
@@ -127,6 +134,46 @@ def process_text_message(text: str, message_data: dict):
             analysis = analyze_image(ImageContext.last_image_path, text)
             send_whatsapp_threaded(analysis)
             return ok
+        elif operation_type == 'task':
+            # Process task operations
+            task_input = determine_task_inputs(text)
+            
+            if task_input['intent'] == 'check_tasks':
+                tasks = get_tasks(include_completed=task_input['include_completed'])
+                if not tasks:
+                    send_whatsapp_threaded("You don't have any tasks.")
+                else:
+                    formatted_tasks = [format_task_for_display(task) for task in tasks]
+                    send_whatsapp_threaded("Here are your tasks:\n" + "\n".join(formatted_tasks))
+            
+            elif task_input['intent'] == 'create_task':
+                task = create_task(
+                    title=task_input['title'],
+                    notes=task_input['notes'],
+                    due_date=task_input['due_date']
+                )
+                if task:
+                    send_whatsapp_threaded(f"Created task: {format_task_for_display(task)}")
+                else:
+                    send_whatsapp_threaded("Sorry, I couldn't create the task. Please try again.")
+            
+            elif task_input['intent'] == 'update_task':
+                if update_task_status(task_input['task_id'], task_input['completed']):
+                    status = "completed" if task_input['completed'] else "incomplete"
+                    send_whatsapp_threaded(f"Task marked as {status}.")
+                else:
+                    send_whatsapp_threaded("Sorry, I couldn't update the task. Please try again.")
+            
+            elif task_input['intent'] == 'delete_task':
+                if delete_task(task_input['task_id']):
+                    send_whatsapp_threaded("Task deleted successfully.")
+                else:
+                    send_whatsapp_threaded("Sorry, I couldn't delete the task. Please try again.")
+            
+            else:
+                send_whatsapp_threaded("I couldn't understand what you want to do with the task. Please try again.")
+            return ok
+            
         elif operation_type == 'calendar':
             # Get user's WhatsApp ID from the message data
             logger.info(f"Message data for calendar operation: {message_data}")
@@ -272,6 +319,14 @@ async def startup_event():
         # Initialize APIs and services
         from utils.gemini import initialize_gemini_api
         initialize_gemini_api()
+        
+        # Verify Google Tasks API access
+        from functionality.task import get_task_lists
+        try:
+            task_lists = get_task_lists()
+            logger.info(f"Google Tasks API initialized successfully. Found {len(task_lists)} task list(s).")
+        except Exception as e:
+            logger.error(f"Failed to initialize Google Tasks API: {e}")
         
         # Start background task
         asyncio.create_task(check_reminders_task())
