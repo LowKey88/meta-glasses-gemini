@@ -248,7 +248,7 @@ def get_upcoming_events() -> List[Dict]:
         timeMin=now.isoformat(),
         orderBy='startTime',
         singleEvents=True,
-        maxResults=5  # Limit to 5 most immediate events
+        maxResults=10  # Limit to 10 upcoming events
     ).execute()
     
     return events_result.get('items', [])
@@ -260,31 +260,25 @@ def format_events_for_cancellation(events: List[Dict]) -> str:
     if not events:
         return "You have no upcoming events to cancel."
     
-    formatted_events = ["Select event to cancel:"]
+    formatted_events = ["Here are your upcoming events:"]
     for i, event in enumerate(events, 1):
         start = event['start'].get('dateTime', event['start'].get('date'))
+        end = event['end'].get('dateTime', event['end'].get('date'))
         start_dt = datetime.fromisoformat(start.replace('Z', '+00:00')).astimezone()
+        end_dt = datetime.fromisoformat(end.replace('Z', '+00:00')).astimezone()
         
-        # Format date
+        # Format date differently if event is today
         if start_dt.date() == datetime.now().date():
             date_str = "Today"
         elif start_dt.date() == (datetime.now().date() + timedelta(days=1)):
-            date_str = "Tmr"
+            date_str = "Tomorrow"
         else:
-            date_str = start_dt.strftime("%a")
+            date_str = start_dt.strftime("%A, %B %d")
         
-        # Truncate long event titles
-        title = event.get('summary', 'Untitled')
-        if len(title) > 20:
-            title = title[:17] + "..."
-        
-        # Format time without minutes if they're zero
-        time_format = '%I:%M%p' if start_dt.minute != 0 else '%I%p'
-        time_str = start_dt.strftime(time_format).lstrip('0').replace(':00', '')
-        
-        event_str = f"{i}. {title} ({date_str} {time_str})"
+        event_str = f"{i}. {event.get('summary', 'Untitled event')} ({date_str} {start_dt.strftime('%I:%M %p')} - {end_dt.strftime('%I:%M %p')})"
         formatted_events.append(event_str)
     
+    formatted_events.append("\nWhich event would you like to cancel? (Reply with the number)")
     return "\n".join(formatted_events)
 
 def cancel_event_by_index(index: int) -> Optional[str]:
