@@ -243,8 +243,9 @@ async def check_reminders_task():
     """Background task to check and send meeting reminders."""
     from utils.reminder import ReminderManager
     
-    # Wait for initial startup to complete
-    await asyncio.sleep(2)
+    # Disable oauth2client cache warning
+    import warnings
+    warnings.filterwarnings('ignore', message='file_cache is unavailable when using oauth2client >= 4.0.0')
     
     while True:
         try:
@@ -257,6 +258,10 @@ async def check_reminders_task():
 async def startup_event():
     """Start background tasks when the application starts."""
     try:
+        # Disable oauth2client cache warning
+        import warnings
+        warnings.filterwarnings('ignore', message='file_cache is unavailable when using oauth2client >= 4.0.0')
+        
         # Initialize APIs and services
         from utils.gemini import initialize_gemini_api
         from utils.reminder import ReminderManager
@@ -265,7 +270,6 @@ async def startup_event():
         # Sync calendar events with Redis
         logger.info("Starting calendar sync...")
         ReminderManager.sync_with_calendar()
-        logger.info("Calendar sync completed")
         
         # Start background tasks
         asyncio.create_task(check_reminders_task())
