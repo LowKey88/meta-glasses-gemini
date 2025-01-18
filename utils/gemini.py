@@ -411,7 +411,7 @@ def retrieve_message_type_from_message(message: str) -> str:
         logger.error(f"Error in intent detection: {e}")
         return 'other'  # Fallback to general conversation
 
-def determine_calendar_event_inputs(message: str) -> dict:
+def determine_calendar_event_inputs(message: str, user_id: str = 'default') -> dict:
     """
     Determine calendar event inputs from a message using AI-driven analysis.
     
@@ -474,9 +474,6 @@ def determine_calendar_event_inputs(message: str) -> dict:
         if intent == 'cancel_event':
             from functionality.calendar import get_upcoming_events, format_events_for_cancellation, cancel_event_by_index
             from utils.redis_utils import get_cancellation_state, set_cancellation_state, clear_cancellation_state
-            
-            # Get user ID from message context (assuming it's in the phone number)
-            user_id = message.split()[-1] if message else "default"
             
             # Check if message contains a number and user is in cancellation state
             number_match = re.search(r'\b(\d+)\b', message)
