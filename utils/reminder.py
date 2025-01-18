@@ -9,9 +9,23 @@ from utils.whatsapp import send_whatsapp_message
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
-import os
 
 logger = logging.getLogger("uvicorn")
+
+REMINDER_KEY_PREFIX = "josancamon:rayban-meta-glasses-api:reminder:"
+MORNING_REMINDER_HOUR = 8  # Send morning reminders at 8 AM
+
+def get_calendar_service():
+    """Get authenticated Google Calendar service."""
+    if not os.path.exists('creds/token.json'):
+        return None
+    creds = Credentials.from_authorized_user_file('creds/token.json', ['https://www.googleapis.com/auth/calendar'])
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            return None
+    return build('calendar', 'v3', credentials=creds)
 
 def verify_event_exists(event_id: str) -> bool:
     """
@@ -25,19 +39,10 @@ def verify_event_exists(event_id: str) -> bool:
         bool: True if event exists, False if not
     """
     try:
-        # Get credentials
-        if not os.path.exists('creds/token.json'):
+        service = get_calendar_service()
+        if not service:
             return False
-        creds = Credentials.from_authorized_user_file('creds/token.json', ['https://www.googleapis.com/auth/calendar'])
-        if not creds or not creds.valid:
-            if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-            else:
-                return False
-
-        # Build service
-        service = build('calendar', 'v3', credentials=creds)
-        
+            
         try:
             # Try to get the event
             service.events().get(calendarId='primary', eventId=event_id).execute()
@@ -52,10 +57,62 @@ def verify_event_exists(event_id: str) -> bool:
         logger.error(f"Error verifying event existence: {e}")
         return False
 
-REMINDER_KEY_PREFIX = "josancamon:rayban-meta-glasses-api:reminder:"
-MORNING_REMINDER_HOUR = 8  # Send morning reminders at 8 AM
-
 class ReminderManager:
+    @staticmethod
+    @try_catch_decorator
+    def sync_with_calendar():
+        """
+        Sync Redis reminders with Google Calendar events.
+        Removes reminders for deleted events and adds reminders for new events.
+        """
+        logger.info("Starting calendar sync...")
+        service = get_calendar_service()
+        if not service:
+            logger.error("Failed to get calendar service during sync")
+            return
+
+        # Get all existing reminders from Redis
+        existing_reminders = {}
+        for key in r.scan_iter(f"{REMINDER_KEY_PREFIX}*"):
+            event_id = key.decode().replace(REMINDER_KEY_PREFIX, "")
+            data = r.get(key)
+            if data:
+                existing_reminders[event_id] = json.loads(data)
+
+        # Get upcoming events from Google Calendar
+        now = datetime.now().isoformat() + 'Z'
+        events_result = service.events().list(
+            calendarId='primary',
+            timeMin=now,
+            maxResults=100,
+            singleEvents=True,
+            orderBy='startTime'
+        ).execute()
+        calendar_events = {event['id']: event for event in events_result.get('items', [])}
+
+        # Remove reminders for deleted events
+        for event_id in existing_reminders:
+            if event_id not in calendar_events:
+                logger.info(f"Removing reminder for deleted event: {event_id}")
+                delete_reminder(event_id)
+
+        # Add reminders for new events
+        for event_id, event in calendar_events.items():
+            if event_id not in existing_reminders:
+                start = event['start'].get('dateTime', event['start'].get('date'))
+                start_time = datetime.fromisoformat(start.replace('Z', '+00:00'))
+                
+                # Only add reminder if event is in the future
+                if start_time > datetime.now():
+                    logger.info(f"Adding reminder for new event: {event.get('summary', 'Untitled')}")
+                    ReminderManager.schedule_meeting_reminders(
+                        event_id=event_id,
+                        title=event.get('summary', 'Untitled'),
+                        start_time=start_time
+                    )
+
+        logger.info("Calendar sync completed")
+
     @staticmethod
     @try_catch_decorator
     def schedule_meeting_reminders(event_id: str, title: str, start_time: datetime) -> bool:
