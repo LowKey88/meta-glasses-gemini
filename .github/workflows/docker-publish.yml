@@ -9,11 +9,11 @@ on:
   # schedule:
   #   - cron: '16 22 * * *'
   push:
-    branches: [ "master", "feature/whatsapp-meeting-reminders" ]
+    branches: [ "master", "dev" ]
     # Publish semver tags as releases.
     tags: [ 'v*.*.*' ]
   pull_request:
-    branches: [ "master", "feature/whatsapp-meeting-reminders" ]
+    branches: [ "master", "dev" ]
 
 env:
   # Use docker.io for Docker Hub if empty
