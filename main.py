@@ -121,7 +121,9 @@ def process_text_message(text: str):
            send_whatsapp_threaded(analysis)
            return ok
        elif operation_type == 'calendar':
-           calendar_input = determine_calendar_event_inputs(text)
+           # Get user's phone number from the message
+           phone_number = message.get('from', 'default')
+           calendar_input = determine_calendar_event_inputs(text, phone_number)
            
            if calendar_input is None:
                # If calendar processing returns None, fall through to default processing
