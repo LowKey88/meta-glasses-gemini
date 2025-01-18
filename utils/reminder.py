@@ -4,10 +4,53 @@ from datetime import datetime, timedelta
 import json
 from typing import Dict, Optional
 
-from utils.redis_utils import r, try_catch_decorator
+from utils.redis_utils import r, try_catch_decorator, delete_reminder
 from utils.whatsapp import send_whatsapp_message
+from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
+from googleapiclient.discovery import build
+import os
 
 logger = logging.getLogger("uvicorn")
+
+def verify_event_exists(event_id: str) -> bool:
+    """
+    Verify if an event still exists in Google Calendar.
+    If not, clean up the Redis reminder.
+    
+    Args:
+        event_id: The Google Calendar event ID
+        
+    Returns:
+        bool: True if event exists, False if not
+    """
+    try:
+        # Get credentials
+        if not os.path.exists('creds/token.json'):
+            return False
+        creds = Credentials.from_authorized_user_file('creds/token.json', ['https://www.googleapis.com/auth/calendar'])
+        if not creds or not creds.valid:
+            if creds and creds.expired and creds.refresh_token:
+                creds.refresh(Request())
+            else:
+                return False
+
+        # Build service
+        service = build('calendar', 'v3', credentials=creds)
+        
+        try:
+            # Try to get the event
+            service.events().get(calendarId='primary', eventId=event_id).execute()
+            return True
+        except Exception:
+            # If event doesn't exist, clean up Redis
+            logger.info(f"Event {event_id} no longer exists in Google Calendar, cleaning up Redis reminder")
+            delete_reminder(event_id)
+            return False
+            
+    except Exception as e:
+        logger.error(f"Error verifying event existence: {e}")
+        return False
 
 REMINDER_KEY_PREFIX = "josancamon:rayban-meta-glasses-api:reminder:"
 MORNING_REMINDER_HOUR = 8  # Send morning reminders at 8 AM
@@ -128,17 +171,24 @@ class ReminderManager:
             ]
             
             if unsent_morning_reminders:
-                # Create a single morning message for all events
-                events_text = "\n".join(
-                    f"• '{event['title']}' at {ReminderManager._format_time(event['start_time'])}"
-                    for event in unsent_morning_reminders
-                )
-                message = f"Good morning! Here's your schedule for today:\n{events_text}"
-                send_whatsapp_message(message)
+                # Filter out events that no longer exist in Google Calendar
+                valid_reminders = [
+                    event for event in unsent_morning_reminders
+                    if verify_event_exists(event["event_id"])
+                ]
                 
-                # Mark all morning reminders as sent
-                for event in unsent_morning_reminders:
-                    ReminderManager.mark_reminder_sent(event["event_id"], "morning")
+                if valid_reminders:
+                    # Create a single morning message for all valid events
+                    events_text = "\n".join(
+                        f"• '{event['title']}' at {ReminderManager._format_time(event['start_time'])}"
+                        for event in valid_reminders
+                    )
+                    message = f"Good morning! Here's your schedule for today:\n{events_text}"
+                    send_whatsapp_message(message)
+                    
+                    # Mark all morning reminders as sent
+                    for event in valid_reminders:
+                        ReminderManager.mark_reminder_sent(event["event_id"], "morning")
         
         # Handle individual reminders (hour before and start time)
         for key in r.scan_iter(f"{REMINDER_KEY_PREFIX}*"):
@@ -148,6 +198,11 @@ class ReminderManager:
                 
             reminder_data = json.loads(data)
             event_id = key.decode().replace(REMINDER_KEY_PREFIX, "")
+            
+            # Verify event still exists in Google Calendar
+            if not verify_event_exists(event_id):
+                continue
+                
             start_time = datetime.fromisoformat(reminder_data["start_time"])
             
             # Skip if event is in the past
