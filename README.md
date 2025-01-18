@@ -90,28 +90,6 @@ You can create and manage different types of calendar events:
    - "Delete meeting"
    - "Remove meeting"
 
-   After initiating cancellation, the system will:
-   1. Display a numbered list of your upcoming events with dates and times
-   2. Wait for your numeric selection
-   3. Process the cancellation and confirm
-   
-   Example:
-
-   > User: Cancel my meeting
-
-   > System: Here are your upcoming events:
-   > 1. Daily Standup (Today 10:00 AM - 11:00 AM)
-   > 2. Project Review (Today 02:00 PM - 03:00 PM)
-   > 3. Team Training (Tomorrow 11:00 AM - 12:00 PM)
-   > 4. Client Meeting (Tuesday 02:00 PM - 03:00 PM)
-   > 5. Strategy Session (Thursday 10:00 AM - 11:00 AM)
-   >
-   > Which event would you like to cancel? (Reply with the number)
-
-   > User: 1
-
-   > System: I've cancelled 'Daily Standup'
-
 You can include additional details in your commands:
 - Location:
   * "...at Starbucks KLCC"
@@ -141,9 +119,9 @@ Events are automatically color-coded in your calendar based on keywords:
 The system provides clear confirmations and reminders:
 - Creating:
   * "I've scheduled 'Team Sync' for 3:00 PM!"
-  * "Your meeting 'Client Review' has been set for tomorrow at 2:00 PM"
-  * "Weekly standup scheduled for every Monday at 9:00 AM"
-  * "Reminder set for daily check-in at 4:00 PM"
+  * "I've scheduled 'Client Review' for 2:00 PM tomorrow!"
+  * "I've scheduled 'Weekly Standup' for every Monday at 9:00 AM!"
+  * "I've scheduled 'Cleaning Service' for 4:00 PM!"
 - Canceling:
   * "I've cancelled your last meeting: Team Sync"
   * "The 2:00 PM meeting has been removed from your calendar"
@@ -168,16 +146,18 @@ The system provides clear confirmations and reminders:
 The system features a robust three-stage notification system with improved error handling:
 
 1. Morning Reminder:
-   - Sent at 8:00 AM on the day of the meeting
-   - Example: "Good morning! You have a meeting 'Team Sync' scheduled for 3:00 PM today"
+   - Sent at 8:00 AM with your daily schedule
+   - Example: "Good morning! Here's your schedule for today:
+     • 'Team Sync' at 3:00 PM
+     • 'Client Meeting' at 4:30 PM"
 
 2. Hour-Before Reminder:
-   - Sent one hour before the meeting starts
-   - Example: "Reminder: Your meeting 'Team Sync' starts in 1 hour at 3:00 PM"
+   - Sent one hour before each event
+   - Example: "Reminder: 'Team Sync' starts in 1 hour at 3:00 PM"
 
 3. Start-Time Reminder:
-   - Sent when the meeting is about to begin
-   - Example: "Your meeting 'Team Sync' is starting now!"
+   - Sent when the event is about to begin
+   - Example: "'Team Sync' is starting now!"
 
 ### Home Assistant Integration
 
