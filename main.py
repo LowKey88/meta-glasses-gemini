@@ -121,8 +121,10 @@ def process_text_message(text: str, message_data: dict):
             send_whatsapp_threaded(analysis)
             return ok
         elif operation_type == 'calendar':
-            # Get user's phone number from the message data
-            phone_number = message_data.get('from', 'default')
+            # Get user's WhatsApp ID from the message data
+            logger.info(f"Message data for calendar operation: {message_data}")
+            phone_number = message_data.get('from') if isinstance(message_data, dict) else 'default'
+            logger.info(f"Using phone number for cancellation state: {phone_number}")
             calendar_input = determine_calendar_event_inputs(text, phone_number)
             
             if calendar_input is None:

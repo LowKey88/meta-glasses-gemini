@@ -65,20 +65,20 @@ def delete_reminder(event_id: str):
 @try_catch_decorator
 def set_cancellation_state(user_id: str):
     """Set cancellation state with 30-second expiry."""
-    key = f'josancamon:rayban-meta-glasses-api:cancellation:{user_id}'
+    key = f'josancamon:rayban-meta-glasses-api:cancellation:wa:{user_id}'
     r.set(key, 'active')
     r.expire(key, 30)  # 30 second timeout
 
 @try_catch_decorator
 def get_cancellation_state(user_id: str) -> bool:
     """Check if user is in cancellation state."""
-    key = f'josancamon:rayban-meta-glasses-api:cancellation:{user_id}'
+    key = f'josancamon:rayban-meta-glasses-api:cancellation:wa:{user_id}'
     return bool(r.get(key))
 
 @try_catch_decorator
 def clear_cancellation_state(user_id: str):
     """Clear cancellation state."""
-    key = f'josancamon:rayban-meta-glasses-api:cancellation:{user_id}'
+    key = f'josancamon:rayban-meta-glasses-api:cancellation:wa:{user_id}'
     r.delete(key)
 
 # Code to connect to Redis from local machine from GCP
