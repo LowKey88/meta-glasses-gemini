@@ -320,18 +320,25 @@ def analyze_audio(audio_path: str, prompt: str) -> str:
         logger.error(f"Unexpected error in audio analysis: {e}")
         return f"Error analyzing audio: {e}"
 
-def retrieve_message_type_from_message(message: str) -> str:
+def retrieve_message_type_from_message(message: str, user_id: str = None) -> str:
     """
     Analyzes a message to determine its type using AI-driven intent detection.
     
     Args:
         message: The user's message to analyze
+        user_id: Optional user ID to check cancellation state
         
     Returns:
         str: The detected message type (calendar, image, notion, search, automation, other)
     """
     if not message:
         return ''
+
+    # Check if this is a number response during cancellation state
+    if user_id and re.match(r'^\s*\d+\s*$', message):
+        from utils.redis_utils import get_cancellation_state
+        if get_cancellation_state(user_id):
+            return 'calendar'
 
     # Enhanced calendar intent detection using AI
     calendar_intent_prompt = """

@@ -113,7 +113,7 @@ def process_text_message(text: str, message_data: dict):
         return get_cals_from_image()
 
     try:
-        operation_type = retrieve_message_type_from_message(text)
+        operation_type = retrieve_message_type_from_message(text, message_data.get('from'))
         logger.info(f"Detected operation type: {operation_type}")
 
         if operation_type == 'image' and ImageContext.last_image_path:
