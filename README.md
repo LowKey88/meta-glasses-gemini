@@ -44,28 +44,87 @@ You can create and manage different types of calendar events:
    - "Schedule a meeting with the team tomorrow at 2pm"
    - "Add a client meeting next Monday at 10am for 2 hours"
    - "Create a meeting with vendors on Friday at 3pm"
+   - "Set up a project review meeting next Wednesday at 11am"
+   - "Schedule a team sync every Monday at 9am"
+   - "Book a quarterly review for next month"
 
 2. Setting Reminders:
    - "Add a reminder for gym tomorrow at 7am"
    - "Set a reminder for medicine at 9pm"
    - "Remind me about project deadline next Tuesday at 5pm"
+   - "Set a daily reminder for water at 10am"
+   - "Add a reminder to check emails every morning at 8am"
+   - "Remind me to follow up with client in 3 days"
 
 3. Managing Time Blocks:
    - "Block 3 hours for project work tomorrow at 1pm"
    - "Add time block for studying from 9am to 12pm"
    - "Schedule focus time today at 4pm for 2 hours"
+   - "Block out next Friday afternoon for deep work"
+   - "Reserve 2 hours for documentation tomorrow morning"
+   - "Set aside time for code review from 2pm to 4pm"
 
-4. Canceling Meetings:
+4. Recurring Events:
+   - "Schedule weekly team standup every Monday at 9am"
+   - "Set up daily check-in at 4pm"
+   - "Create monthly budget review on first Friday at 2pm"
+   - "Add recurring lunch break every day at 1pm"
+   - "Schedule bi-weekly one-on-one every other Thursday at 3pm"
+   - "Set up quarterly planning meeting every three months"
+
+5. Events with Multiple Participants:
+   - "Schedule meeting with marketing and sales team tomorrow at 2pm"
+   - "Set up project kickoff with John, Sarah, and Mike next Tuesday"
+   - "Create team building event for whole department next month"
+   - "Book client presentation with executive team on Friday"
+   - "Schedule interview panel with HR and tech leads"
+   - "Set up cross-team sync for project Alpha"
+
+6. Canceling Meetings:
+   The system provides a straightforward cancellation interface:
+
+   Initial Commands:
+   - "Cancel my meeting"
    - "Cancel my last meeting"
    - "Cancel my latest meeting"
-   - "Cancel my most recent meeting"
-   - "Delete last meeting"
-   - "Remove my last meeting"
+   - "Delete meeting"
+   - "Remove meeting"
+
+   After initiating cancellation, the system will:
+   1. Display a numbered list of your upcoming events with dates and times
+   2. Wait for your numeric selection
+   3. Process the cancellation and confirm
+   
+   Example Interaction:
+   You: "Cancel my meeting"
+   Bot: "Here are your upcoming events:
+        1. Team Standup (Today 09:00 AM - 10:00 AM)
+        2. Project Planning (Today 02:00 PM - 03:00 PM)
+        3. Client Demo (Tomorrow 11:00 AM - 12:00 PM)
+        4. Sprint Review (Tuesday, January 21 02:00 PM - 03:00 PM)
+        5. Quarterly Planning (Thursday, January 23 10:00 AM - 12:00 PM)
+
+        Which event would you like to cancel? (Reply with the number)"
+   You: "1"
+   Bot: "I've cancelled 'Team Standup'"
 
 You can include additional details in your commands:
-- Location: "...at Starbucks KLCC"
-- Description: "...to discuss Q4 planning"
-- Duration: "...for 45 minutes" (default is 1 hour if not specified)
+- Location:
+  * "...at Starbucks KLCC"
+  * "...in meeting room A"
+  * "...at client's office"
+  * "...virtual meeting on Zoom"
+- Description:
+  * "...to discuss Q4 planning"
+  * "...for project milestone review"
+  * "...regarding budget approval"
+  * "...about new feature launch"
+- Duration:
+  * "...for 45 minutes"
+  * "...for 2 hours"
+  * "...until 5pm"
+  * "...all afternoon"
+(default is 1 hour if not specified)
 
 Events are automatically color-coded in your calendar based on keywords:
 - Blueberry (Blue): Regular meetings (default)
@@ -76,11 +135,33 @@ Events are automatically color-coded in your calendar based on keywords:
 - Banana (Yellow): Reminders and tasks
 
 The system provides clear confirmations and reminders:
-- Creating: "I've scheduled 'Meeting Title' for 3:00 PM!"
-- Canceling: "I've cancelled your last meeting: Meeting Title"
+- Creating:
+  * "I've scheduled 'Team Sync' for 3:00 PM!"
+  * "Your meeting 'Client Review' has been set for tomorrow at 2:00 PM"
+  * "Weekly standup scheduled for every Monday at 9:00 AM"
+  * "Reminder set for daily check-in at 4:00 PM"
+- Canceling:
+  * "I've cancelled your last meeting: Team Sync"
+  * "The 2:00 PM meeting has been removed from your calendar"
+  * "All meetings for today have been cancelled"
+  * "Weekly standup has been removed from your recurring events"
+
+#### Enhanced Calendar Features
+
+1. Interactive Event Cancellation:
+   - Numbered list interface for selecting meetings to cancel
+   - 30-second response timeout for safety
+   - Accidental cancellation prevention
+   - Clear confirmation messages
+   - State management via Redis
+
+2. Smart Schedule Display:
+   - Only shows upcoming and active events
+   - Improved timezone handling
+   - Support for multiple meetings
 
 #### WhatsApp Reminders
-The system automatically sends WhatsApp notifications for your meetings:
+The system features a robust three-stage notification system with improved error handling:
 
 1. Morning Reminder:
    - Sent at 8:00 AM on the day of the meeting
@@ -117,7 +198,7 @@ The system automatically sends WhatsApp notifications for your meetings:
 
 - **WhatsApp**: Message handling and notifications
 - **Google Gemini**: AI processing and responses
-- **Redis**: Data, session, and reminder management. Stores meeting reminders and tracks notification states
+- **Redis**: Enhanced data, session, and reminder management with improved error handling and default values
 - **Notion**: Note-taking and data organization
 - **Google Calendar**: Event and reminder management
 - **Home Assistant**: Home automation control
