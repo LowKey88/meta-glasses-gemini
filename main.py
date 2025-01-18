@@ -273,11 +273,7 @@ async def startup_event():
         from utils.gemini import initialize_gemini_api
         initialize_gemini_api()
         
-        # Start background tasks
-        asyncio.create_task(check_reminders_task())
-        logger.info("Started reminder checker background task.")
-        
-        # Start background tasks
+        # Start background task
         asyncio.create_task(check_reminders_task())
         logger.info("Started reminder checker background task.")
         
