@@ -99,6 +99,8 @@ class ReminderManager:
                         title=event.get('summary', 'Untitled'),
                         start_time=start_time
                     )
+                    
+        logger.info("Calendar sync completed")
 
     @staticmethod
     @try_catch_decorator
