@@ -30,45 +30,27 @@ GEMINI_CHAT_MODEL = 'gemini-1.5-flash'
 retrieve_message_type_from_message_description = '''
 Based on the message type, execute some different requests to APIs or other tools.
 
-- automation: types are related to:
-  * Home automation devices (gates, lights, doors)
-  * Device status checks and controls
-  * System commands and queries
-  * Examples: "check main gate", "turn on lights", "check door status"
-
-- task: types are related to:
-  * Personal to-do items and task lists
-  * Task creation and management
-  * Due dates and deadlines
-  * Examples: "add task", "check my tasks", "mark task complete"
-
 - calendar: types are related to:
-  * Schedule management and appointments
-  * Event creation and checking
-  * Meeting reminders and time management
-  * Examples: "check my meetings", "schedule event", "what's my schedule"
-
+  * Checking schedule/meetings/appointments (e.g. "check my meeting", "check my meetings", "what's my schedule", "do I have any meetings")
+  * Creating events/meetings/reminders
+  * Anything with scheduling, calendar, or time management
+  
 - image: types are related to:
-  * Visual analysis and object detection
-  * Image description and counting
-  * Visual queries and follow-up questions
-  * Examples: "what's in this image", "count objects", "describe picture"
+  * Images, pictures, what's the user looking at
+  * What's in front of the user
+  * Counting objects in images
+  * Questions about visual elements or quantities in images (how many, count, number of)
+  * All follow-up questions about previously shown images
 
-- notion: types are related to:
-  * Note-taking and documentation
-  * Saving ideas and information
-  * Examples: "save note", "create page", "store idea"
-
-- search: types are related to:
-  * Information retrieval
-  * News and current events
-  * General knowledge queries
-  * Examples: "search news", "find information", "look up"
-
-- other: types are related to:
-  * General conversation
-  * Unclassified queries
-  * Default fallback category
+- notion: anything related to storing a note, save an idea, notion, etc. 
+- search: types are related to anything with searching, finding, looking for, and it's about a recent event, or news etc.
+- automation: types are related to querying states, checking status, or sending commands to home automation devices like gates, lights, doors, alarm, etc.
+- task: types are related to:
+   * Checking tasks or to-dos (e.g. "show my tasks", "what tasks do I have", "list todos")
+   * Creating new tasks or to-do items
+   * Managing task status (complete/incomplete)
+   * Anything with personal tasks or to-do list management
+- other: types are related to anything else.
 
 Make sure to always return the message type, or default to `other` even if it doesn't match any of the types.
 '''.replace('    ', '')
@@ -374,173 +356,32 @@ def analyze_audio(audio_path: str, prompt: str) -> str:
         logger.error(f"Unexpected error in audio analysis: {e}")
         return f"Error analyzing audio: {e}"
 
-def retrieve_message_type_from_message(message: str, user_id: str = None) -> str:
+def retrieve_message_type_from_message(message: str) -> str:
     """
-    Analyzes a message to determine its type using AI-driven intent detection.
+    Analyzes a message to determine its type using AI.
     
     Args:
         message: The user's message to analyze
-        user_id: Optional user ID to check cancellation state
         
     Returns:
-        str: The detected message type (automation, task, calendar, image, notion, search, other)
-        or dict: For calendar cancellation events with structure:
-            {
-                'intent': 'cancel_event',
-                'response': str
-            }
+        str: The detected message type (calendar, image, notion, search, automation, task, other)
     """
     if not message:
         return ''
 
-    # Check if this is a number response during cancellation state
-    if user_id and re.match(r'^\s*\d+\s*$', message):
-        from utils.redis_utils import get_cancellation_state
-        if get_cancellation_state(user_id):
-            from functionality.calendar import cancel_event_by_index
-            # Handle cancellation number response
-            number_match = re.match(r'^\s*(\d+)\s*$', message)
-            if number_match:
-                index = int(number_match.group(1))
-                cancelled_event = cancel_event_by_index(index)
-                if cancelled_event:
-                    return {
-                        'intent': 'cancel_event',
-                        'response': f"I've cancelled '{cancelled_event}'"
-                    }
-                return {
-                    'intent': 'cancel_event',
-                    'response': "Sorry, I couldn't cancel that event. Please try again."
-                }
-
-    # Enhanced calendar intent detection using AI
-    calendar_intent_prompt = """
-    Analyze if this message is related to calendar operations. Consider:
-    1. Event Creation/Scheduling:
-       - Creating meetings or appointments
-       - Scheduling events
-       - Booking time slots
-       
-    2. Schedule Checking:
-       - Viewing calendar
-       - Checking availability
-       - Looking up meetings
-       
-    3. Calendar Management:
-       - Canceling meetings
-       - Modifying events
-       - Managing appointments
-    
-    Message: {message}
-    
-    Return ONLY 'true' if this is definitely a calendar-related request, or 'false' if not.
-    """
-    
-    try:
-        # Enhanced intent detection using a two-stage approach
-        model = genai.GenerativeModel(GEMINI_CHAT_MODEL)
-        
-        # Stage 1: Quick calendar check
-        response = model.generate_content(
-            calendar_intent_prompt.format(message=message),
-            generation_config={
-                'temperature': 0,
-                'candidate_count': 1
-            }
-        )
-        
-        if not response.text:
-            raise ValueError("Empty response from Gemini API")
+    tool = _get_tool(
+        'execute_based_on_message_type',
+        retrieve_message_type_from_message_description,
+        {"message_type": _get_func_arg_parameter(
+            'The type of message the user sent', 'string',
+            ["calendar", "image", "notion", "search", "automation", "task", "other"])})
             
-        is_calendar = response.text.strip().lower() == 'true'
-        
-        if is_calendar:
-            return 'calendar'
-            
-        # Check task intent
-        task_intent_prompt = """
-        Analyze if this message is related to task management operations. Consider:
-        1. Task Viewing:
-           - Checking tasks or to-dos (but NOT calendar events, schedule, or device status)
-           - Viewing task lists
-           - Asking about pending tasks
-           
-        2. Task Creation:
-           - Adding new tasks or to-dos
-           - Creating to-do items
-           - Setting up task reminders
-           
-        3. Task Management:
-           - Marking tasks complete
-           - Updating task status
-           - Deleting or removing tasks
-        
-        IMPORTANT: Exclude the following:
-        - Calendar events, meetings, or schedules
-        - Home automation commands (checking gates, lights, doors)
-        - Device status checks
-        - System state queries
-        
-        Message: {message}
-        
-        Return ONLY 'true' if this is definitely a task-related request, or 'false' if not.
-        """
-        
-        response = model.generate_content(
-            task_intent_prompt.format(message=message),
-            generation_config={
-                'temperature': 0,
-                'candidate_count': 1
-            }
-        )
-        
-        if response.text and response.text.strip().lower() == 'true':
-            logger.info("Detected task intent")
-            return 'task'
-            
-        # If not calendar or task, check other intents
-        intent_prompt = """
-        Analyze this message and determine its primary intent category:
-        
-        Message: {message}
-        
-        Categories:
-        1. automation - Commands for home devices (gates, lights, doors), checking device status, or controlling home automation systems
-        2. task - Personal to-do items, task lists, or things for a person to complete
-        3. calendar - Scheduling events, meetings, or checking appointments
-        4. image - Visual analysis, object detection, or image-related queries
-        5. notion - Note-taking, saving ideas, or documentation
-        6. search - Information retrieval, news, or search queries
-        7. other - General queries or conversations
-        
-        Examples:
-        - "check main gate" -> automation (device status check)
-        - "add grocery shopping to my list" -> task (personal to-do)
-        - "turn on living room lights" -> automation (device control)
-        - "remind me to call mom" -> task (personal reminder)
-        - "check door status" -> automation (device status)
-        - "create task buy milk" -> task (personal to-do)
-        
-        Return ONLY the category name in lowercase, no explanation.
-        """
-        
-        response = model.generate_content(
-            intent_prompt.format(message=message),
-            generation_config={
-                'temperature': 0,
-                'candidate_count': 1,
-                'max_output_tokens': 10
-            }
-        )
-        
-        intent_type = response.text.strip().lower()
-        if intent_type in ['image', 'notion', 'search', 'automation', 'other']:
-            return intent_type
-        return 'other'
-        
-    except Exception as e:
-        logger.error(f"Error in intent detection: {e}")
-        return 'other'  # Fallback to general conversation
+    model = genai.GenerativeModel(model_name=GEMINI_CHAT_MODEL, tools=[tool])
+    chat = model.start_chat(enable_automatic_function_calling=True)
+    response = chat.send_message(message)
+    fc = response.candidates[0].content.parts[0].function_call
+    assert fc.name == 'execute_based_on_message_type'
+    return fc.args['message_type']
 
 def determine_calendar_event_inputs(message: str, user_id: str = 'default') -> dict:
     """
