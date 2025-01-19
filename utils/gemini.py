@@ -356,12 +356,13 @@ def analyze_audio(audio_path: str, prompt: str) -> str:
         logger.error(f"Unexpected error in audio analysis: {e}")
         return f"Error analyzing audio: {e}"
 
-def retrieve_message_type_from_message(message: str) -> str:
+def retrieve_message_type_from_message(message: str, user_id: str = None) -> str:
     """
     Analyzes a message to determine its type using AI.
     
     Args:
         message: The user's message to analyze
+        user_id: Optional user ID for tracking user-specific context
         
     Returns:
         str: The detected message type (calendar, image, notion, search, automation, task, other)
