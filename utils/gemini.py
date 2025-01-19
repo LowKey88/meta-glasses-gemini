@@ -30,29 +30,45 @@ GEMINI_CHAT_MODEL = 'gemini-1.5-flash'
 retrieve_message_type_from_message_description = '''
 Based on the message type, execute some different requests to APIs or other tools.
 
-- calendar: types are related to:
-  * Checking schedule/meetings/appointments (e.g. "check my meeting", "check my meetings", "what's my schedule", "do I have any meetings")
-  * Creating events/meetings/reminders
-  * Anything with scheduling, calendar events, or time management
+- automation: types are related to:
+  * Home automation devices (gates, lights, doors)
+  * Device status checks and controls
+  * System commands and queries
+  * Examples: "check main gate", "turn on lights", "check door status"
 
 - task: types are related to:
-  * Creating, checking, or managing tasks/to-dos
-  * Task lists and task completion
+  * Personal to-do items and task lists
+  * Task creation and management
   * Due dates and deadlines
-  * Task priorities and status
-  * Examples: "add task", "create todo", "check my tasks", "mark task complete"
+  * Examples: "add task", "check my tasks", "mark task complete"
+
+- calendar: types are related to:
+  * Schedule management and appointments
+  * Event creation and checking
+  * Meeting reminders and time management
+  * Examples: "check my meetings", "schedule event", "what's my schedule"
 
 - image: types are related to:
-  * Images, pictures, what's the user looking at
-  * What's in front of the user
-  * Counting objects in images
-  * Questions about visual elements or quantities in images (how many, count, number of)
-  * All follow-up questions about previously shown images
+  * Visual analysis and object detection
+  * Image description and counting
+  * Visual queries and follow-up questions
+  * Examples: "what's in this image", "count objects", "describe picture"
 
-- notion: anything related to storing a note, save an idea, notion, etc.
-- search: types are related to anything with searching, finding, looking for, and it's about a recent event, or news etc.
-- automation: types are related to querying states, checking status, or sending commands to home automation devices like gates, lights, doors, alarm, etc.
-- other: types are related to anything else.
+- notion: types are related to:
+  * Note-taking and documentation
+  * Saving ideas and information
+  * Examples: "save note", "create page", "store idea"
+
+- search: types are related to:
+  * Information retrieval
+  * News and current events
+  * General knowledge queries
+  * Examples: "search news", "find information", "look up"
+
+- other: types are related to:
+  * General conversation
+  * Unclassified queries
+  * Default fallback category
 
 Make sure to always return the message type, or default to `other` even if it doesn't match any of the types.
 '''.replace('    ', '')
@@ -367,7 +383,12 @@ def retrieve_message_type_from_message(message: str, user_id: str = None) -> str
         user_id: Optional user ID to check cancellation state
         
     Returns:
-        str: The detected message type (calendar, image, notion, search, automation, other)
+        str: The detected message type (automation, task, calendar, image, notion, search, other)
+        or dict: For calendar cancellation events with structure:
+            {
+                'intent': 'cancel_event',
+                'response': str
+            }
     """
     if not message:
         return ''
