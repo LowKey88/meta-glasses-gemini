@@ -147,14 +147,17 @@ def process_text_message(text: str, message_data: dict):
                     send_whatsapp_threaded("Here are your tasks:\n" + "\n".join(formatted_tasks))
             
             elif task_input['intent'] == 'create_task':
-                if not task_input.get('title') or task_input['title'].strip() == '':
+                title = task_input.get('title', '').strip()
+                # Check for empty title or just "add task"
+                if not title or title.lower() == 'add task':
                     send_whatsapp_threaded("Please add what to do. For example: add task buy groceries.")
                     return ok
-                    
+                
+                # Create task with validated title
                 task = create_task(
-                    title=task_input['title'],
-                    notes=task_input['notes'],
-                    due_date=task_input['due_date']
+                    title=title,
+                    notes=task_input.get('notes', ''),
+                    due_date=task_input.get('due_date')
                 )
                 if task:
                     send_whatsapp_threaded(f"Created task: {format_task_for_display(task)}")
