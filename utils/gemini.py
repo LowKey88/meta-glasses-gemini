@@ -416,8 +416,17 @@ def determine_calendar_event_inputs(message: str, user_id: str = 'default') -> d
                 }
     """
     try:
+        # Early validation for empty messages or just basic meeting commands
         if not message:
             raise ValueError("Message cannot be empty")
+            
+        # Check for basic meeting commands
+        if message.strip().lower() in ['set meeting', 'add meeting', 'create meeting']:
+            logger.info("Basic meeting command received")
+            return {
+                'intent': 'create_event',
+                'response': "Please add meeting details. For example: set meeting with John at 2pm."
+            }
             
         determine_with_date: str = determine_calendar_event_inputs_description.replace(
             'time_now',
