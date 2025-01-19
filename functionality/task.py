@@ -255,23 +255,25 @@ def get_upcoming_tasks(days: int = 7, include_completed: bool = False) -> List[D
     return upcoming_tasks
 
 def format_task_for_display(task: Dict) -> str:
-    """Format a task into a readable string."""
+    """Format a task into a readable string optimized for text-to-speech."""
     logger.debug(f"Formatting task for display: {task.get('title')}")
-    status = "✓" if task.get('status') == 'completed' else "☐"
     title = task.get('title', 'Untitled task')
     
     # Format due date if present
     due_str = ""
     if 'due' in task:
         due_date = datetime.fromisoformat(task['due'].rstrip('Z'))
-        due_str = f" (Due: {due_date.strftime('%Y-%m-%d')})"
+        due_str = f", due {due_date.strftime('%Y-%m-%d')}"
         logger.debug(f"Task due date: {due_str}")
+    
+    # Add completion status at the end if completed
+    status_str = " [Done]" if task.get('status') == 'completed' else ""
     
     # Add notes if present
     notes = f"\n  Notes: {task['notes']}" if task.get('notes') else ""
     if notes:
         logger.debug("Task has additional notes")
     
-    formatted_task = f"{status} {title}{due_str}{notes}"
+    formatted_task = f"- {title}{due_str}{status_str}{notes}"
     logger.debug(f"Formatted task: {formatted_task}")
     return formatted_task
