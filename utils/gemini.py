@@ -436,11 +436,11 @@ def retrieve_message_type_from_message(message: str, user_id: str = None) -> str
         if is_calendar:
             return 'calendar'
             
-        # If not calendar, try task intent detection
+        # Check task intent
         task_intent_prompt = """
         Analyze if this message is related to task management operations. Consider:
         1. Task Viewing:
-           - Checking tasks or to-dos (but NOT calendar events or schedule)
+           - Checking tasks or to-dos (but NOT calendar events, schedule, or device status)
            - Viewing task lists
            - Asking about pending tasks
            
@@ -454,7 +454,11 @@ def retrieve_message_type_from_message(message: str, user_id: str = None) -> str
            - Updating task status
            - Deleting or removing tasks
         
-        Note: If the message is about calendar events, meetings, or schedule, return 'false'.
+        IMPORTANT: Exclude the following:
+        - Calendar events, meetings, or schedules
+        - Home automation commands (checking gates, lights, doors)
+        - Device status checks
+        - System state queries
         
         Message: {message}
         
@@ -480,11 +484,21 @@ def retrieve_message_type_from_message(message: str, user_id: str = None) -> str
         Message: {message}
         
         Categories:
-        1. image - Visual analysis, object detection, or image-related queries
-        2. notion - Note-taking, saving ideas, or documentation
-        3. search - Information retrieval, news, or search queries
-        4. automation - Home automation, device control, or status checks
-        5. other - General queries or conversations
+        1. automation - Commands for home devices (gates, lights, doors), checking device status, or controlling home automation systems
+        2. task - Personal to-do items, task lists, or things for a person to complete
+        3. calendar - Scheduling events, meetings, or checking appointments
+        4. image - Visual analysis, object detection, or image-related queries
+        5. notion - Note-taking, saving ideas, or documentation
+        6. search - Information retrieval, news, or search queries
+        7. other - General queries or conversations
+        
+        Examples:
+        - "check main gate" -> automation (device status check)
+        - "add grocery shopping to my list" -> task (personal to-do)
+        - "turn on living room lights" -> automation (device control)
+        - "remind me to call mom" -> task (personal reminder)
+        - "check door status" -> automation (device status)
+        - "create task buy milk" -> task (personal to-do)
         
         Return ONLY the category name in lowercase, no explanation.
         """
