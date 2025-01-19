@@ -6,7 +6,10 @@ from fastapi import HTTPException
 
 class GoogleAuth:
     _instance = None
-    SCOPES = ['https://www.googleapis.com/auth/calendar']
+    SCOPES = [
+        'https://www.googleapis.com/auth/calendar',
+        'https://www.googleapis.com/auth/tasks'
+    ]
 
     def __init__(self):
         if not GoogleAuth._instance:
