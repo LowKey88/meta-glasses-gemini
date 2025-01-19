@@ -436,7 +436,44 @@ def retrieve_message_type_from_message(message: str, user_id: str = None) -> str
         if is_calendar:
             return 'calendar'
             
-        # Stage 2: Detailed intent analysis for other types
+        # If not calendar, try task intent detection
+        task_intent_prompt = """
+        Analyze if this message is related to task management operations. Consider:
+        1. Task Viewing:
+           - Checking tasks or to-dos (but NOT calendar events or schedule)
+           - Viewing task lists
+           - Asking about pending tasks
+           
+        2. Task Creation:
+           - Adding new tasks or to-dos
+           - Creating to-do items
+           - Setting up task reminders
+           
+        3. Task Management:
+           - Marking tasks complete
+           - Updating task status
+           - Deleting or removing tasks
+        
+        Note: If the message is about calendar events, meetings, or schedule, return 'false'.
+        
+        Message: {message}
+        
+        Return ONLY 'true' if this is definitely a task-related request, or 'false' if not.
+        """
+        
+        response = model.generate_content(
+            task_intent_prompt.format(message=message),
+            generation_config={
+                'temperature': 0,
+                'candidate_count': 1
+            }
+        )
+        
+        if response.text and response.text.strip().lower() == 'true':
+            logger.info("Detected task intent")
+            return 'task'
+            
+        # If not calendar or task, check other intents
         intent_prompt = """
         Analyze this message and determine its primary intent category:
         
