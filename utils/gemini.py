@@ -660,9 +660,17 @@ def determine_task_inputs(message: str) -> dict:
                 'days_ahead': fc.args.get('days_ahead', 7)
             }
         elif intent == 'create_task':
+            title = fc.args.get('title', '').strip()
+            if not title:
+                return {
+                    'intent': 'create_task',
+                    'title': '',
+                    'notes': '',
+                    'due_date': None
+                }
             return {
                 'intent': 'create_task',
-                'title': fc.args['title'],
+                'title': title,
                 'notes': fc.args.get('notes', ''),
                 'due_date': fc.args.get('due_date')
             }
