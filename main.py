@@ -192,6 +192,9 @@ def process_text_message(text: str, message_data: dict):
                 # If calendar processing returns None, fall through to default processing
                 response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.')
                 send_whatsapp_threaded(response)
+            elif calendar_input.get('response'):
+                # Handle helpful messages for basic commands
+                send_whatsapp_threaded(calendar_input['response'])
             elif calendar_input['intent'] in ['check_schedule', 'cancel_event']:
                 send_whatsapp_threaded(calendar_input['response'])
             else:  # intent == 'create_event'
