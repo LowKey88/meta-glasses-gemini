@@ -147,6 +147,10 @@ def process_text_message(text: str, message_data: dict):
                     send_whatsapp_threaded("Here are your tasks:\n" + "\n".join(formatted_tasks))
             
             elif task_input['intent'] == 'create_task':
+                if not task_input.get('title') or task_input['title'].strip() == '':
+                    send_whatsapp_threaded("Please add what to do. For example: add task buy groceries.")
+                    return ok
+                    
                 task = create_task(
                     title=task_input['title'],
                     notes=task_input['notes'],
