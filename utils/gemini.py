@@ -608,8 +608,15 @@ def determine_task_inputs(message: str) -> dict:
                 }
     """
     try:
-        if not message:
-            raise ValueError("Message cannot be empty")
+        # Early validation for empty messages or just "add task"
+        if not message or not message.strip() or message.strip().lower() == 'add task':
+            logger.info("Empty message or basic 'add task' command received")
+            return {
+                'intent': 'create_task',
+                'title': '',
+                'notes': '',
+                'due_date': None
+            }
 
         tool = _get_tool('determine_task_inputs', determine_task_inputs_description, {
             "intent": _get_func_arg_parameter(
