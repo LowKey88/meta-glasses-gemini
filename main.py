@@ -176,7 +176,7 @@ def process_text_message(text: str, message_data: dict):
                     task_id = task.get('id')
                     logger.info(f"Updating task {task_index} (ID: {task_id}): {task.get('title')}")
                     if update_task_status(task['id'], task_input['completed']):
-                        send_whatsapp_threaded("Task completed.")
+                        send_whatsapp_threaded(f"Task {task_index} completed.")
                     else:
                         send_whatsapp_threaded("Sorry, I couldn't update the task. Please try again.")
                 else:
@@ -191,7 +191,7 @@ def process_text_message(text: str, message_data: dict):
                     task_id = task.get('id')
                     logger.info(f"Deleting task {task_index} (ID: {task_id}): {task.get('title')}")
                     if delete_task(task['id']):
-                        send_whatsapp_threaded("Task deleted.")
+                        send_whatsapp_threaded(f"Task {task_index} deleted.")
                     else:
                         send_whatsapp_threaded("Sorry, I couldn't delete the task. Please try again.")
                 else:
