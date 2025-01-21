@@ -120,7 +120,7 @@ def process_text_message(text: str, message_data: dict):
         return get_cals_from_image()
 
     try:
-        operation_result = retrieve_message_type_from_message(text, message_data.get('from'))
+        operation_result = retrieve_message_type_from_message(text.lower(), message_data.get('from'))
         logger.info(f"Detected operation type: {operation_result}")
 
         # Handle cancellation response
@@ -136,7 +136,7 @@ def process_text_message(text: str, message_data: dict):
             return ok
         elif operation_type == 'task':
             # Process task operations
-            task_input = determine_task_inputs(text)
+            task_input = determine_task_inputs(text.lower())
             
             if task_input['intent'] == 'check_tasks':
                 tasks = get_tasks(include_completed=task_input['include_completed'])
