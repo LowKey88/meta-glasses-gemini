@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import json
 from typing import Dict, Optional
 
-from utils.redis_utils import r, try_catch_decorator, delete_reminder
+from utils.redis_utils import r, try_catch_decorator, delete_reminder, cleanup_expired_reminders
 from utils.whatsapp import send_whatsapp_message
 from utils.google_api import get_calendar_service
 
@@ -57,6 +57,9 @@ class ReminderManager:
             logger.error("Failed to get calendar service during sync")
             return
 
+        # Clean up expired reminders first
+        cleanup_expired_reminders()
+
         # Get all existing reminders from Redis
         existing_reminders = {}
         for key in r.scan_iter(f"{REMINDER_KEY_PREFIX}*"):
@@ -65,11 +68,13 @@ class ReminderManager:
             if data:
                 existing_reminders[event_id] = json.loads(data)
 
-        # Get upcoming events from Google Calendar
+        # Get upcoming events from Google Calendar (limit to next 7 days)
         now = datetime.now().astimezone()
+        week_later = now + timedelta(days=7)
         events_result = service.events().list(
             calendarId='primary',
             timeMin=now.isoformat(),
+            timeMax=week_later.isoformat(),
             maxResults=100,
             singleEvents=True,
             orderBy='startTime'
@@ -88,8 +93,9 @@ class ReminderManager:
                 start = event['start'].get('dateTime', event['start'].get('date'))
                 start_time = datetime.fromisoformat(start.replace('Z', '+00:00')).astimezone()
                 
-                # Convert to timezone-aware datetime for comparison
-                now = datetime.now().astimezone()
+                # Skip birthday events for now (they'll be handled separately)
+                if "birthday" in event.get('summary', '').lower():
+                    continue
                 
                 # Only add reminder if event is in the future
                 if start_time > now:
@@ -116,6 +122,10 @@ class ReminderManager:
         Returns:
             bool: True if reminders were scheduled successfully
         """
+        # Skip if it's a birthday event
+        if "birthday" in title.lower():
+            return True
+
         reminder_data = {
             "title": title,
             "start_time": start_time.isoformat(),
@@ -124,13 +134,13 @@ class ReminderManager:
             "start_reminder_sent": False
         }
         
-        # Store reminder data in Redis
+        # Store reminder data in Redis with expiration
         key = f"{REMINDER_KEY_PREFIX}{event_id}"
         r.set(key, json.dumps(reminder_data))
         
-        # Set expiration for 1 day after the meeting
-        expiration = start_time + timedelta(days=1)
-        r.expireat(key, expiration)
+        # Set expiration for 1 hour after the meeting
+        expiration = start_time + timedelta(hours=1)
+        r.expireat(key, int(expiration.timestamp()))
         
         logger.info(f"Scheduled reminders for '{title}' at {start_time.strftime('%I:%M %p')}.")
         return True
@@ -153,7 +163,6 @@ class ReminderManager:
             return False
             
         reminder_data = json.loads(data)
-        # Ensure all fields exist with default False
         reminder_data.setdefault("morning_reminder_sent", False)
         reminder_data.setdefault("hour_before_reminder_sent", False)
         reminder_data.setdefault("start_reminder_sent", False)
@@ -184,6 +193,11 @@ class ReminderManager:
                 
             reminder_data = json.loads(data)
             event_id = key.decode().replace(REMINDER_KEY_PREFIX, "")
+            
+            # Skip birthday events
+            if "birthday" in reminder_data.get("title", "").lower():
+                continue
+                
             start_time = datetime.fromisoformat(reminder_data["start_time"]).astimezone()
             
             # Skip if event is in the past
@@ -207,6 +221,9 @@ class ReminderManager:
     def check_and_send_pending_reminders():
         """Check for and send any pending reminders."""
         now = datetime.now().astimezone()
+        
+        # Clean up expired reminders first
+        cleanup_expired_reminders()
         
         # Handle morning reminders - collect all events for today
         if now.hour == MORNING_REMINDER_HOUR:
@@ -245,6 +262,10 @@ class ReminderManager:
             reminder_data = json.loads(data)
             event_id = key.decode().replace(REMINDER_KEY_PREFIX, "")
             
+            # Skip birthday events
+            if "birthday" in reminder_data.get("title", "").lower():
+                continue
+            
             # Verify event still exists in Google Calendar
             if not verify_event_exists(event_id):
                 continue
@@ -267,7 +288,7 @@ class ReminderManager:
                     ReminderManager.mark_reminder_sent(event_id, "hour_before")
             
             # Check meeting start reminder
-            if not reminder_data.get("start_reminder_sent", False):  # Use .get() with default False for backward compatibility
+            if not reminder_data.get("start_reminder_sent", False):
                 time_until_start = start_time - now
                 if timedelta(minutes=-1) <= time_until_start <= timedelta(minutes=1):
                     message = f"'{reminder_data['title']}' is starting now!"
