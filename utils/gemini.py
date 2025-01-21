@@ -95,12 +95,12 @@ For creating tasks (examples: "add task", "create todo", "new task"):
 - notes: Additional notes about the task, if any (optional)
 - due_date: The due date in YYYY-MM-DD format, if specified (optional)
 
-For updating task status (examples: "mark task complete", "finish task", "complete todo"):
+For updating task status (examples: "task 1 done", "mark task 2 complete"):
 - intent: Must be "update_task"
 - task_id: The ID of the task to update (will be provided in task list)
 - completed: boolean, whether to mark as completed or not
 
-For deleting tasks (examples: "delete task", "remove todo"):
+For deleting tasks (examples: "delete task 1", "remove task 2"):
 - intent: Must be "delete_task"
 - task_id: The ID of the task to delete (will be provided in task list)
 
@@ -643,7 +643,7 @@ def determine_task_inputs(message: str) -> dict:
                 'For task creation, the due date in YYYY-MM-DD format if specified'
             ),
             "task_id": _get_func_arg_parameter(
-                'For update/delete operations, the ID of the task'
+                'For update/delete operations, extract only the number from the message. For example: "task 1 done" -> "1", "delete task 2" -> "2", "mark task 3 complete" -> "3"'
             ),
             "completed": _get_func_arg_parameter(
                 'For update operations, whether to mark as completed',
