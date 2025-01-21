@@ -170,13 +170,14 @@ def process_text_message(text: str, message_data: dict):
             elif task_input['intent'] == 'update_task':
                 tasks = get_tasks(include_completed=False)  # Get incomplete tasks
                 task_index = int(task_input['task_id'])  # This is actually the index number
+                tasks = list(reversed(tasks))  # Reverse to match display order
                 logger.info(f"Attempting to complete task {task_index} out of {len(tasks)} tasks")
                 if 1 <= task_index <= len(tasks):
                     task = tasks[task_index - 1]  # Convert to 0-based index
                     task_id = task.get('id')
-                    logger.info(f"Updating task {task_index} (ID: {task_id}): {task.get('title')}")
+                    logger.info(f"Updating task {task_index} (ID: {task_id}): {task.get('title', '')}")
                     if update_task_status(task['id'], task_input['completed']):
-                        send_whatsapp_threaded(f"Task {task_index} completed.")
+                        send_whatsapp_threaded(f"Task {task_index} ({task.get('title', '')}) completed.")
                     else:
                         send_whatsapp_threaded("Sorry, I couldn't update the task. Please try again.")
                 else:
@@ -185,13 +186,14 @@ def process_text_message(text: str, message_data: dict):
             elif task_input['intent'] == 'delete_task':
                 tasks = get_tasks(include_completed=False)  # Get incomplete tasks
                 task_index = int(task_input['task_id'])  # This is actually the index number
+                tasks = list(reversed(tasks))  # Reverse to match display order
                 logger.info(f"Attempting to delete task {task_index} out of {len(tasks)} tasks")
                 if 1 <= task_index <= len(tasks):
                     task = tasks[task_index - 1]  # Convert to 0-based index
                     task_id = task.get('id')
-                    logger.info(f"Deleting task {task_index} (ID: {task_id}): {task.get('title')}")
+                    logger.info(f"Deleting task {task_index} (ID: {task_id}): {task.get('title', '')}")
                     if delete_task(task['id']):
-                        send_whatsapp_threaded(f"Task {task_index} deleted.")
+                        send_whatsapp_threaded(f"Task {task_index} ({task.get('title', '')}) deleted.")
                     else:
                         send_whatsapp_threaded("Sorry, I couldn't delete the task. Please try again.")
                 else:
