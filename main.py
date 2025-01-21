@@ -161,8 +161,8 @@ def process_text_message(text: str, message_data: dict):
                 )
                 if task:
                     tasks = get_tasks()  # Get all tasks to determine the new task's index
-                    task_index = next((i+1 for i, t in enumerate(tasks) if t['id'] == task['id']), 1)
-                    send_whatsapp_threaded(f"Created task: {format_task_for_display(task, task_index)}")
+                    # New task will be the last in the list
+                    send_whatsapp_threaded(f"Created task: {format_task_for_display(task, len(tasks))}")
                 else:
                     send_whatsapp_threaded("Sorry, I couldn't create the task. Please try again.")
             
