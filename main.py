@@ -143,7 +143,8 @@ def process_text_message(text: str, message_data: dict):
                 if not tasks:
                     send_whatsapp_threaded("You don't have any tasks.")
                 else:
-                    formatted_tasks = [format_task_for_display(task, i+1) for i, task in enumerate(tasks)]
+                    # Reverse tasks to maintain creation order
+                    formatted_tasks = [format_task_for_display(task, i+1) for i, task in enumerate(reversed(tasks))]
                     send_whatsapp_threaded("Here are your tasks:\n" + "\n".join(formatted_tasks))
             
             elif task_input['intent'] == 'create_task':
