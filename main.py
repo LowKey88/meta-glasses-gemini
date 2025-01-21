@@ -143,7 +143,7 @@ def process_text_message(text: str, message_data: dict):
                 if not tasks:
                     send_whatsapp_threaded("You don't have any tasks.")
                 else:
-                    formatted_tasks = [format_task_for_display(task) for task in tasks]
+                    formatted_tasks = [format_task_for_display(task, i+1) for i, task in enumerate(tasks)]
                     send_whatsapp_threaded("Here are your tasks:\n" + "\n".join(formatted_tasks))
             
             elif task_input['intent'] == 'create_task':
@@ -160,20 +160,24 @@ def process_text_message(text: str, message_data: dict):
                     due_date=task_input.get('due_date')
                 )
                 if task:
-                    send_whatsapp_threaded(f"Created task: {format_task_for_display(task)}")
+                    tasks = get_tasks()  # Get all tasks to determine the new task's index
+                    task_index = next((i+1 for i, t in enumerate(tasks) if t['id'] == task['id']), 1)
+                    send_whatsapp_threaded(f"Created task: {format_task_for_display(task, task_index)}")
                 else:
                     send_whatsapp_threaded("Sorry, I couldn't create the task. Please try again.")
             
             elif task_input['intent'] == 'update_task':
-                if update_task_status(task_input['task_id'], task_input['completed']):
-                    status = "completed" if task_input['completed'] else "incomplete"
-                    send_whatsapp_threaded(f"Task marked as {status}.")
+                tasks = get_tasks(include_completed=True)  # Get all tasks to find the one being updated
+                task = next((t for t in tasks if t['id'] == task_input['task_id']), None)
+                if task and update_task_status(task_input['task_id'], task_input['completed']):
+                    task_index = next((i+1 for i, t in enumerate(tasks) if t['id'] == task['id']), 1)
+                    send_whatsapp_threaded(f"Task {task_index} completed: {task.get('title')}")
                 else:
                     send_whatsapp_threaded("Sorry, I couldn't update the task. Please try again.")
             
             elif task_input['intent'] == 'delete_task':
-                if delete_task(task_input['task_id']):
-                    send_whatsapp_threaded("Task deleted successfully.")
+                if task and delete_task(task_input['task_id']):
+                    send_whatsapp_threaded(f"Task {task_index} deleted: {task.get('title')}")
                 else:
                     send_whatsapp_threaded("Sorry, I couldn't delete the task. Please try again.")
             

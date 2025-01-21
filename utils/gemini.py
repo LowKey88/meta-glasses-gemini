@@ -84,7 +84,7 @@ First determine if the user wants to:
 3. Update task status (complete/incomplete)
 4. Delete a task
 
-For checking tasks (examples: "show my tasks", "what tasks do I have", "list todos"):
+For checking tasks (examples: "show my tasks", "what tasks do I have", "list todos", "what my task", "what is my task", "check my task"):
 - intent: Must be "check_tasks"
 - include_completed: boolean, whether to include completed tasks
 - days_ahead: number of days to look ahead for upcoming tasks (default 7)
