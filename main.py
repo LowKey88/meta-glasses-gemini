@@ -167,19 +167,34 @@ def process_text_message(text: str, message_data: dict):
                     send_whatsapp_threaded("Sorry, I couldn't create the task. Please try again.")
             
             elif task_input['intent'] == 'update_task':
-                tasks = get_tasks(include_completed=True)  # Get all tasks to find the one being updated
-                task = next((t for t in tasks if t['id'] == task_input['task_id']), None)
-                if task and update_task_status(task_input['task_id'], task_input['completed']):
-                    task_index = next((i+1 for i, t in enumerate(tasks) if t['id'] == task['id']), 1)
-                    send_whatsapp_threaded(f"Task {task_index} completed: {task.get('title')}")
+                tasks = get_tasks(include_completed=False)  # Get incomplete tasks
+                task_index = int(task_input['task_id'])  # This is actually the index number
+                logger.info(f"Attempting to complete task {task_index} out of {len(tasks)} tasks")
+                if 1 <= task_index <= len(tasks):
+                    task = tasks[task_index - 1]  # Convert to 0-based index
+                    task_id = task.get('id')
+                    logger.info(f"Updating task {task_index} (ID: {task_id}): {task.get('title')}")
+                    if update_task_status(task['id'], task_input['completed']):
+                        send_whatsapp_threaded("Task completed.")
+                    else:
+                        send_whatsapp_threaded("Sorry, I couldn't update the task. Please try again.")
                 else:
-                    send_whatsapp_threaded("Sorry, I couldn't update the task. Please try again.")
+                    send_whatsapp_threaded(f"Task {task_index} not found. Please check the task number and try again.")
             
             elif task_input['intent'] == 'delete_task':
-                if task and delete_task(task_input['task_id']):
-                    send_whatsapp_threaded(f"Task {task_index} deleted: {task.get('title')}")
+                tasks = get_tasks(include_completed=False)  # Get incomplete tasks
+                task_index = int(task_input['task_id'])  # This is actually the index number
+                logger.info(f"Attempting to delete task {task_index} out of {len(tasks)} tasks")
+                if 1 <= task_index <= len(tasks):
+                    task = tasks[task_index - 1]  # Convert to 0-based index
+                    task_id = task.get('id')
+                    logger.info(f"Deleting task {task_index} (ID: {task_id}): {task.get('title')}")
+                    if delete_task(task['id']):
+                        send_whatsapp_threaded("Task deleted.")
+                    else:
+                        send_whatsapp_threaded("Sorry, I couldn't delete the task. Please try again.")
                 else:
-                    send_whatsapp_threaded("Sorry, I couldn't delete the task. Please try again.")
+                    send_whatsapp_threaded(f"Task {task_index} not found. Please check the task number and try again.")
             
             else:
                 send_whatsapp_threaded("I couldn't understand what you want to do with the task. Please try again.")
