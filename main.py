@@ -121,7 +121,6 @@ def process_text_message(text: str, message_data: dict):
 
     try:
         operation_result = retrieve_message_type_from_message(text, message_data.get('from'))
-        logger.debug(f"Raw message: {text}")
         logger.info(f"Detected operation type: {operation_result}")
 
         # Handle cancellation response
@@ -138,7 +137,6 @@ def process_text_message(text: str, message_data: dict):
         elif operation_type == 'task':
             # Process task operations
             task_input = determine_task_inputs(text)
-            logger.info(f"Task input: {task_input}")
             
             if task_input['intent'] == 'check_tasks':
                 tasks = get_tasks(include_completed=task_input['include_completed'])
@@ -186,7 +184,6 @@ def process_text_message(text: str, message_data: dict):
             elif task_input['intent'] == 'delete_task':
                 tasks = get_tasks(include_completed=False)  # Get incomplete tasks
                 task_index = int(task_input['task_id'])  # This is actually the index number
-                logger.debug(f"Delete task input - index: {task_index}, total tasks: {len(tasks)}")
                 logger.info(f"Attempting to delete task {task_index} out of {len(tasks)} tasks")
                 if 1 <= task_index <= len(tasks):
                     task = tasks[task_index - 1]  # Convert to 0-based index
@@ -205,9 +202,7 @@ def process_text_message(text: str, message_data: dict):
             
         elif operation_type == 'calendar':
             # Get user's WhatsApp ID from the message data
-            logger.info(f"Message data for calendar operation: {message_data}")
             phone_number = message_data.get('from') if isinstance(message_data, dict) else 'default'
-            logger.info(f"Using phone number for cancellation state: {phone_number}")
             calendar_input = determine_calendar_event_inputs(text, phone_number)
             
             if calendar_input is None:
