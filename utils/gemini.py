@@ -48,7 +48,8 @@ Based on the message type, execute some different requests to APIs or other tool
 - task: types are related to:
    * Checking tasks or to-dos (e.g. "show my tasks", "what tasks do I have", "list todos")
    * Creating new tasks or to-do items
-   * Managing task status (complete/incomplete)
+   * Managing task status (e.g. "task 1 done", "mark task 2 complete")
+   * Deleting tasks (e.g. "delete task 1", "remove task 2")
    * Anything with personal tasks or to-do list management
 - other: types are related to anything else.
 
