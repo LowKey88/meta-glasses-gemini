@@ -7,6 +7,8 @@ import asyncio
 from typing import Optional
 from datetime import datetime
 
+__version__ = '1.1.0'
+
 from fastapi import FastAPI, Request, HTTPException, Header, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import PlainTextResponse
@@ -60,7 +62,7 @@ app.add_middleware(
 
 @app.get('/')
 def home():
-   return 'API v1.0 OK'
+   return f'API {__version__} OK'
 
 @app.get('/auth/google')
 async def google_auth_endpoint(x_api_key: Optional[str] = Header(None)):
