@@ -33,6 +33,7 @@ Based on the message type, execute some different requests to APIs or other tool
 - calendar: types are related to:
   * Checking schedule/meetings/appointments (e.g. "check my meeting", "check my meetings", "what's my schedule", "do I have any meetings")
   * Creating events/meetings/reminders
+  * Canceling events (e.g. "cancel meeting 3", "cancel event 2")
   * Anything with scheduling, calendar, or time management
   
 - image: types are related to:
@@ -441,7 +442,7 @@ def determine_calendar_event_inputs(message: str, user_id: str = 'default') -> d
         Message: {message}
         
         Return ONLY one of:
-        - 'check_schedule' - For viewing or querying calendar/meetings
+        - 'check_schedule' - For viewing or querying calendar/meetings 
         - 'create_event' - For creating new meetings/events
         - 'cancel_event' - For canceling or removing meetings
         """
@@ -456,13 +457,19 @@ def determine_calendar_event_inputs(message: str, user_id: str = 'default') -> d
         logger.debug(f"Detected calendar intent: {intent}")
         
         if intent == 'cancel_event':
-            from functionality.calendar import get_upcoming_events, format_events_for_cancellation
-            from utils.redis_utils import set_cancellation_state
+            from functionality.calendar import (
+                get_upcoming_events, 
+                format_events_for_cancellation,
+                parse_cancel_command,
+                cancel_event_by_index
+            )
             
-            # Show list of events to cancel
-            events = get_upcoming_events()
-            # Set cancellation state with 30-second timeout
-            set_cancellation_state(user_id)
+            # Check if this is a direct cancellation command
+            if (index := parse_cancel_command(message)) is not None:
+                if (cancelled_event := cancel_event_by_index(index)) is not None:
+                    return {'intent': 'cancel_event', 'response': f'Cancelled event: {cancelled_event}'}
+            
+            events = get_upcoming_events()  # Show list of events to cancel
             return {
                 'intent': 'cancel_event',
                 'response': format_events_for_cancellation(events)
