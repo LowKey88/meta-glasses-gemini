@@ -214,7 +214,7 @@ def cancel_specific_meeting(event_id: str) -> bool:
         print(f"Error cancelling meeting: {e}")
         return False
 
-def get_upcoming_events() -> List[Dict]:
+def get_upcoming_events(include_all_day: bool = False, include_recurring: bool = False) -> List[Dict]:
     """
     Get all upcoming events sorted by start time.
     Returns a list of event dictionaries.
@@ -225,24 +225,55 @@ def get_upcoming_events() -> List[Dict]:
     
     # Get current time
     now = datetime.now().astimezone()
+    # Set end time to 30 days from now to limit range
+    end = now + timedelta(days=30)
     
     # Get events from now onwards
     events_result = service.events().list(
         calendarId='primary',
         timeMin=now.isoformat(),
+        timeMax=end.isoformat(),
         orderBy='startTime',
-        singleEvents=True,
+        singleEvents=True,  # Expand recurring events
         maxResults=5  # Limit to 5 upcoming events
     ).execute()
     
-    return events_result.get('items', [])
+    # Filter events
+    filtered_events = []
+    for event in events_result.get('items', []):
+        try:
+            # Skip cancelled events
+            if event.get('status') == 'cancelled':
+                continue
+                
+            # Check if it's an all-day event
+            is_all_day = 'date' in event.get('start', {})
+            if is_all_day and not include_all_day:
+                continue
+            
+            # Get event times
+            start = event['start'].get('dateTime', event['start'].get('date'))
+            end = event['end'].get('dateTime', event['end'].get('date'))
+            
+            # Convert to datetime objects
+            start_dt = datetime.fromisoformat(start.replace('Z', '+00:00')).astimezone()
+            end_dt = datetime.fromisoformat(end.replace('Z', '+00:00')).astimezone()
+            
+            # Only include events that haven't ended
+            if end_dt > now:
+                filtered_events.append(event)
+                
+        except Exception as e:
+            print(f"Error processing event: {e}")
+    
+    return filtered_events[:5]  # Ensure we return at most 5 events
 
 def format_events_for_cancellation(events: List[Dict]) -> str:
     """
     Format a list of events into a numbered list for cancellation selection.
     """
     if not events:
-        return "You have no upcoming events to cancel."
+        return "You have no upcoming regular events to cancel.\nNote: All-day events like birthdays cannot be cancelled through this system."
     
     formatted_events = ["Select event to cancel:"]
     for i, event in enumerate(events, 1):
