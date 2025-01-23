@@ -1,8 +1,9 @@
 import base64
 import os
+import zoneinfo
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
-import zoneinfo
+from google_auth_oauthlib.flow import InstalledAppFlow
 from utils.google_api import get_calendar_service
 
 # Google Calendar colorId mapping:
