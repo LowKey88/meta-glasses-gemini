@@ -2,7 +2,8 @@ import os
 import json
 import base64
 import redis
-from datetime import datetime, timedelta
+import zoneinfo
+from datetime import datetime, timedelta, timezone
 
 r = redis.Redis(
     host=os.getenv('REDIS_DB_HOST', 'localhost'),
@@ -11,6 +12,8 @@ r = redis.Redis(
     password=os.getenv('REDIS_DB_PASSWORD', ''),
     health_check_interval=30
 )
+
+TIME_ZONE = 'Asia/Kuala_Lumpur'
 
 
 def try_catch_decorator(func):
@@ -73,8 +76,10 @@ def cleanup_expired_reminders():
                 start_time = reminder_data.get('start_time')
                 if start_time:
                     # If event is more than 24 hours old, delete it
-                    event_time = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
-                    if datetime.now().astimezone() - event_time > timedelta(hours=24):
+                    kl_tz = zoneinfo.ZoneInfo(TIME_ZONE)
+                    event_time = datetime.fromisoformat(start_time.replace('Z', '+00:00')).astimezone(kl_tz)
+                    current_time = datetime.now(kl_tz)
+                    if (current_time - event_time) > timedelta(hours=24):
                         r.delete(key)
         except Exception as e:
             print(f"Error cleaning up reminder {key}: {e}")
