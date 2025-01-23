@@ -229,9 +229,8 @@ def process_text_message(text: str, message_data: dict):
                     'time': calendar_input['time'],
                     'duration': calendar_input['duration']
                 }
-                event_link = create_google_calendar_event(**create_args)
-                meeting_time = datetime.strptime(f"{create_args['date']} {create_args['time']}", '%Y-%m-%d %H:%M').strftime('%I:%M %p')
-                send_whatsapp_threaded(f"I've scheduled \"{create_args['title']}\" for {meeting_time}!")
+                _, response_message = create_google_calendar_event(**create_args)
+                send_whatsapp_threaded(response_message)
             return ok
         elif operation_type == 'notion':
             arguments = determine_notion_page_inputs(text)
