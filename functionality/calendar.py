@@ -2,7 +2,7 @@ import base64
 import os
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
-from google_auth_oauthlib.flow import InstalledAppFlow
+import zoneinfo
 from utils.google_api import get_calendar_service
 
 # Google Calendar colorId mapping:
@@ -65,7 +65,7 @@ def get_event_color(title: str, description: str) -> int:
     
     return color_id
 
-def create_google_calendar_event(title: str, description: str, date: str, time: str, duration: int = 1, color_id: Optional[int] = None) -> str:
+def create_google_calendar_event(title: str, description: str, date: str, time: str, duration: int = 1, color_id: Optional[int] = None) -> tuple[str, str]:
     """Create a new Google Calendar event."""
     service = get_calendar_service()
     if not service:
@@ -78,9 +78,24 @@ def create_google_calendar_event(title: str, description: str, date: str, time: 
     if color_id is None:
         color_id = get_event_color(title, description)
 
+    # Parse the requested datetime
     start_datetime = datetime.strptime(f'{date} {time}', '%Y-%m-%d %H:%M')
+    kl_tz = zoneinfo.ZoneInfo(TIME_ZONE)
+    start_datetime = start_datetime.replace(tzinfo=kl_tz)
+    
+    # Check if requested time is in the past
+    current_time = datetime.now(kl_tz)
+    original_date = start_datetime.date()
+    days_to_add = 0
+    
+    # If time is in the past, move to next day
+    if start_datetime <= current_time:
+        days_to_add = 1
+        start_datetime = start_datetime + timedelta(days=days_to_add)
+    
     end_datetime = start_datetime + timedelta(hours=duration)
 
+    # Create the event
     event = {
         'summary': title,
         'description': description,
@@ -108,7 +123,13 @@ def create_google_calendar_event(title: str, description: str, date: str, time: 
         print(f"Failed to schedule reminders: {str(e)}")
         # Don't raise the exception as we still want to return the calendar link
         
-    return result.get("htmlLink")
+    # Prepare response message with date adjustment if needed
+    message = f"I've scheduled \"{title}\" for {start_datetime.strftime('%I:%M %p')}"
+    if start_datetime.date() != original_date:
+        message += f" tomorrow" if days_to_add == 1 else f" on {start_datetime.strftime('%A, %B %d')}"
+    message += "!"
+    
+    return result.get("htmlLink"), message
 
 def get_schedule_for_date_range(start_date: datetime, end_date: datetime) -> List[Dict]:
     """Get schedule for a date range."""
