@@ -265,6 +265,36 @@ def format_events_for_cancellation(events: List[Dict]) -> str:
     formatted_events.append("\nWhich event would you like to cancel?")
     return "\n".join(formatted_events)
 
+def parse_cancel_command(message: str) -> Optional[int]:
+    """
+    Parse a cancellation command to extract the event index.
+    Handles formats like "cancel meeting 3" or "cancel event 3"
+    
+    Args:
+        message (str): The cancellation command message
+        
+    Returns:
+        Optional[int]: The event index if valid command, None otherwise
+    """
+    try:
+        # Convert message to lowercase for consistent matching
+        message = message.lower().strip()
+        
+        # Match patterns like "cancel meeting X" or "cancel event X"
+        if any(message.startswith(prefix) for prefix in ['cancel meeting', 'cancel event']):
+            # Extract the number from the end of the message
+            parts = message.split()
+            if len(parts) >= 3 and parts[-1].isdigit():
+                index = int(parts[-1])
+                return index if index > 0 else None
+                
+        return None
+        
+    except Exception as e:
+        print(f"Error parsing cancel command: {e}")
+        return None
+
+
 def cancel_event_by_index(index: int) -> Optional[str]:
     """
     Cancel an event by its index in the upcoming events list.

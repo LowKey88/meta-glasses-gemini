@@ -125,11 +125,6 @@ def process_text_message(text: str, message_data: dict):
         operation_result = retrieve_message_type_from_message(text.lower(), message_data.get('from'))
         logger.info(f"Detected operation type: {operation_result}")
 
-        # Handle cancellation response
-        if isinstance(operation_result, dict) and operation_result.get('intent') == 'cancel_event':
-            send_whatsapp_threaded(operation_result['response'])
-            return ok
-
         # Normal operation type handling
         operation_type = operation_result if isinstance(operation_result, str) else 'other'
         if operation_type == 'image' and ImageContext.last_image_path:
@@ -209,7 +204,12 @@ def process_text_message(text: str, message_data: dict):
             # Get user's WhatsApp ID from the message data
             phone_number = message_data.get('from') if isinstance(message_data, dict) else 'default'
             calendar_input = determine_calendar_event_inputs(text, phone_number)
-            
+
+            # Handle calendar operations including cancellation
+            if calendar_input and calendar_input.get('intent') == 'cancel_event':
+                send_whatsapp_threaded(calendar_input['response'])
+                return ok
+
             if calendar_input is None:
                 # If calendar processing returns None, fall through to default processing
                 response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.')
