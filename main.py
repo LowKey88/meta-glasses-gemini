@@ -3,7 +3,7 @@ Meta Glasses Gemini API
 A WhatsApp-based assistant using Google's Gemini API for various functionalities.
 """
 
-__version__ = '1.1.0'
+__version__ = '1.1.1'
 
 # Standard library imports
 import json
