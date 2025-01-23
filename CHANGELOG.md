@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.1] - 2025-01-23
+
+### Improvements
+- Calendar Event Enhancements:
+  * Added smart time validation for event creation
+    - Prevents creating events in the past
+    - Auto-schedules for next day if time has passed
+    - Clear user feedback about date adjustments
+  * New direct meeting cancellation commands
+    - Added "cancel meeting X" format
+    - Removed Redis state dependency
+    - Better error handling
+  * Improved timezone handling
+    - Consistent Asia/Kuala_Lumpur timezone usage
+    - Fixed offset-aware datetime comparisons
+    - Fixed Redis reminder cleanup timezone issues
+
 ## [1.1.0] - 2025-01-22
 
 ### New Features
@@ -24,19 +41,19 @@ All notable changes to this project will be documented in this file.
 
 #### Calendar and Meeting Improvements
 - Enhanced Meeting Management:
-  - Smart color coding for different event types
-  - Improved event cancellation system with selection interface
-  - Better event formatting for speech/display
-  - Support for all-day events
+  * Smart color coding for different event types
+  * Improved event cancellation system with selection interface
+  * Better event formatting for speech/display
+  * Support for all-day events
 - Schedule View Enhancements:
-  - Weekly schedule overview
-  - Today/Tomorrow combined view
-  - Upcoming events filtering
-  - Past event cleanup
+  * Weekly schedule overview
+  * Today/Tomorrow combined view
+  * Upcoming events filtering
+  * Past event cleanup
 - Meeting Reminders:
-  - Integration with WhatsApp notifications
-  - Automatic reminder scheduling
-  - Redis-based reminder management
+  * Integration with WhatsApp notifications
+  * Automatic reminder scheduling
+  * Redis-based reminder management
 
 ### System Improvements
 - Redis Optimizations:

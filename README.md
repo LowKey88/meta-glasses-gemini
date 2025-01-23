@@ -139,12 +139,27 @@ You can create and manage different types of calendar events:
 6. Canceling Meetings:
    The system provides a straightforward cancellation interface:
 
-   Initial Commands:
-   - "Cancel my meeting"
-   - "Cancel my last meeting"
-   - "Cancel my latest meeting"
-   - "Delete meeting"
-   - "Remove meeting"
+   Two ways to cancel:
+    1. Direct Cancellation:
+       - "cancel meeting 1" (cancels meeting #1 from list)
+       - "cancel event 2" (cancels event #2 from list)
+       Note: Numbers refer to the meeting list shown
+
+    2. List and Select:
+      - "cancel meeting" (shows numbered list of upcoming meetings)
+      - "cncel my meeting" (shows list to choose from)
+       
+    Note: All-day events (like birthdays) cannot be cancelled through this system.
+
+7. Smart Time Validation:
+    The system automatically handles past time entries:
+    - When scheduling an event for a time that has already passed today
+      (e.g., "meeting at 2pm" when it's 11pm), the system will:
+      * Automatically schedule it for tomorrow
+      * Provide clear feedback about the date adjustment
+      * Example: "I've scheduled 'Meeting' for 2:00 PM tomorrow!"
+    - Prevents accidental creation of events in the past
+    - Maintains proper timezone handling (Asia/Kuala_Lumpur)
 
 You can include additional details in your commands:
 - Location:
