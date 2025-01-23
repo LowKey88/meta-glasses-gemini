@@ -1,32 +1,36 @@
+"""
+Meta Glasses Gemini API
+A WhatsApp-based assistant using Google's Gemini API for various functionalities.
+"""
+
+__version__ = '1.1.0'
+
+# Standard library imports
 import json
 import logging
 import os
 import threading
 import time
 import asyncio
-from typing import Optional
 from datetime import datetime
+from typing import Optional
 
-__version__ = '1.1.0'
-
+# Third-party imports
 from fastapi import FastAPI, Request, HTTPException, Header, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import PlainTextResponse
 
+# Local imports - functionality
 from functionality.audio import retrieve_transcript_from_audio
 from functionality.automation import automation_command
 from functionality.calendar import create_google_calendar_event
 from functionality.image import logic_for_prompt_before_image, retrieve_calories_from_image
 from functionality.notion_ import add_new_page
-from functionality.task import (
-    create_task,
-    get_tasks,
-    update_task_status,
-    delete_task,
-    format_task_for_display
-)
+from functionality.task import create_task, get_tasks, update_task_status, delete_task, format_task_for_display
 from functionality.nutrition import get_cals_from_image
 from functionality.search import google_search_pipeline
+
+# Local imports - utils
 from utils.gemini import *
 from utils.google_auth import GoogleAuth
 from utils.whatsapp import send_whatsapp_threaded, send_whatsapp_image, download_file
