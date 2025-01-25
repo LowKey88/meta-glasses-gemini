@@ -272,9 +272,13 @@ class ReminderManager:
                 
             start_time = datetime.fromisoformat(reminder_data["start_time"]).astimezone()
             
-            # Skip if event is in the past
+            # If event is in the past, delete the reminder and continue
             if start_time < now:
+                logger.info(f"Deleting past event reminder: {reminder_data['title']}")
+                delete_reminder(event_id)
                 continue
+                
+            # Only process future events from this point
             
             # Check hour before reminder
             if not reminder_data["hour_before_reminder_sent"]:

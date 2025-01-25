@@ -75,11 +75,11 @@ def cleanup_expired_reminders():
                 reminder_data = json.loads(data)
                 start_time = reminder_data.get('start_time')
                 if start_time:
-                    # If event is more than 24 hours old, delete it
+                    # Delete reminder if event has ended
                     kl_tz = zoneinfo.ZoneInfo(TIME_ZONE)
                     event_time = datetime.fromisoformat(start_time.replace('Z', '+00:00')).astimezone(kl_tz)
                     current_time = datetime.now(kl_tz)
-                    if (current_time - event_time) > timedelta(hours=24):
+                    if current_time > event_time:
                         r.delete(key)
         except Exception as e:
             print(f"Error cleaning up reminder {key}: {e}")
