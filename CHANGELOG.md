@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.2] - 2025-01-29
+
+### Improvements
+- Calendar Sync Enhancements:
+  * Added periodic sync with Google Calendar (5-minute intervals)
+  * Fixed events not syncing when created directly in Google Calendar
+  * Added comprehensive error handling and logging
+  * Added sync statistics tracking
+  * Improved WhatsApp notification reliability
+  * Enhanced sync status monitoring
+
 ## [1.1.1] - 2025-01-23
 
 ### Improvements
