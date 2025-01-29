@@ -51,62 +51,96 @@ class ReminderManager:
         """
         Sync Redis reminders with Google Calendar events.
         Removes reminders for deleted events and adds reminders for new events.
+        
+        Returns:
+            bool: True if sync was successful, False otherwise
         """
         service = get_calendar_service()
         if not service:
             logger.error("Failed to get calendar service during sync")
-            return
+            return False
 
         # Clean up expired reminders first
-        cleanup_expired_reminders()
+        try:
+            cleanup_expired_reminders()
+        except Exception as e:
+            logger.error(f"Error cleaning up expired reminders: {e}")
+            # Continue with sync even if cleanup fails
 
         # Get all existing reminders from Redis
         existing_reminders = {}
-        for key in r.scan_iter(f"{REMINDER_KEY_PREFIX}*"):
-            event_id = key.decode().replace(REMINDER_KEY_PREFIX, "")
-            data = r.get(key)
-            if data:
-                existing_reminders[event_id] = json.loads(data)
+        try:
+            for key in r.scan_iter(f"{REMINDER_KEY_PREFIX}*"):
+                event_id = key.decode().replace(REMINDER_KEY_PREFIX, "")
+                data = r.get(key)
+                if data:
+                    try:
+                        existing_reminders[event_id] = json.loads(data)
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Error decoding reminder data for {event_id}: {e}")
+                        delete_reminder(event_id)  # Clean up corrupted data
+        except Exception as e:
+            logger.error(f"Error reading existing reminders from Redis: {e}")
+            return False
 
         # Get upcoming events from Google Calendar (limit to next 7 days)
         now = datetime.now().astimezone()
         week_later = now + timedelta(days=7)
-        events_result = service.events().list(
-            calendarId='primary',
-            timeMin=now.isoformat(),
-            timeMax=week_later.isoformat(),
-            maxResults=100,
-            singleEvents=True,
-            orderBy='startTime'
-        ).execute()
-        calendar_events = {event['id']: event for event in events_result.get('items', [])}
+        try:
+            events_result = service.events().list(
+                calendarId='primary',
+                timeMin=now.isoformat(),
+                timeMax=week_later.isoformat(),
+                maxResults=100,
+                singleEvents=True,
+                orderBy='startTime'
+            ).execute()
+            calendar_events = {event['id']: event for event in events_result.get('items', [])}
+            logger.info(f"Found {len(calendar_events)} upcoming events in Google Calendar")
+        except Exception as e:
+            logger.error(f"Error fetching events from Google Calendar: {e}")
+            return False
 
         # Remove reminders for deleted events
+        deleted_count = 0
         for event_id in existing_reminders:
             if event_id not in calendar_events:
                 logger.info(f"Removing reminder for deleted event: {event_id}")
                 delete_reminder(event_id)
+                deleted_count += 1
 
         # Add reminders for new events
+        added_count = 0
+        skipped_count = 0
         for event_id, event in calendar_events.items():
             if event_id not in existing_reminders:
                 start = event['start'].get('dateTime', event['start'].get('date'))
-                start_time = datetime.fromisoformat(start.replace('Z', '+00:00')).astimezone()
+                try:
+                    start_time = datetime.fromisoformat(start.replace('Z', '+00:00')).astimezone()
+                except ValueError as e:
+                    logger.error(f"Error parsing start time for event {event_id}: {e}")
+                    continue
                 
                 # Skip birthday events for now (they'll be handled separately)
                 if "birthday" in event.get('summary', '').lower():
+                    skipped_count += 1
                     continue
                 
                 # Only add reminder if event is in the future
                 if start_time > now:
                     logger.info(f"Adding reminder for new event: {event.get('summary', 'Untitled')}")
-                    ReminderManager.schedule_meeting_reminders(
-                        event_id=event_id,
-                        title=event.get('summary', 'Untitled'),
-                        start_time=start_time
-                    )
+                    try:
+                        if ReminderManager.schedule_meeting_reminders(
+                            event_id=event_id,
+                            title=event.get('summary', 'Untitled'),
+                            start_time=start_time
+                        ):
+                            added_count += 1
+                    except Exception as e:
+                        logger.error(f"Error scheduling reminder for event {event_id}: {e}")
                     
-        logger.info("Calendar sync completed")
+        logger.info(f"Calendar sync completed: {added_count} added, {deleted_count} deleted, {skipped_count} skipped")
+        return True
 
     @staticmethod
     @try_catch_decorator

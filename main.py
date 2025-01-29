@@ -324,6 +324,8 @@ def logic(message: dict):
 async def check_reminders_task():
     """Background task to check and send meeting reminders."""
     from utils.reminder import ReminderManager
+    sync_interval = 300  # Sync calendar every 5 minutes
+    last_sync = time.time()  # Initialize with current time after first sync
     
     # Disable oauth2client cache warning
     import warnings
@@ -337,6 +339,21 @@ async def check_reminders_task():
         logger.error(f"Error during initial calendar sync: {str(e)}")
     
     while True:
+        current_time = time.time()
+        
+        # Attempt calendar sync every 5 minutes
+        if current_time - last_sync >= sync_interval:
+            try:
+                logger.info("Starting periodic calendar sync...")
+                if ReminderManager.sync_with_calendar():
+                    last_sync = current_time
+                    logger.info("Periodic calendar sync completed successfully")
+                else:
+                    logger.warning("Periodic calendar sync completed with errors")
+                    # Don't update last_sync on failure to retry next iteration
+            except Exception as e:
+                logger.error(f"Error during periodic calendar sync: {str(e)}")
+        
         try:
             ReminderManager.check_and_send_pending_reminders()
         except Exception as e:
