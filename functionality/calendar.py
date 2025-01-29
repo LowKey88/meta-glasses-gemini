@@ -3,8 +3,11 @@ import os
 import zoneinfo
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
+import logging
 from google_auth_oauthlib.flow import InstalledAppFlow
 from utils.google_api import get_calendar_service
+
+logger = logging.getLogger("uvicorn")
 
 # Google Calendar colorId mapping:
 # 4 - Flamingo (Pink)
@@ -70,7 +73,7 @@ def create_google_calendar_event(title: str, description: str, date: str, time: 
     """Create a new Google Calendar event."""
     service = get_calendar_service()
     if not service:
-        raise Exception("No valid credentials")
+        raise Exception("Failed to get calendar service - check credentials")
 
     # If no description provided, use empty string to prevent None
     description = description or ""
@@ -110,67 +113,94 @@ def create_google_calendar_event(title: str, description: str, date: str, time: 
         },
         'colorId': color_id,  # Google Calendar API expects colorId as an integer
     }
-    result = service.events().insert(calendarId='primary', body=event).execute()
     
-    # Schedule WhatsApp reminders for the event
     try:
-        from utils.reminder import ReminderManager
-        ReminderManager.schedule_meeting_reminders(
-            event_id=result['id'],
-            title=title,
-            start_time=start_datetime
-        )
-    except Exception as e:
-        print(f"Failed to schedule reminders: {str(e)}")
-        # Don't raise the exception as we still want to return the calendar link
+        result = service.events().insert(calendarId='primary', body=event).execute()
+        logger.info(f"Created calendar event: {title}")
         
-    # Prepare response message with date adjustment if needed
-    message = f"I've scheduled \"{title}\" for {start_datetime.strftime('%I:%M %p')}"
-    if start_datetime.date() != original_date:
-        message += f" tomorrow" if days_to_add == 1 else f" on {start_datetime.strftime('%A, %B %d')}"
-    message += "!"
-    
-    return result.get("htmlLink"), message
+        # Schedule WhatsApp reminders for the event
+        try:
+            from utils.reminder import ReminderManager
+            if not ReminderManager.schedule_meeting_reminders(
+                event_id=result['id'],
+                title=title,
+                start_time=start_datetime
+            ):
+                logger.warning(f"Failed to schedule reminders for event: {title}")
+        except Exception as e:
+            logger.error(f"Failed to schedule reminders: {str(e)}")
+            # Continue to return the calendar link even if reminder scheduling fails
+            
+        # Prepare response message
+        message = f"I've scheduled \"{title}\" for {start_datetime.strftime('%I:%M %p')}"
+        if start_datetime.date() != original_date:
+            message += f" tomorrow" if days_to_add == 1 else f" on {start_datetime.strftime('%A, %B %d')}"
+        message += "!"
+        
+        return result.get("htmlLink"), message
+    except Exception as e:
+        logger.error(f"Failed to create calendar event: {str(e)}")
+        raise Exception(f"Failed to create calendar event: {str(e)}")
 
 def get_schedule_for_date_range(start_date: datetime, end_date: datetime) -> List[Dict]:
     """Get schedule for a date range."""
     service = get_calendar_service()
     if not service:
-        raise Exception("No valid credentials")
+        logger.error("Failed to get calendar service during schedule fetch")
+        return []
     
     # Get the start and end of the date range
     start = datetime.combine(start_date.date(), datetime.min.time())
     end = datetime.combine(end_date.date(), datetime.max.time())
     
-    result = service.events().list(
-        calendarId='primary',
-        timeMin=start.isoformat() + 'Z',
-        timeMax=end.isoformat() + 'Z',
-        singleEvents=True,
-        orderBy='startTime'
-    ).execute()
+    try:
+        result = service.events().list(
+            calendarId='primary',
+            timeMin=start.isoformat() + 'Z',
+            timeMax=end.isoformat() + 'Z',
+            singleEvents=True,
+            orderBy='startTime'
+        ).execute()
+        logger.info(f"Retrieved {len(result.get('items', []))} events for date range")
+    except Exception as e:
+        logger.error(f"Failed to fetch calendar events: {str(e)}")
+        return []
     
     # Filter events to ensure they fall within the specified date range and haven't ended
     filtered_items = []
     current_time = datetime.now().astimezone()  # Get current time in local timezone
     
+    # Track parsing errors for logging
+    parsing_errors = 0
+    
     for item in result.get('items', []):
         event_start = item['start'].get('dateTime', item['start'].get('date'))
         event_end = item['end'].get('dateTime', item['end'].get('date'))
         
-        event_start_dt = datetime.fromisoformat(event_start.replace('Z', '+00:00'))
-        event_end_dt = datetime.fromisoformat(event_end.replace('Z', '+00:00'))
-        
-        # Convert to local timezone
-        event_start_dt = event_start_dt.astimezone()
-        event_end_dt = event_end_dt.astimezone()
-        
-        # Only include events that:
-        # 1. Start on the specified date(s)
-        # 2. Haven't ended yet (end time is in the future)
-        if (start_date.date() <= event_start_dt.date() <= end_date.date() and
-            event_end_dt > current_time):
-            filtered_items.append(item)
+        try:
+            event_start_dt = datetime.fromisoformat(event_start.replace('Z', '+00:00'))
+            event_end_dt = datetime.fromisoformat(event_end.replace('Z', '+00:00'))
+            
+            # Convert to local timezone
+            event_start_dt = event_start_dt.astimezone()
+            event_end_dt = event_end_dt.astimezone()
+            
+            # Only include events that:
+            # 1. Start on the specified date(s)
+            # 2. Haven't ended yet (end time is in the future)
+            if (start_date.date() <= event_start_dt.date() <= end_date.date() and
+                event_end_dt > current_time):
+                filtered_items.append(item)
+                
+        except (ValueError, TypeError) as e:
+            parsing_errors += 1
+            logger.error(f"Error parsing dates for event {item.get('id', 'unknown')}: {str(e)}")
+            continue  # Skip events with invalid dates
+    
+    if parsing_errors > 0:
+        logger.warning(f"Skipped {parsing_errors} events due to date parsing errors")
+    
+    logger.info(f"Filtered to {len(filtered_items)} relevant events")
     
     return filtered_items
 
@@ -218,7 +248,8 @@ def cancel_specific_meeting(event_id: str) -> bool:
     try:
         service = get_calendar_service()
         if not service:
-            raise Exception("No valid credentials")
+            logger.error("Failed to get calendar service for cancellation")
+            return False
         
         # Delete the event from Google Calendar
         service.events().delete(
@@ -226,14 +257,19 @@ def cancel_specific_meeting(event_id: str) -> bool:
             eventId=event_id
         ).execute()
         
-        # Delete the associated reminder from Redis
-        from utils.redis_utils import delete_reminder
-        delete_reminder(event_id)
+        try:
+            # Delete the associated reminder from Redis
+            from utils.redis_utils import delete_reminder
+            delete_reminder(event_id)
+            logger.info(f"Successfully cancelled event {event_id}")
+        except Exception as e:
+            # Log but don't fail if reminder deletion fails
+            logger.error(f"Failed to delete reminder for event {event_id}: {str(e)}")
         
         return True
         
     except Exception as e:
-        print(f"Error cancelling meeting: {e}")
+        logger.error(f"Error cancelling meeting: {str(e)}")
         return False
 
 def get_upcoming_events(include_all_day: bool = False, include_recurring: bool = False) -> List[Dict]:
