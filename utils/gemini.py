@@ -24,8 +24,8 @@ def initialize_gemini_api():
         raise
 
 # Model constants
-GEMINI_VISION_MODEL = 'gemini-2.0-flash-exp'
-GEMINI_CHAT_MODEL = 'gemini-1.5-flash'
+GEMINI_VISION_MODEL = 'gemini-2.0-flash'
+GEMINI_CHAT_MODEL = 'gemini-2.0-flash'
 
 retrieve_message_type_from_message_description = '''
 Based on the message type, execute some different requests to APIs or other tools.
