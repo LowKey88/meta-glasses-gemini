@@ -45,7 +45,7 @@ Based on the message type, execute some different requests to APIs or other tool
 
 - notion: anything related to storing a note, save an idea, notion, etc. 
 - search: types are related to anything with searching, finding, looking for, and it's about a recent event, or news etc.
-- automation: types are related to querying states, checking status, or sending commands to home automation devices like gates, lights, doors, alarm, etc.
+- automation: types are related to querying states, checking status, or sending commands to home automation devices like gates, lights, doors, alarm, solar, tesla, etc.
 - task: types are related to:
    * Checking tasks or to-dos (e.g. "show my tasks", "what tasks do I have", "list todos")
    * Creating new tasks or to-do items
@@ -277,7 +277,7 @@ def analyze_image(img_url: str, question: str = None) -> str:
         response = model.generate_content(
             [prompt, img],
             generation_config={
-                'temperature': 0.2,
+                'temperature': 0.7,
                 'max_output_tokens': 100
             }
         )
