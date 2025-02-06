@@ -277,7 +277,7 @@ def analyze_image(img_url: str, question: str = None) -> str:
         response = model.generate_content(
             [prompt, img],
             generation_config={
-                'temperature': 0.7,
+                'temperature': 0.2,
                 'max_output_tokens': 100
             }
         )
