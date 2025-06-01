@@ -126,19 +126,21 @@ def process_text_message(text: str, message_data: dict):
     ContextManager.extract_user_name(text, user_id)
     ContextManager.extract_preferences(text, user_id)
     
-    # Auto-extract memories from conversation
-    potential_memories = MemoryManager.extract_memories_from_text(text, user_id)
-    for memory_type, content, source in potential_memories:
-        # Only auto-save important memories (not general chat)
-        if memory_type in ['allergy', 'relationship', 'important_date', 'personal_info']:
-            MemoryManager.create_memory(
-                user_id=user_id,
-                content=content,
-                memory_type=memory_type,
-                extracted_from=source,
-                importance=8
-            )
-            logger.info(f"Auto-extracted {memory_type} memory: {content}")
+    # Skip memory extraction for system commands
+    if not any(text_lower.startswith(cmd) for cmd in ['remember that', 'remember:', 'show my memories', 'what do you remember', 'forget about', 'forget that', 'cleanup memories', 'delete memory', 'debug memories']):
+        # Auto-extract memories from conversation
+        potential_memories = MemoryManager.extract_memories_from_text(text, user_id)
+        for memory_type, content, source in potential_memories:
+            # Only auto-save important memories (not general chat)
+            if memory_type in ['allergy', 'relationship', 'important_date', 'personal_info']:
+                MemoryManager.create_memory(
+                    user_id=user_id,
+                    content=content,
+                    memory_type=memory_type,
+                    extracted_from=source,
+                    importance=8
+                )
+                logger.info(f"Auto-extracted {memory_type} memory: {content}")
     
     # Handle special "do you know me?" type questions
     if any(phrase in text_lower for phrase in ['do you know me', 'who am i', 'what is my name', 'remember me']):
@@ -250,6 +252,7 @@ def process_text_message(text: str, message_data: dict):
             send_response_with_context(user_id, text, response, 'other')
             return ok
     
+
     # Handle explicit memory commands
     if text_lower.startswith('remember that') or text_lower.startswith('remember:'):
         # Extract what to remember
