@@ -87,6 +87,59 @@ def create_google_calendar_event(title: str, description: str, date: str, time: 
     kl_tz = zoneinfo.ZoneInfo(TIME_ZONE)
     start_datetime = start_datetime.replace(tzinfo=kl_tz)
     
+    # Check for duplicate events (including recurring ones)
+    try:
+        # For anniversary/birthday events, check for any existing recurring events with similar title
+        if 'anniversary' in title.lower() or 'birthday' in title.lower():
+            # Search for events without date restriction to find recurring ones
+            search_query = title.split()[0]  # First word of title
+            events_result = service.events().list(
+                calendarId='primary',
+                q=search_query,
+                singleEvents=False,  # Include recurring events
+                orderBy='startTime'
+            ).execute()
+        else:
+            # For regular events, check only on the specific date
+            start_of_day = datetime.combine(start_datetime.date(), datetime.min.time()).replace(tzinfo=kl_tz)
+            end_of_day = datetime.combine(start_datetime.date(), datetime.max.time()).replace(tzinfo=kl_tz)
+            events_result = service.events().list(
+                calendarId='primary',
+                timeMin=start_of_day.isoformat(),
+                timeMax=end_of_day.isoformat(),
+                q=title.split()[0],  # Search by first word of title
+                singleEvents=True,
+                orderBy='startTime'
+            ).execute()
+        
+        existing_events = events_result.get('items', [])
+        
+        # Check if an event with similar title already exists
+        title_lower = title.lower()
+        for event in existing_events:
+            event_title = event.get('summary', '').lower()
+            # Check for exact match or very similar titles
+            if (event_title == title_lower or 
+                (len(title_lower) > 5 and title_lower in event_title) or 
+                (len(event_title) > 5 and event_title in title_lower)):
+                logger.info(f"Found existing calendar event: {event.get('summary')}")
+                
+                # Check if it's a recurring event
+                if event.get('recurrence'):
+                    return event.get('htmlLink'), f"You already have a recurring '{event.get('summary')}' event!"
+                else:
+                    event_start = event['start'].get('dateTime', event['start'].get('date'))
+                    if 'T' in event_start:
+                        event_time = datetime.fromisoformat(event_start.replace('Z', '+00:00')).strftime('%I:%M %p')
+                    else:
+                        event_time = "all day"
+                    
+                    return event.get('htmlLink'), f"You already have '{event.get('summary')}' scheduled for {event_time} on this date!"
+                
+    except Exception as e:
+        logger.warning(f"Error checking for duplicate events: {e}")
+        # Continue with event creation if duplicate check fails
+    
     # Check if requested time is in the past
     current_time = datetime.now(kl_tz)
     original_date = start_datetime.date()
@@ -113,6 +166,12 @@ def create_google_calendar_event(title: str, description: str, date: str, time: 
         },
         'colorId': color_id,  # Google Calendar API expects colorId as an integer
     }
+    
+    # Add yearly recurrence for anniversary/birthday events
+    if 'anniversary' in title.lower() or 'birthday' in title.lower():
+        event['recurrence'] = [
+            'RRULE:FREQ=YEARLY'
+        ]
     
     try:
         result = service.events().insert(calendarId='primary', body=event).execute()
