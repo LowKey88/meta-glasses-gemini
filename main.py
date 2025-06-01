@@ -121,8 +121,9 @@ def process_text_message(text: str, message_data: dict):
     text_lower = text.lower().strip()
     user_id = message_data.get('from', 'unknown')
     
-    # Extract user name if mentioned
+    # Extract user name and preferences if mentioned
     ContextManager.extract_user_name(text, user_id)
+    ContextManager.extract_preferences(text, user_id)
     
     # Handle special "do you know me?" type questions
     if any(phrase in text_lower for phrase in ['do you know me', 'who am i', 'what is my name', 'remember me']):
@@ -154,6 +155,74 @@ def process_text_message(text: str, message_data: dict):
             response = "I don't know your name yet. You can tell me by saying 'I am [your name]' or 'My name is [your name]'."
             send_whatsapp_threaded(response)
             ContextManager.add_to_conversation_history(user_id, text, response, 'other')
+            return ok
+    
+    # Handle conversation summary requests
+    if any(phrase in text_lower for phrase in ['what did we talk about', 'what have we discussed', 'conversation history', 'what were we talking']):
+        summary = ContextManager.get_conversation_summary(user_id)
+        send_response_with_context(user_id, text, summary, 'other')
+        return ok
+    
+    # Handle "what do I usually ask" queries
+    if any(phrase in text_lower for phrase in ['what do i usually', 'what do i often', 'my patterns', 'frequently ask']):
+        profile = ContextManager.get_user_profile(user_id)
+        if profile:
+            freq_commands = profile.get('stats', {}).get('frequent_commands', {})
+            if freq_commands:
+                # Sort by frequency
+                sorted_commands = sorted(freq_commands.items(), key=lambda x: x[1], reverse=True)
+                top_commands = [f"{cmd} ({count} times)" for cmd, count in sorted_commands[:3]]
+                response = f"You frequently ask about: {', '.join(top_commands)}"
+            else:
+                response = "I haven't tracked enough patterns yet. Keep chatting with me!"
+        else:
+            response = "I don't have enough conversation history yet."
+        send_response_with_context(user_id, text, response, 'other')
+        return ok
+    
+    # Handle "what do you know about me" queries
+    if any(phrase in text_lower for phrase in ['what do you know about me', 'tell me about myself', 'my profile', 'my information']):
+        profile = ContextManager.get_user_profile(user_id)
+        if profile:
+            info_parts = []
+            
+            # Name
+            if profile.get('name'):
+                info_parts.append(f"Your name is {profile['name']}")
+            
+            # Job
+            if profile.get('context', {}).get('job'):
+                info_parts.append(f"You work as {profile['context']['job']}")
+            
+            # Interests
+            interests = profile.get('context', {}).get('interests', [])
+            if interests:
+                info_parts.append(f"You're interested in {', '.join(interests)}")
+            
+            # Preferences
+            prefs = profile.get('preferences', {})
+            if prefs.get('preferred_time'):
+                info_parts.append(f"You prefer {prefs['preferred_time']} meetings")
+            if prefs.get('default_meeting_duration'):
+                info_parts.append(f"Your meetings are usually {prefs['default_meeting_duration']} minutes")
+            
+            response = ". ".join(info_parts) if info_parts else "I'm still learning about you. Tell me more!"
+        else:
+            response = "I don't know much about you yet. Tell me about yourself!"
+        send_response_with_context(user_id, text, response, 'other')
+        return ok
+    
+    # Handle contextual shortcuts
+    context_ref = ContextManager.understand_context_reference(text, user_id)
+    if context_ref:
+        if context_ref.startswith('repeat_'):
+            command_type = context_ref.replace('repeat_', '')
+            response = f"You usually ask about {command_type}. Would you like me to {command_type} now?"
+            send_response_with_context(user_id, text, response, 'other')
+            return ok
+        elif context_ref == 'modify_previous_meeting':
+            response = "I understand you want to modify the previous meeting. Please specify the new details."
+            send_response_with_context(user_id, text, response, 'other')
             return ok
     
     if text_lower in COMMON_RESPONSES:

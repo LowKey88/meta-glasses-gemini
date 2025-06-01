@@ -124,6 +124,8 @@ class ContextManager:
         patterns = [
             r"(?:i am|i'm|my name is|this is|call me)\s+([A-Z][a-z]+)",
             r"^([A-Z][a-z]+)\s+here",
+            r"(?:friends call me|people call me|just call me)\s+([A-Z][a-z]+)",
+            r"(?:actually|it's actually)\s+([A-Z][a-z]+)",
         ]
         
         for pattern in patterns:
@@ -136,6 +138,63 @@ class ContextManager:
                 return name
         
         return None
+    
+    @staticmethod
+    @try_catch_decorator
+    def extract_preferences(message: str, user_id: str) -> Dict:
+        """Extract user preferences from natural language."""
+        import re
+        
+        preferences = {}
+        message_lower = message.lower()
+        
+        # Meeting duration preferences
+        duration_match = re.search(r'(\d+)[\s-]?(?:minute|min|hour|hr)', message_lower)
+        if duration_match and any(word in message_lower for word in ['meeting', 'appointment', 'usually', 'prefer']):
+            duration = int(duration_match.group(1))
+            if 'hour' in message_lower or 'hr' in message_lower:
+                duration *= 60
+            preferences['default_meeting_duration'] = duration
+            logger.info(f"Extracted meeting duration preference: {duration} minutes")
+        
+        # Time preferences
+        if any(word in message_lower for word in ['morning', 'afternoon', 'evening', 'night']):
+            if 'morning' in message_lower:
+                preferences['preferred_time'] = 'morning'
+            elif 'afternoon' in message_lower:
+                preferences['preferred_time'] = 'afternoon'
+            elif 'evening' in message_lower:
+                preferences['preferred_time'] = 'evening'
+            elif 'night' in message_lower:
+                preferences['preferred_time'] = 'night'
+        
+        # Work/Personal info
+        work_match = re.search(r'(?:work as|job is|i am a|i\'m a)\s+([a-z\s]+)', message_lower)
+        if work_match:
+            job = work_match.group(1).strip()
+            ContextManager.update_user_profile(user_id, {"context": {"job": job}})
+            logger.info(f"Extracted job: {job}")
+        
+        # Interests
+        interest_match = re.search(r'(?:interested in|love|enjoy|like)\s+([a-z\s]+)', message_lower)
+        if interest_match:
+            interest = interest_match.group(1).strip()
+            profile = ContextManager.get_user_profile(user_id) or {"context": {"interests": []}}
+            interests = profile.get("context", {}).get("interests", [])
+            if interest not in interests:
+                interests.append(interest)
+            ContextManager.update_user_profile(user_id, {"context": {"interests": interests}})
+            logger.info(f"Extracted interest: {interest}")
+        
+        # Timezone
+        tz_match = re.search(r'timezone is\s+([a-z/]+)', message_lower)
+        if tz_match:
+            preferences['timezone'] = tz_match.group(1)
+        
+        if preferences:
+            ContextManager.update_user_profile(user_id, {"preferences": preferences})
+        
+        return preferences
     
     @staticmethod
     @try_catch_decorator
@@ -222,3 +281,101 @@ class ContextManager:
                 return f"{name_part} It's been a while! How can I help you today?"
         
         return f"{name_part} Nice to meet you! How can I assist you?"
+    
+    @staticmethod
+    @try_catch_decorator
+    def get_conversation_summary(user_id: str) -> str:
+        """Get a summary of recent conversations."""
+        history = ContextManager.get_conversation_history(user_id, limit=10)
+        
+        if not history:
+            return "We haven't talked about anything yet."
+        
+        # Group by topics
+        topics = {}
+        for entry in history:
+            msg_type = entry.get('type', 'other')
+            if msg_type not in topics:
+                topics[msg_type] = []
+            topics[msg_type].append(entry['message'])
+        
+        # Create summary
+        summary_parts = []
+        for topic, messages in topics.items():
+            if topic != 'other':
+                summary_parts.append(f"{topic} ({len(messages)} times)")
+        
+        if summary_parts:
+            return f"We've been discussing: {', '.join(summary_parts)}"
+        else:
+            return "We've been having a general conversation."
+    
+    @staticmethod
+    @try_catch_decorator
+    def understand_context_reference(message: str, user_id: str) -> Optional[str]:
+        """Understand contextual references like 'it', 'that', 'the same'."""
+        message_lower = message.lower()
+        history = ContextManager.get_conversation_history(user_id, limit=3)
+        
+        if not history:
+            return None
+        
+        # Check for time modifications
+        if any(word in message_lower for word in ['actually', 'make it', 'change to', 'instead']):
+            # Look for time references in recent messages
+            for entry in reversed(history):
+                if 'meeting' in entry['message'].lower() or 'appointment' in entry['message'].lower():
+                    return f"modify_previous_meeting"
+        
+        # Check for additions
+        if any(word in message_lower for word in ['also', 'add', 'include', 'and']):
+            for entry in reversed(history):
+                if entry['type'] in ['calendar', 'task']:
+                    return f"add_to_previous_{entry['type']}"
+        
+        # Check for "the usual" or shortcuts
+        if any(phrase in message_lower for phrase in ['the usual', 'you know', 'same thing', 'like always']):
+            profile = ContextManager.get_user_profile(user_id)
+            if profile:
+                freq_commands = profile.get('stats', {}).get('frequent_commands', {})
+                if freq_commands:
+                    # Get most frequent command
+                    most_frequent = max(freq_commands, key=freq_commands.get)
+                    return f"repeat_{most_frequent}"
+        
+        return None
+    
+    @staticmethod
+    @try_catch_decorator
+    def get_smart_suggestions(user_id: str) -> List[str]:
+        """Get smart suggestions based on user patterns."""
+        profile = ContextManager.get_user_profile(user_id)
+        suggestions = []
+        
+        if not profile:
+            return suggestions
+        
+        # Time-based suggestions
+        current_hour = datetime.now().hour
+        freq_commands = profile.get('stats', {}).get('frequent_commands', {})
+        
+        # Morning suggestions
+        if 8 <= current_hour < 12:
+            if freq_commands.get('calendar', 0) > 2:
+                suggestions.append("Check today's schedule")
+            if freq_commands.get('task', 0) > 2:
+                suggestions.append("Review today's tasks")
+        
+        # Evening suggestions
+        elif 17 <= current_hour < 22:
+            if freq_commands.get('calendar', 0) > 2:
+                suggestions.append("Check tomorrow's schedule")
+            if freq_commands.get('task', 0) > 2:
+                suggestions.append("Plan tomorrow's tasks")
+        
+        # Based on preferences
+        prefs = profile.get('preferences', {})
+        if prefs.get('preferred_time') == 'morning' and current_hour >= 18:
+            suggestions.append("Set a morning meeting for tomorrow")
+        
+        return suggestions
