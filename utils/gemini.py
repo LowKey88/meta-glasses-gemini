@@ -33,8 +33,8 @@ Based on the message type, execute some different requests to APIs or other tool
 - calendar: types are related to:
   * Checking schedule/meetings/appointments (e.g. "check my meeting", "check my meetings", "what's my schedule", "do I have any meetings")
   * Creating NEW events/meetings/reminders with action words (e.g. "schedule meeting", "set reminder", "create event", "add appointment")
+  * Creating anniversary/birthday reminders (e.g. "my anniversary is on...", "my birthday is...", "our wedding anniversary is...")
   * Canceling events (e.g. "cancel meeting 3", "cancel event 2")
-  * EXCLUDE informational statements about dates (e.g. "my anniversary is on...", "my birthday is...", "I was born on...") - these are memories, not calendar actions
   
 - image: types are related to:
   * Images, pictures, what's the user looking at
@@ -428,20 +428,6 @@ def retrieve_message_type_from_message(message: str, user_id: str = None) -> str
     if not message:
         return ''
     
-    # Pre-check: if this is informational about dates (not actionable), treat as 'other' for memory storage
-    informational_patterns = [
-        r'my .+ is on ',
-        r'my .+ was on ',
-        r'anniversary .+ is ',
-        r'birthday .+ is ',
-        r'born on ',
-        r'i was born ',
-        r'we got married on '
-    ]
-    message_lower = message.lower()
-    if any(re.search(pattern, message_lower) for pattern in informational_patterns):
-        logger.debug(f"Detected informational date statement, treating as 'other': {message}")
-        return 'other'
     
     # Pre-check: if asking about people, check if they exist in memories first
     if user_id and any(phrase in message.lower() for phrase in ['who is', 'what about', 'tell me about', 'how old', 'age of', 'birthday', 'when', 'born']):
@@ -538,7 +524,7 @@ def determine_calendar_event_inputs(message: str, user_id: str = 'default') -> d
         
         Return ONLY one of:
         - 'check_schedule' - For viewing or querying calendar/meetings 
-        - 'create_event' - For creating new meetings/events
+        - 'create_event' - For creating new meetings/events/reminders AND for anniversary/birthday statements (e.g. "my anniversary is on...")
         - 'cancel_event' - For canceling or removing meetings
         """
         
@@ -633,16 +619,16 @@ def determine_calendar_event_inputs(message: str, user_id: str = 'default') -> d
                     ["create_event"]
                 ),
                 "title": _get_func_arg_parameter(
-                    'Extract the meeting title from the message. For example: "Set a meeting with Sales Manager" -> "Meeting with Sales Manager"'
+                    'Extract the event title from the message. Examples: "Set a meeting with Sales Manager" -> "Meeting with Sales Manager", "My anniversary is on..." -> "Anniversary", "My birthday is..." -> "Birthday"'
                 ),
                 "description": _get_func_arg_parameter(
                     'For event creation, the description of the event'
                 ),
                 "date": _get_func_arg_parameter(
-                    'Extract or infer the date in YYYY-MM-DD format. If no date mentioned, use today\'s date'
+                    'Extract or infer the date in YYYY-MM-DD format. Handle formats like "15 August" -> "2025-08-15" (use current year). If no date mentioned, use today\'s date'
                 ),
                 "time": _get_func_arg_parameter(
-                    'Extract and convert time to 24-hour HH:MM format. For example: "10AM" -> "10:00", "2pm" -> "14:00"'
+                    'Extract and convert time to 24-hour HH:MM format. For example: "10AM" -> "10:00", "2pm" -> "14:00". If no time specified (like anniversaries/birthdays), use "09:00"'
                 ),
                 "duration": _get_func_arg_parameter(
                     'Duration in hours, default to 1 if not specified',
@@ -653,7 +639,7 @@ def determine_calendar_event_inputs(message: str, user_id: str = 'default') -> d
                     'string',
                     ["reminder", "event", "time-block"]
                 )
-            }, ['intent', 'title', 'time'])
+            }, ['intent', 'title'])
             
             model = genai.GenerativeModel(model_name=GEMINI_CHAT_MODEL, tools=[tool])
             chat = model.start_chat(enable_automatic_function_calling=True)
@@ -666,6 +652,10 @@ def determine_calendar_event_inputs(message: str, user_id: str = 'default') -> d
             # Set default date to today if not provided
             if 'date' not in fc.args:
                 fc.args['date'] = datetime.now().strftime('%Y-%m-%d')
+            
+            # Set default time for anniversary/birthday events if not provided
+            if 'time' not in fc.args:
+                fc.args['time'] = '09:00'
                 
             return {
                 'intent': 'create_event',
