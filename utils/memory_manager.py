@@ -100,19 +100,13 @@ class MemoryManager:
                 existing_content = "; ".join([f"{m['type']}: {m['content']}" for m in existing_memories[-5:]])  # Check last 5 memories
                 
                 dedup_prompt = f"""
-                New memory to add: "{content}" (type: {memory_type})
-                
+                New memory: "{content}" (type: {memory_type})
                 Existing memories: {existing_content}
                 
-                Instructions:
-                1. If this is a duplicate or very similar to existing memory, return "DUPLICATE: [existing_memory_id]"
-                2. If this conflicts with existing memory, return "CONFLICT: [memory_to_replace]"
-                3. If this is new/different information, return "CREATE"
-                
-                Examples:
-                - New: "Fafa is my wife", Existing: "My wife is fafa" → DUPLICATE
-                - New: "Arissa is my 6-year-old daughter", Existing: "My daughter name is arissa" → CONFLICT: My daughter name is arissa
-                - New: "I love pizza", Existing: "Fafa is my wife" → CREATE
+                Analyze if this new memory:
+                1. Is duplicate/very similar to existing → return "DUPLICATE"
+                2. Conflicts with existing (better/updated version) → return "CONFLICT: [text_to_replace]"
+                3. Is completely new information → return "CREATE"
                 """
                 
                 dedup_response = simple_prompt_request(dedup_prompt)
@@ -316,20 +310,15 @@ class MemoryManager:
             analysis_prompt = f"""
             Analyze this message for memorable personal information: "{text}"
             
-            Instructions:
-            1. If this is a question (who, what, where, when, how, why), return "QUESTION"
-            2. If this contains personal facts worth remembering, extract them as natural statements
-            3. Focus on: relationships, preferences, allergies, important dates, personal info
-            4. Rewrite in natural format: "X is my Y" not "my Y name is X"
+            Task:
+            1. If this is a question, return "QUESTION"
+            2. If this contains personal facts worth remembering, extract and rephrase naturally
+            3. Focus on relationships, preferences, allergies, important dates, personal details
+            4. Convert to clear, natural statements
             
             Return format:
             TYPE: relationship|preference|allergy|important_date|personal_info|note|QUESTION
             CONTENT: [natural statement] or QUESTION
-            
-            Examples:
-            "My daughter name is Arissa she is 6" → TYPE: relationship, CONTENT: Arissa is my 6-year-old daughter
-            "I'm allergic to peanuts" → TYPE: allergy, CONTENT: User is allergic to peanuts
-            "Who is Fafa?" → TYPE: QUESTION, CONTENT: QUESTION
             """
             
             response = simple_prompt_request(analysis_prompt)

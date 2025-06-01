@@ -287,20 +287,16 @@ def process_text_message(text: str, message_data: dict):
                 
                 memory_context = "\n".join([f"- {m['content']}" for m in memories])
                 format_prompt = f"""
-                Format these memories into a natural, conversational response:
+                Convert these personal memories into a natural, warm response:
                 
                 {memory_context}
                 
-                Instructions:
-                1. Group related memories together
-                2. Use natural language, not bullet points
-                3. Be personal and warm
-                4. Don't mention memory types in parentheses
-                5. Start with "I remember that..." or similar
-                
-                Example:
-                Instead of: "• Fafa is my wife (relationship) • Arissa is my daughter (relationship)"
-                Say: "I remember that Fafa is your wife and Arissa is your daughter."
+                Guidelines:
+                - Write as if you're a close friend who remembers important details about them
+                - Group related information naturally
+                - Use conversational, personal tone
+                - Avoid technical formatting or categories
+                - Be concise but comprehensive
                 """
                 
                 response = simple_prompt_request(format_prompt, user_id)
@@ -489,13 +485,11 @@ def process_text_message(text: str, message_data: dict):
                             
                             memory_context = "; ".join([m['content'] for m in person_memories])
                             natural_response_prompt = f"""
-                            The user asked: "{text}"
+                            Question: "{text}"
+                            Memories: {memory_context}
                             
-                            Based on these memories: {memory_context}
-                            
-                            Generate a natural, conversational response that directly answers their question.
-                            Be personal and friendly. If they asked "Who is X?", answer like "X is your [relationship]" or similar.
-                            Keep it concise (1-2 sentences max).
+                            Answer their question naturally using the memory information.
+                            Be conversational, personal, and concise.
                             """
                             
                             response = simple_prompt_request(natural_response_prompt, user_id)
