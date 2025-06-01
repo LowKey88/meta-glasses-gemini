@@ -30,11 +30,12 @@ GEMINI_CHAT_MODEL = 'gemini-2.0-flash'
 retrieve_message_type_from_message_description = '''
 Based on the message type, execute some different requests to APIs or other tools.
 
-- calendar: types are related to:
-  * Checking schedule/meetings/appointments (e.g. "check my meeting", "check my meetings", "what's my schedule", "do I have any meetings")
+- calendar: types are related to ACTIONS on calendar, NOT questions about dates/birthdays:
+  * Checking your actual calendar schedule/meetings/appointments (e.g. "check my meeting", "check my meetings", "what's my schedule", "do I have any meetings")
   * Creating NEW events/meetings/reminders with action words (e.g. "schedule meeting", "set reminder", "create event", "add appointment")
-  * Creating anniversary/birthday reminders (e.g. "my anniversary is on...", "my birthday is...", "our wedding anniversary is...")
+  * STATEMENTS about birthdays/anniversaries that should be added to calendar (e.g. "my anniversary is on...", "my birthday is...", "add wife's birthday on...")
   * Canceling events (e.g. "cancel meeting 3", "cancel event 2")
+  * NOT for questions like "when is X's birthday?", "what date is our anniversary?" - these are search/other types
   
 - image: types are related to:
   * Images, pictures, what's the user looking at
@@ -44,7 +45,7 @@ Based on the message type, execute some different requests to APIs or other tool
   * All follow-up questions about previously shown images
 
 - notion: anything related to storing a note, save an idea, notion, etc. 
-- search: types are related to anything with searching, finding, looking for, and it's about a recent event, or news etc.
+- search: types are related to anything with searching, finding, looking for, and it's about a recent event, or news etc. Also includes questions about dates/birthdays/anniversaries from memory.
 - automation: types are related to querying states, checking status, or sending commands to home automation devices like gates, lights, doors, alarm, solar, tesla, etc.
 - task: types are related to:
    * Checking tasks or to-dos (e.g. "show my tasks", "what tasks do I have", "list todos")
@@ -52,7 +53,7 @@ Based on the message type, execute some different requests to APIs or other tool
    * Managing task status (e.g. "task 1 done", "mark task 2 complete")
    * Deleting tasks (e.g. "delete task 1", "remove task 2")
    * Anything with personal tasks or to-do list management
-- other: types are related to anything else.
+- other: types are related to anything else. This includes questions asking "when", "what date", "how old" about birthdays, anniversaries, or other personal dates that should be answered from memory.
 
 Make sure to always return the message type, or default to `other` even if it doesn't match any of the types.
 '''.replace('    ', '')
@@ -430,14 +431,37 @@ def retrieve_message_type_from_message(message: str, user_id: str = None) -> str
     
     
     # Pre-check: if asking about people, check if they exist in memories first
-    if user_id and any(phrase in message.lower() for phrase in ['who is', 'what about', 'tell me about', 'how old', 'age of', 'birthday', 'when', 'born']):
+    # Enhanced patterns to catch birthday/anniversary questions
+    question_patterns = [
+        'who is', 'what about', 'tell me about', 'how old', 'age of', 
+        'birthday', 'when', 'born', "when's", 'what date', 'what day',
+        'anniversary', 'how many years'
+    ]
+    
+    # Check if message is a question about dates/birthdays/people
+    message_lower = message.lower()
+    is_question = any(phrase in message_lower for phrase in question_patterns)
+    
+    # Also check for question marks or question words at the beginning
+    is_question = is_question or message_lower.strip().endswith('?')
+    is_question = is_question or message_lower.startswith(('when', 'what', 'who', 'how'))
+    
+    if user_id and is_question:
+        # Check if it's asking about specific dates/birthdays (not creating them)
+        if any(phrase in message_lower for phrase in ['birthday', 'anniversary', 'born', 'age']):
+            # If it contains question words or ends with ?, it's likely a question not a statement
+            if any(q in message_lower for q in ['when', 'what', 'how', '?']) and \
+               not any(action in message_lower for action in ['add', 'create', 'schedule', 'set', 'remind']):
+                logger.debug(f"Detected birthday/anniversary question: {message}")
+                return 'other'  # Will trigger memory-enhanced response
+        
         try:
             from utils.memory_manager import MemoryManager
             import re
             
             # Extract names from the question (including lowercase names)
             # Look for names after "who is", "what about", etc.
-            name_pattern = r'(?:who is|what about|tell me about|how old is|age of)\s+(\w+)'
+            name_pattern = r'(?:who is|what about|tell me about|how old is|age of|when.*?)\s+(\w+)'
             names = re.findall(name_pattern, message.lower())
             if not names:
                 # Fallback to general name pattern (capitalized words)

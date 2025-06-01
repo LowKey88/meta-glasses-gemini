@@ -144,10 +144,12 @@ def create_google_calendar_event(title: str, description: str, date: str, time: 
                 Existing events: {', '.join([f'"{t}"' for t in existing_titles])}
                 Known relationships: {'; '.join(relationships) if relationships else 'None'}
                 
-                Are any of these existing events for the SAME person/anniversary as the new event?
-                Consider nicknames, relationships (wife/spouse/partner), and context.
+                Are any of these existing events the EXACT SAME EVENT TYPE for the SAME person?
+                - Anniversary and Birthday are DIFFERENT event types
+                - Only match if both are anniversaries OR both are birthdays
+                - Consider nicknames and relationships when matching people
                 
-                Answer only: YES (if same) or NO (if different)
+                Answer only: YES (if same event type and person) or NO (if different)
                 """
                 
                 response = simple_prompt_request(check_prompt).strip().upper()
