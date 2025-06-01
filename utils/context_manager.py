@@ -172,6 +172,17 @@ class ContextManager:
         work_match = re.search(r'(?:work as|job is|i am a|i\'m a)\s+([a-z\s]+)', message_lower)
         if work_match:
             job = work_match.group(1).strip()
+            # Properly capitalize job titles and companies
+            if ' at ' in job:
+                parts = job.split(' at ')
+                title = parts[0]
+                company = parts[1]
+                # Capitalize common titles
+                if title in ['ceo', 'cto', 'cfo', 'vp', 'svp', 'evp']:
+                    title = title.upper()
+                # Capitalize company name
+                company = ' '.join(word.capitalize() for word in company.split())
+                job = f"{title} at {company}"
             ContextManager.update_user_profile(user_id, {"context": {"job": job}})
             logger.info(f"Extracted job: {job}")
         
@@ -179,6 +190,16 @@ class ContextManager:
         interest_match = re.search(r'(?:interested in|love|enjoy|like)\s+([a-z\s]+)', message_lower)
         if interest_match:
             interest = interest_match.group(1).strip()
+            # Properly format common terms
+            if interest.lower() == 'ai':
+                interest = 'AI'
+            elif interest.lower() == 'ml':
+                interest = 'ML'
+            elif interest.lower() == 'iot':
+                interest = 'IoT'
+            else:
+                interest = interest.title()
+            
             profile = ContextManager.get_user_profile(user_id) or {"context": {"interests": []}}
             interests = profile.get("context", {}).get("interests", [])
             if interest not in interests:

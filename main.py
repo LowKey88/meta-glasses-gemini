@@ -192,12 +192,29 @@ def process_text_message(text: str, message_data: dict):
             
             # Job
             if profile.get('context', {}).get('job'):
-                info_parts.append(f"You work as {profile['context']['job']}")
+                job = profile['context']['job']
+                # Capitalize common job titles
+                if 'ceo' in job.lower():
+                    job = job.replace('ceo', 'CEO')
+                # Capitalize company names properly
+                job_parts = job.split(' at ')
+                if len(job_parts) == 2:
+                    title = job_parts[0]
+                    company = ' '.join(word.capitalize() for word in job_parts[1].split())
+                    job = f"{title} at {company}"
+                info_parts.append(f"You work as {job}")
             
             # Interests
             interests = profile.get('context', {}).get('interests', [])
             if interests:
-                info_parts.append(f"You're interested in {', '.join(interests)}")
+                # Capitalize common acronyms
+                formatted_interests = []
+                for interest in interests:
+                    if interest.lower() == 'ai':
+                        formatted_interests.append('AI')
+                    else:
+                        formatted_interests.append(interest.capitalize())
+                info_parts.append(f"You're interested in {', '.join(formatted_interests)}")
             
             # Preferences
             prefs = profile.get('preferences', {})
