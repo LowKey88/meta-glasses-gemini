@@ -32,9 +32,9 @@ Based on the message type, execute some different requests to APIs or other tool
 
 - calendar: types are related to:
   * Checking schedule/meetings/appointments (e.g. "check my meeting", "check my meetings", "what's my schedule", "do I have any meetings")
-  * Creating events/meetings/reminders
+  * Creating NEW events/meetings/reminders with action words (e.g. "schedule meeting", "set reminder", "create event", "add appointment")
   * Canceling events (e.g. "cancel meeting 3", "cancel event 2")
-  * Anything with scheduling, calendar, or time management
+  * EXCLUDE informational statements about dates (e.g. "my anniversary is on...", "my birthday is...", "I was born on...") - these are memories, not calendar actions
   
 - image: types are related to:
   * Images, pictures, what's the user looking at
@@ -427,6 +427,21 @@ def retrieve_message_type_from_message(message: str, user_id: str = None) -> str
     """
     if not message:
         return ''
+    
+    # Pre-check: if this is informational about dates (not actionable), treat as 'other' for memory storage
+    informational_patterns = [
+        r'my .+ is on ',
+        r'my .+ was on ',
+        r'anniversary .+ is ',
+        r'birthday .+ is ',
+        r'born on ',
+        r'i was born ',
+        r'we got married on '
+    ]
+    message_lower = message.lower()
+    if any(re.search(pattern, message_lower) for pattern in informational_patterns):
+        logger.debug(f"Detected informational date statement, treating as 'other': {message}")
+        return 'other'
     
     # Pre-check: if asking about people, check if they exist in memories first
     if user_id and any(phrase in message.lower() for phrase in ['who is', 'what about', 'tell me about', 'how old', 'age of', 'birthday', 'when', 'born']):
