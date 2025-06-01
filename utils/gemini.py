@@ -619,10 +619,10 @@ def determine_calendar_event_inputs(message: str, user_id: str = 'default') -> d
                     ["create_event"]
                 ),
                 "title": _get_func_arg_parameter(
-                    'Extract the event title from the message. Examples: "Set a meeting with Sales Manager" -> "Meeting with Sales Manager", "My anniversary is on..." -> "Anniversary", "My birthday is..." -> "Birthday"'
+                    'Extract the event title from the message INCLUDING who it\'s with. Examples: "Set a meeting with Sales Manager" -> "Meeting with Sales Manager", "My anniversary with John is on..." -> "Anniversary with John", "Sarah\'s birthday is..." -> "Sarah\'s birthday"'
                 ),
                 "description": _get_func_arg_parameter(
-                    'For event creation, the description of the event'
+                    'For event creation, extract additional context from the message. For anniversaries/birthdays include who it\'s for'
                 ),
                 "date": _get_func_arg_parameter(
                     'Extract or infer the date in YYYY-MM-DD format. Handle formats like "15 August" -> "2025-08-15" (use current year). If no date mentioned, use today\'s date'
