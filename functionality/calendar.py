@@ -78,6 +78,10 @@ def create_google_calendar_event(title: str, description: str, date: str, time: 
     # If no description provided, use empty string to prevent None
     description = description or ""
     
+    # Ensure duration is not None
+    if duration is None:
+        duration = 1
+    
     # Get color based on title and description if not explicitly provided
     if color_id is None:
         color_id = get_event_color(title, description)

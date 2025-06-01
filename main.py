@@ -479,7 +479,7 @@ def process_text_message(text: str, message_data: dict):
                     'description': title,  # Use title as description to ensure color keywords are checked
                     'date': calendar_input['date'],
                     'time': calendar_input['time'],
-                    'duration': calendar_input['duration']
+                    'duration': calendar_input.get('duration', 1)  # Default to 1 hour if not specified
                 }
                 _, response_message = create_google_calendar_event(**create_args)
                 send_whatsapp_threaded(response_message)
