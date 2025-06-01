@@ -283,8 +283,6 @@ def process_text_message(text: str, message_data: dict):
         if memories:
             # Use AI to format memories naturally
             try:
-                from utils.gemini import simple_prompt_request
-                
                 memory_context = "\n".join([f"- {m['content']}" for m in memories])
                 format_prompt = f"""
                 Convert these personal memories into a natural, warm response:
@@ -481,8 +479,6 @@ def process_text_message(text: str, message_data: dict):
                     if person_memories:
                         # Use AI to generate a natural response from memories
                         try:
-                            from utils.gemini import simple_prompt_request
-                            
                             memory_context = "; ".join([m['content'] for m in person_memories])
                             natural_response_prompt = f"""
                             Question: "{text}"
