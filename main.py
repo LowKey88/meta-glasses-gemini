@@ -534,13 +534,22 @@ def process_text_message(text: str, message_data: dict):
             send_whatsapp_threaded(response)
             return ok
         else:
-            response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.', user_id)
+            # For simple greetings, use minimal context
+            if text.lower().strip() in ['hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening']:
+                response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.')
+            else:
+                # For other messages, use full context
+                response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.', user_id)
             send_response_with_context(user_id, text, response, 'other')
             return ok
 
     except AssertionError:
         try:
-            response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.', user_id)
+            # For simple greetings, use minimal context
+            if text.lower().strip() in ['hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening']:
+                response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.')
+            else:
+                response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.', user_id)
             send_response_with_context(user_id, text, response, 'other')
             return ok
         except:
