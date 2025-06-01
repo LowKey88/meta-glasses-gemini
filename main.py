@@ -34,6 +34,7 @@ from functionality.search import google_search_pipeline
 from utils.gemini import *
 from utils.google_auth import GoogleAuth
 from utils.whatsapp import send_whatsapp_threaded, send_whatsapp_image, download_file
+from utils.context_manager import ContextManager
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("uvicorn")
@@ -111,11 +112,54 @@ async def send_notification(request: Request):
        logger.error(f"Error: {e}")
        raise HTTPException(status_code=500)
 
+def send_response_with_context(user_id: str, message: str, response: str, msg_type: str = 'other'):
+    """Send WhatsApp response and track in conversation history."""
+    send_whatsapp_threaded(response)
+    ContextManager.add_to_conversation_history(user_id, message, response, msg_type)
+
 def process_text_message(text: str, message_data: dict):
     text_lower = text.lower().strip()
+    user_id = message_data.get('from', 'unknown')
+    
+    # Extract user name if mentioned
+    ContextManager.extract_user_name(text, user_id)
+    
+    # Handle special "do you know me?" type questions
+    if any(phrase in text_lower for phrase in ['do you know me', 'who am i', 'what is my name', 'remember me']):
+        profile = ContextManager.get_user_profile(user_id)
+        history = ContextManager.get_conversation_history(user_id, limit=5)
+        
+        if profile and profile.get('name'):
+            name = profile['name']
+            response = f"Yes! You're {name}. "
+            
+            # Add context about recent interactions
+            if history:
+                recent_types = set(h['type'] for h in history if h['type'] != 'other')
+                if recent_types:
+                    response += f"You often ask me about {', '.join(recent_types)}. "
+                
+                # Add last interaction info
+                last_time = datetime.fromisoformat(history[-1]['timestamp'])
+                time_diff = datetime.now() - last_time
+                if time_diff < timedelta(hours=1):
+                    response += "We were just chatting a moment ago!"
+                elif time_diff < timedelta(days=1):
+                    response += f"We last talked {int(time_diff.total_seconds() / 3600)} hours ago."
+            
+            send_whatsapp_threaded(response)
+            ContextManager.add_to_conversation_history(user_id, text, response, 'other')
+            return ok
+        else:
+            response = "I don't know your name yet. You can tell me by saying 'I am [your name]' or 'My name is [your name]'."
+            send_whatsapp_threaded(response)
+            ContextManager.add_to_conversation_history(user_id, text, response, 'other')
+            return ok
     
     if text_lower in COMMON_RESPONSES:
-        send_whatsapp_threaded(COMMON_RESPONSES[text_lower])
+        response = COMMON_RESPONSES[text_lower]
+        send_whatsapp_threaded(response)
+        ContextManager.add_to_conversation_history(user_id, text, response, 'other')
         return ok
 
     if text_lower == 'cals':
@@ -128,6 +172,9 @@ def process_text_message(text: str, message_data: dict):
     try:
         operation_result = retrieve_message_type_from_message(text.lower(), message_data.get('from'))
         logger.info(f"Detected operation type: {operation_result}")
+
+        # Track command frequency
+        ContextManager.track_command_frequency(user_id, operation_result)
 
         # Normal operation type handling
         operation_type = operation_result if isinstance(operation_result, str) else 'other'
@@ -250,14 +297,14 @@ def process_text_message(text: str, message_data: dict):
             send_whatsapp_threaded(response)
             return ok
         else:
-            response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.')
-            send_whatsapp_threaded(response)
+            response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.', user_id)
+            send_response_with_context(user_id, text, response, 'other')
             return ok
 
     except AssertionError:
         try:
-            response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.')
-            send_whatsapp_threaded(response)
+            response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.', user_id)
+            send_response_with_context(user_id, text, response, 'other')
             return ok
         except:
             error_messages = {

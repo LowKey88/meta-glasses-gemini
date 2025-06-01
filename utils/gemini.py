@@ -117,7 +117,7 @@ determine_notion_page_inputs_description = f'''Based on the message, create a ne
 Make sure to return all the required inputs for the page creation.
 '''.replace('    ', '')
 
-def simple_prompt_request(message: str) -> str:
+def simple_prompt_request(message: str, user_id: str = None) -> str:
     """
     Send a simple prompt request to Gemini API with current time context.
     
@@ -137,8 +137,19 @@ def simple_prompt_request(message: str) -> str:
         model = genai.GenerativeModel(GEMINI_CHAT_MODEL)  # Use chat model for text
         actual_time = datetime.now().strftime('%Y-%m-%d %H:%M')
         
-        # Add time context to message
-        contextualized_message = f'''The current time is {actual_time}. {message}'''
+        # Get user context if available
+        context_summary = ""
+        if user_id:
+            try:
+                from utils.context_manager import ContextManager
+                context_summary = ContextManager.get_context_summary(user_id)
+                if context_summary:
+                    context_summary = f"User context: {context_summary}. "
+            except Exception as e:
+                logger.debug(f"Could not get context: {e}")
+        
+        # Add time and user context to message
+        contextualized_message = f'''The current time is {actual_time}. {context_summary}{message}'''
         logger.debug(f"Sending prompt: {contextualized_message}")
         
         response = model.generate_content(
