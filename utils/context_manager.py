@@ -216,8 +216,25 @@ class ContextManager:
             
             profile = ContextManager.get_user_profile(user_id) or {"context": {"interests": []}}
             interests = profile.get("context", {}).get("interests", [])
-            if interest not in interests:
+            
+            # Check for duplicates with case-insensitive comparison
+            interest_lower = interest.lower()
+            existing_interests_lower = [i.lower() for i in interests]
+            
+            # If this interest already exists (case-insensitive), update to the new formatted version
+            if interest_lower in existing_interests_lower:
+                # Find and replace the old version
+                for i, existing in enumerate(interests):
+                    if existing.lower() == interest_lower:
+                        interests[i] = interest
+                        break
+            else:
+                # Add new interest
                 interests.append(interest)
+            
+            # Remove any exact duplicates
+            interests = list(dict.fromkeys(interests))
+            
             ContextManager.update_user_profile(user_id, {"context": {"interests": interests}})
             logger.info(f"Extracted interest: {interest}")
         

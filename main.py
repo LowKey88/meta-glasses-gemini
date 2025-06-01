@@ -198,7 +198,16 @@ def process_text_message(text: str, message_data: dict):
             # Interests
             interests = profile.get('context', {}).get('interests', [])
             if interests:
-                info_parts.append(f"You're interested in {', '.join(interests)}")
+                # Deduplicate interests by case-insensitive comparison, keeping the best formatted version
+                unique_interests = {}
+                for interest in interests:
+                    key = interest.lower()
+                    # Keep the version with more uppercase letters (likely better formatted)
+                    if key not in unique_interests or sum(1 for c in interest if c.isupper()) > sum(1 for c in unique_interests[key] if c.isupper()):
+                        unique_interests[key] = interest
+                
+                cleaned_interests = list(unique_interests.values())
+                info_parts.append(f"You're interested in {', '.join(cleaned_interests)}")
             
             # Preferences
             prefs = profile.get('preferences', {})
