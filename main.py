@@ -539,7 +539,7 @@ def process_text_message(text: str, message_data: dict):
             if len(text.split()) <= 3:  # Only check short messages
                 try:
                     greeting_check = simple_prompt_request(f"Is this a simple greeting that doesn't need personal context? '{text}' Answer only: YES or NO")
-                    is_simple_greeting = greeting_check.strip().upper() == 'YES'
+                    is_simple_greeting = 'yes' in greeting_check.lower()
                 except:
                     pass
             
@@ -558,7 +558,7 @@ def process_text_message(text: str, message_data: dict):
             if len(text.split()) <= 3:  # Only check short messages
                 try:
                     greeting_check = simple_prompt_request(f"Is this a simple greeting that doesn't need personal context? '{text}' Answer only: YES or NO")
-                    is_simple_greeting = greeting_check.strip().upper() == 'YES'
+                    is_simple_greeting = 'yes' in greeting_check.lower()
                 except:
                     pass
             
