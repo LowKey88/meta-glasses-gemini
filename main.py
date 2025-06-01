@@ -306,6 +306,13 @@ def process_text_message(text: str, message_data: dict):
         send_response_with_context(user_id, text, response, 'other')
         return ok
     
+    # Handle cleanup command
+    if text_lower == 'cleanup memories':
+        cleaned_count = MemoryManager.cleanup_question_memories(user_id)
+        response = f"Cleaned up {cleaned_count} incorrect memories."
+        send_response_with_context(user_id, text, response, 'other')
+        return ok
+    
     if text_lower in COMMON_RESPONSES:
         response = COMMON_RESPONSES[text_lower]
         send_whatsapp_threaded(response)
@@ -456,7 +463,7 @@ def process_text_message(text: str, message_data: dict):
                         for memory in person_memories:
                             memory_response.append(memory['content'])
                         
-                        response = f"{name} is in your memories: {'; '.join(memory_response)}"
+                        response = f"Based on your memories, {name} is: {'; '.join(memory_response)}"
                         send_response_with_context(user_id, text, response, 'search')
                         return ok
             

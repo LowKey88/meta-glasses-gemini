@@ -33,9 +33,10 @@ MEMORY_PATTERNS = {
         r"intolerant to (.+?)(?:\.|,|$)"
     ],
     'relationship': [
-        r"my (\w+) (?:is|'s) (?:called |named )?(\w+)",
+        r"my (\w+) (?:is|'s|name is) (?:called |named )?(\w+)",
         r"(\w+) is my (\w+)",
-        r"married to (\w+)"
+        r"married to (\w+)",
+        r"my (\w+) (?:called |named )?(\w+) (?:is|she is|he is) (\d+) years old"
     ],
     'preference': [
         r"i (?:prefer|like|love|enjoy) (.+?)(?:\.|,|$)",
@@ -226,6 +227,26 @@ class MemoryManager:
             memory_id, 
             {'status': 'archived', 'archived_at': datetime.now().isoformat()}
         )
+    
+    @staticmethod
+    @try_catch_decorator
+    def cleanup_question_memories(user_id: str) -> int:
+        """Clean up memories that were incorrectly extracted from questions."""
+        cleaned_count = 0
+        all_memories = MemoryManager.get_all_memories(user_id)
+        
+        question_indicators = [
+            'who is', 'what is', 'where is', 'when is', 'how is', 'why is'
+        ]
+        
+        for memory in all_memories:
+            content_lower = memory['content'].lower()
+            if any(indicator in content_lower for indicator in question_indicators):
+                MemoryManager.delete_memory(user_id, memory['id'])
+                cleaned_count += 1
+                logger.info(f"Cleaned up question memory: {memory['content']}")
+        
+        return cleaned_count
     
     @staticmethod
     @try_catch_decorator
