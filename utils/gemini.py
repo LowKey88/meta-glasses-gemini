@@ -153,13 +153,13 @@ def simple_prompt_request(message: str, user_id: str = None) -> str:
                     context_summary = f"User context: {context_summary}. "
                 
                 # For questions about people, search memories first
-                if any(phrase in message.lower() for phrase in ['who is', 'what about', 'tell me about']):
+                if any(phrase in message.lower() for phrase in ['who is', 'what about', 'tell me about', 'how old', 'age of', 'birthday']):
                     # Extract names from the question
                     name_pattern = r'\b[A-Z][a-z]+\b'
                     names = re.findall(name_pattern, message)
                     
                     for name in names:
-                        person_memory = MemoryManager.search_memories(user_id, name, limit=3)
+                        person_memory = MemoryManager.search_memories(user_id, name, limit=5)  # Get more memories for age calculations
                         if person_memory:
                             person_memories += f"About {name}: {'; '.join([m['content'] for m in person_memory])}. "
                 
@@ -407,7 +407,7 @@ def retrieve_message_type_from_message(message: str, user_id: str = None) -> str
         return ''
     
     # Pre-check: if asking about people, check if they exist in memories first
-    if user_id and any(phrase in message.lower() for phrase in ['who is', 'what about', 'tell me about']):
+    if user_id and any(phrase in message.lower() for phrase in ['who is', 'what about', 'tell me about', 'how old', 'age of', 'birthday']):
         try:
             from utils.memory_manager import MemoryManager
             import re
