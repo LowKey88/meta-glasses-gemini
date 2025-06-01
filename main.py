@@ -281,10 +281,35 @@ def process_text_message(text: str, message_data: dict):
             memories = MemoryManager.get_all_memories(user_id)[:10]
         
         if memories:
-            memory_list = []
-            for memory in memories:
-                memory_list.append(f"• {memory['content']} ({memory['type']})")
-            response = "Here's what I remember:\n" + "\n".join(memory_list)
+            # Use AI to format memories naturally
+            try:
+                from utils.gemini import simple_prompt_request
+                
+                memory_context = "\n".join([f"- {m['content']}" for m in memories])
+                format_prompt = f"""
+                Format these memories into a natural, conversational response:
+                
+                {memory_context}
+                
+                Instructions:
+                1. Group related memories together
+                2. Use natural language, not bullet points
+                3. Be personal and warm
+                4. Don't mention memory types in parentheses
+                5. Start with "I remember that..." or similar
+                
+                Example:
+                Instead of: "• Fafa is my wife (relationship) • Arissa is my daughter (relationship)"
+                Say: "I remember that Fafa is your wife and Arissa is your daughter."
+                """
+                
+                response = simple_prompt_request(format_prompt, user_id)
+                
+            except Exception as e:
+                logger.error(f"Error formatting memories: {e}")
+                # Fallback to simple format without types
+                memory_list = [f"• {memory['content']}" for memory in memories]
+                response = "Here's what I remember:\n" + "\n".join(memory_list)
         else:
             response = "I don't have any memories about that yet."
         
@@ -458,14 +483,31 @@ def process_text_message(text: str, message_data: dict):
                 for name in names:
                     person_memories = MemoryManager.search_memories(user_id, name, limit=3)
                     if person_memories:
-                        # Found in memories - use memory instead of web search
-                        memory_response = []
-                        for memory in person_memories:
-                            memory_response.append(memory['content'])
-                        
-                        response = f"Based on your memories, {name} is: {'; '.join(memory_response)}"
-                        send_response_with_context(user_id, text, response, 'search')
-                        return ok
+                        # Use AI to generate a natural response from memories
+                        try:
+                            from utils.gemini import simple_prompt_request
+                            
+                            memory_context = "; ".join([m['content'] for m in person_memories])
+                            natural_response_prompt = f"""
+                            The user asked: "{text}"
+                            
+                            Based on these memories: {memory_context}
+                            
+                            Generate a natural, conversational response that directly answers their question.
+                            Be personal and friendly. If they asked "Who is X?", answer like "X is your [relationship]" or similar.
+                            Keep it concise (1-2 sentences max).
+                            """
+                            
+                            response = simple_prompt_request(natural_response_prompt, user_id)
+                            send_response_with_context(user_id, text, response, 'search')
+                            return ok
+                            
+                        except Exception as e:
+                            logger.error(f"Error generating natural memory response: {e}")
+                            # Fallback to simple format
+                            response = f"{name} is your {person_memories[0]['content'].lower().replace(name.lower(), '').replace('is my', '').strip()}"
+                            send_response_with_context(user_id, text, response, 'search')
+                            return ok
             
             # If no relevant memories found, proceed with web search
             response = google_search_pipeline(text)

@@ -87,7 +87,58 @@ class MemoryManager:
         importance: int = 5,
         extracted_from: str = None
     ) -> str:
-        """Create a new memory."""
+        """Create a new memory with intelligent deduplication."""
+        
+        # Check for existing similar memories using AI
+        existing_memories = MemoryManager.get_all_memories(user_id)
+        
+        # Use AI to check if this memory already exists or conflicts
+        if existing_memories:
+            try:
+                from utils.gemini import simple_prompt_request
+                
+                existing_content = "; ".join([f"{m['type']}: {m['content']}" for m in existing_memories[-5:]])  # Check last 5 memories
+                
+                dedup_prompt = f"""
+                New memory to add: "{content}" (type: {memory_type})
+                
+                Existing memories: {existing_content}
+                
+                Instructions:
+                1. If this is a duplicate or very similar to existing memory, return "DUPLICATE: [existing_memory_id]"
+                2. If this conflicts with existing memory, return "CONFLICT: [memory_to_replace]"
+                3. If this is new/different information, return "CREATE"
+                
+                Examples:
+                - New: "Fafa is my wife", Existing: "My wife is fafa" → DUPLICATE
+                - New: "Arissa is my 6-year-old daughter", Existing: "My daughter name is arissa" → CONFLICT: My daughter name is arissa
+                - New: "I love pizza", Existing: "Fafa is my wife" → CREATE
+                """
+                
+                dedup_response = simple_prompt_request(dedup_prompt)
+                
+                if dedup_response.startswith('DUPLICATE'):
+                    logger.info(f"Skipping duplicate memory: {content}")
+                    return "duplicate"
+                
+                elif dedup_response.startswith('CONFLICT'):
+                    # Find and update the conflicting memory
+                    conflict_text = dedup_response.replace('CONFLICT:', '').strip()
+                    for memory in existing_memories:
+                        if conflict_text.lower() in memory['content'].lower():
+                            # Update existing memory with better version
+                            MemoryManager.update_memory(user_id, memory['id'], {
+                                'content': content,
+                                'importance': max(importance, memory.get('importance', 5)),
+                                'updated_at': datetime.now().isoformat()
+                            })
+                            logger.info(f"Updated conflicting memory {memory['id']}: {content}")
+                            return memory['id']
+                
+            except Exception as e:
+                logger.error(f"Error in AI deduplication: {e}")
+        
+        # Create new memory
         memory_id = str(uuid.uuid4())[:8]
         
         memory = {
@@ -251,50 +302,69 @@ class MemoryManager:
     @staticmethod
     @try_catch_decorator
     def extract_memories_from_text(text: str, user_id: str) -> List[Tuple[str, str, str]]:
-        """Extract potential memories from text using patterns."""
-        extracted = []
-        text_lower = text.lower().strip()
+        """Extract potential memories from text using AI-powered analysis."""
+        text_stripped = text.strip()
         
-        # Exclude patterns that indicate questions, not statements
-        question_patterns = [
-            r'^who is\b',
-            r'^what is\b', 
-            r'^where is\b',
-            r'^when is\b',
-            r'^how is\b',
-            r'^why is\b',
-            r'^which is\b',
-            r'^what about\b',
-            r'^tell me about\b',
-            r'^do you know\b',
-            r'^\w+\s*\?',  # Any text ending with question mark
-            r'\?\s*$'      # Text ending with question mark
-        ]
+        # Skip very short messages or common greetings
+        if len(text_stripped) < 10 or text_stripped.lower() in ['hi', 'hello', 'hey', 'thanks', 'ok', 'okay']:
+            return []
         
-        # Check if this is a question - if so, don't extract memories
-        for question_pattern in question_patterns:
-            if re.search(question_pattern, text_lower):
-                logger.debug(f"Skipping memory extraction from question: {text}")
+        # Use AI to analyze if this contains memorable information
+        try:
+            from utils.gemini import simple_prompt_request
+            
+            analysis_prompt = f"""
+            Analyze this message for memorable personal information: "{text}"
+            
+            Instructions:
+            1. If this is a question (who, what, where, when, how, why), return "QUESTION"
+            2. If this contains personal facts worth remembering, extract them as natural statements
+            3. Focus on: relationships, preferences, allergies, important dates, personal info
+            4. Rewrite in natural format: "X is my Y" not "my Y name is X"
+            
+            Return format:
+            TYPE: relationship|preference|allergy|important_date|personal_info|note|QUESTION
+            CONTENT: [natural statement] or QUESTION
+            
+            Examples:
+            "My daughter name is Arissa she is 6" → TYPE: relationship, CONTENT: Arissa is my 6-year-old daughter
+            "I'm allergic to peanuts" → TYPE: allergy, CONTENT: User is allergic to peanuts
+            "Who is Fafa?" → TYPE: QUESTION, CONTENT: QUESTION
+            """
+            
+            response = simple_prompt_request(analysis_prompt)
+            
+            # Parse AI response
+            lines = response.strip().split('\n')
+            memory_type = None
+            content = None
+            
+            for line in lines:
+                if line.startswith('TYPE:'):
+                    memory_type = line.replace('TYPE:', '').strip()
+                elif line.startswith('CONTENT:'):
+                    content = line.replace('CONTENT:', '').strip()
+            
+            # Check if it's a question or has no memorable content
+            if memory_type == 'QUESTION' or content == 'QUESTION' or not memory_type or not content:
+                logger.debug(f"AI determined no memorable content in: {text}")
                 return []
-        
-        # Check for explicit "remember" command
-        remember_match = re.search(r"remember (?:that )?(.+)", text_lower)
-        if remember_match:
-            content = remember_match.group(1).strip()
-            return [('note', content, text)]
-        
-        # Check all patterns
-        for memory_type, patterns in MEMORY_PATTERNS.items():
-            for pattern in patterns:
-                matches = re.finditer(pattern, text_lower)
-                for match in matches:
-                    content = match.group(0).strip()
-                    # Clean up the content
-                    content = content.capitalize()
-                    if content and len(content) > 5:  # Minimum content length
-                        extracted.append((memory_type, content, text))
-        
-        return extracted
+            
+            # Handle explicit "remember" commands differently
+            if text.lower().startswith('remember'):
+                memory_type = 'note'
+                content = text.replace('remember that', '').replace('remember', '').strip()
+            
+            logger.info(f"AI extracted memory - Type: {memory_type}, Content: {content}")
+            return [(memory_type, content, text)]
+            
+        except Exception as e:
+            logger.error(f"Error in AI memory extraction: {e}")
+            # Fallback to simple explicit remember detection
+            if text.lower().startswith('remember'):
+                content = text.replace('remember that', '').replace('remember', '').strip()
+                return [('note', content, text)]
+            return []
     
     @staticmethod
     @try_catch_decorator
