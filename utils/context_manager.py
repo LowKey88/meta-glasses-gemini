@@ -217,23 +217,43 @@ class ContextManager:
             profile = ContextManager.get_user_profile(user_id) or {"context": {"interests": []}}
             interests = profile.get("context", {}).get("interests", [])
             
-            # Check for duplicates with case-insensitive comparison
+            # Smart deduplication - check if new interest contains or is contained by existing ones
             interest_lower = interest.lower()
-            existing_interests_lower = [i.lower() for i in interests]
+            updated_interests = []
+            merged = False
             
-            # If this interest already exists (case-insensitive), update to the new formatted version
-            if interest_lower in existing_interests_lower:
-                # Find and replace the old version
-                for i, existing in enumerate(interests):
-                    if existing.lower() == interest_lower:
-                        interests[i] = interest
-                        break
-            else:
-                # Add new interest
-                interests.append(interest)
+            for existing in interests:
+                existing_lower = existing.lower()
+                
+                # If new interest contains existing one (e.g., "AI & Automation" contains "AI")
+                if existing_lower in interest_lower and existing_lower != interest_lower:
+                    # Replace with the more comprehensive version
+                    if not merged:
+                        updated_interests.append(interest)
+                        merged = True
+                # If existing contains new one (e.g., existing "AI & Automation", new "AI")
+                elif interest_lower in existing_lower and existing_lower != interest_lower:
+                    # Keep the more comprehensive existing version
+                    updated_interests.append(existing)
+                    merged = True
+                # If exact match (case-insensitive)
+                elif existing_lower == interest_lower:
+                    # Keep the better formatted version
+                    if sum(1 for c in interest if c.isupper()) >= sum(1 for c in existing if c.isupper()):
+                        updated_interests.append(interest)
+                    else:
+                        updated_interests.append(existing)
+                    merged = True
+                else:
+                    # Keep existing interest if no overlap
+                    updated_interests.append(existing)
             
-            # Remove any exact duplicates
-            interests = list(dict.fromkeys(interests))
+            # Add new interest if it wasn't merged
+            if not merged:
+                updated_interests.append(interest)
+            
+            # Remove any remaining duplicates
+            interests = list(dict.fromkeys(updated_interests))
             
             ContextManager.update_user_profile(user_id, {"context": {"interests": interests}})
             logger.info(f"Extracted interest: {interest}")
