@@ -534,16 +534,8 @@ def process_text_message(text: str, message_data: dict):
             send_whatsapp_threaded(response)
             return ok
         else:
-            # Use AI to detect if this is a simple greeting
-            is_simple_greeting = False
-            if len(text.split()) <= 3:  # Only check short messages
-                try:
-                    greeting_check = simple_prompt_request(f"Is this a simple greeting that doesn't need personal context? '{text}' Answer only: YES or NO")
-                    is_simple_greeting = 'yes' in greeting_check.lower()
-                except:
-                    pass
-            
-            if is_simple_greeting:
+            # For very short messages like "Hi", use minimal context to avoid over-mentioning family
+            if len(text.split()) <= 2 and len(text) <= 10:
                 response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.')
             else:
                 # For other messages, use full context
@@ -553,16 +545,8 @@ def process_text_message(text: str, message_data: dict):
 
     except AssertionError:
         try:
-            # Use AI to detect if this is a simple greeting
-            is_simple_greeting = False
-            if len(text.split()) <= 3:  # Only check short messages
-                try:
-                    greeting_check = simple_prompt_request(f"Is this a simple greeting that doesn't need personal context? '{text}' Answer only: YES or NO")
-                    is_simple_greeting = 'yes' in greeting_check.lower()
-                except:
-                    pass
-            
-            if is_simple_greeting:
+            # For very short messages like "Hi", use minimal context to avoid over-mentioning family
+            if len(text.split()) <= 2 and len(text) <= 10:
                 response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.')
             else:
                 response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.', user_id)
