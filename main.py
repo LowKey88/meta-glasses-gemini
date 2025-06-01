@@ -495,9 +495,14 @@ def process_text_message(text: str, message_data: dict):
             
             # For personal questions, check memories first (NEVER web search for personal info)
             if any(phrase in text.lower() for phrase in ['who is', 'what about', 'tell me about', 'when', 'birthday', 'born', 'how old', 'age']):
-                # Extract names from the question
-                name_pattern = r'\b[A-Z][a-z]+\b'
-                names = re.findall(name_pattern, text)
+                # Extract names from the question (including lowercase names)
+                # Look for names after "who is", "what about", etc.
+                name_pattern = r'(?:who is|what about|tell me about|when is|how old is|age of)\s+(\w+)'
+                names = re.findall(name_pattern, text.lower())
+                if not names:
+                    # Fallback to general name pattern (capitalized words)
+                    name_pattern = r'\b[A-Z][a-z]+\b'
+                    names = re.findall(name_pattern, text)
                 
                 for name in names:
                     person_memories = MemoryManager.search_memories(user_id, name, limit=3)

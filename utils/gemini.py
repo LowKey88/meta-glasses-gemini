@@ -161,9 +161,14 @@ def simple_prompt_request(message: str, user_id: str = None, minimal_context: bo
                     
                     # For questions about people, search memories first
                     if any(phrase in message.lower() for phrase in ['who is', 'what about', 'tell me about', 'how old', 'age of', 'birthday', 'when', 'born']):
-                        # Extract names from the question
-                        name_pattern = r'\b[A-Z][a-z]+\b'
-                        names = re.findall(name_pattern, message)
+                        # Extract names from the question (including lowercase names)
+                        # Look for names after "who is", "what about", etc.
+                        name_pattern = r'(?:who is|what about|tell me about|when is|how old is|age of)\s+(\w+)'
+                        names = re.findall(name_pattern, message.lower())
+                        if not names:
+                            # Fallback to general name pattern (capitalized words)
+                            name_pattern = r'\b[A-Z][a-z]+\b'
+                            names = re.findall(name_pattern, message)
                         
                         if names:
                             # Only get memories about the specific person(s) mentioned
@@ -429,9 +434,14 @@ def retrieve_message_type_from_message(message: str, user_id: str = None) -> str
             from utils.memory_manager import MemoryManager
             import re
             
-            # Extract names from the question
-            name_pattern = r'\b[A-Z][a-z]+\b'
-            names = re.findall(name_pattern, message)
+            # Extract names from the question (including lowercase names)
+            # Look for names after "who is", "what about", etc.
+            name_pattern = r'(?:who is|what about|tell me about|how old is|age of)\s+(\w+)'
+            names = re.findall(name_pattern, message.lower())
+            if not names:
+                # Fallback to general name pattern (capitalized words)
+                name_pattern = r'\b[A-Z][a-z]+\b'
+                names = re.findall(name_pattern, message)
             
             for name in names:
                 person_memories = MemoryManager.search_memories(user_id, name, limit=1)
