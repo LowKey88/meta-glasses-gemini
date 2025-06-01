@@ -310,11 +310,18 @@ class MemoryManager:
             analysis_prompt = f"""
             Analyze this message for memorable personal information: "{text}"
             
+            Classification guidelines:
+            - relationship: family members, friends, colleagues
+            - important_date: birthdays, anniversaries, special dates
+            - allergy: food allergies, medical restrictions
+            - preference: likes, dislikes, favorites
+            - personal_info: contact details, addresses, job titles
+            - note: general information worth remembering
+            
             Task:
             1. If this is a question, return "QUESTION"
-            2. If this contains personal facts worth remembering, extract and rephrase naturally
-            3. Focus on relationships, preferences, allergies, important dates, personal details
-            4. Convert to clear, natural statements
+            2. Extract and rephrase as natural statements
+            3. Pay special attention: birthdays/birth dates = important_date (not personal_info)
             
             Return format:
             TYPE: relationship|preference|allergy|important_date|personal_info|note|QUESTION
