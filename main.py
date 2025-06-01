@@ -35,6 +35,7 @@ from utils.gemini import *
 from utils.google_auth import GoogleAuth
 from utils.whatsapp import send_whatsapp_threaded, send_whatsapp_image, download_file
 from utils.context_manager import ContextManager
+from utils.memory_manager import MemoryManager
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("uvicorn")
@@ -124,6 +125,20 @@ def process_text_message(text: str, message_data: dict):
     # Extract user name and preferences if mentioned
     ContextManager.extract_user_name(text, user_id)
     ContextManager.extract_preferences(text, user_id)
+    
+    # Auto-extract memories from conversation
+    potential_memories = MemoryManager.extract_memories_from_text(text, user_id)
+    for memory_type, content, source in potential_memories:
+        # Only auto-save important memories (not general chat)
+        if memory_type in ['allergy', 'relationship', 'important_date', 'personal_info']:
+            MemoryManager.create_memory(
+                user_id=user_id,
+                content=content,
+                memory_type=memory_type,
+                extracted_from=source,
+                importance=8
+            )
+            logger.info(f"Auto-extracted {memory_type} memory: {content}")
     
     # Handle special "do you know me?" type questions
     if any(phrase in text_lower for phrase in ['do you know me', 'who am i', 'what is my name', 'remember me']):
@@ -234,6 +249,62 @@ def process_text_message(text: str, message_data: dict):
             response = "I understand you want to modify the previous meeting. Please specify the new details."
             send_response_with_context(user_id, text, response, 'other')
             return ok
+    
+    # Handle explicit memory commands
+    if text_lower.startswith('remember that') or text_lower.startswith('remember:'):
+        # Extract what to remember
+        memory_content = text[13:].strip() if text_lower.startswith('remember that') else text[9:].strip()
+        if memory_content:
+            memory_id = MemoryManager.create_memory(
+                user_id=user_id,
+                content=memory_content,
+                memory_type='note',
+                importance=7
+            )
+            response = f"I'll remember that for you. You can ask me about it anytime!"
+            send_response_with_context(user_id, text, response, 'other')
+        else:
+            response = "What would you like me to remember?"
+            send_response_with_context(user_id, text, response, 'other')
+        return ok
+    
+    # Handle memory queries
+    if any(phrase in text_lower for phrase in ['what do you remember about', 'what have you remembered', 'show my memories']):
+        # Extract search query
+        search_query = ""
+        if 'about' in text_lower:
+            search_query = text_lower.split('about')[-1].strip()
+        
+        if search_query:
+            memories = MemoryManager.search_memories(user_id, search_query, limit=5)
+        else:
+            memories = MemoryManager.get_all_memories(user_id)[:10]
+        
+        if memories:
+            memory_list = []
+            for memory in memories:
+                memory_list.append(f"• {memory['content']} ({memory['type']})")
+            response = "Here's what I remember:\n" + "\n".join(memory_list)
+        else:
+            response = "I don't have any memories about that yet."
+        
+        send_response_with_context(user_id, text, response, 'other')
+        return ok
+    
+    # Handle forget commands
+    if text_lower.startswith('forget about') or text_lower.startswith('forget that'):
+        search_term = text_lower.replace('forget about', '').replace('forget that', '').strip()
+        if search_term:
+            memories = MemoryManager.search_memories(user_id, search_term, limit=1)
+            if memories:
+                MemoryManager.delete_memory(user_id, memories[0]['id'])
+                response = f"I've forgotten about: {memories[0]['content']}"
+            else:
+                response = "I couldn't find that in my memories."
+        else:
+            response = "What would you like me to forget?"
+        send_response_with_context(user_id, text, response, 'other')
+        return ok
     
     if text_lower in COMMON_RESPONSES:
         response = COMMON_RESPONSES[text_lower]

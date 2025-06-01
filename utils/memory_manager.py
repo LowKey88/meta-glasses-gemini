@@ -1,0 +1,362 @@
+import json
+import logging
+import re
+import uuid
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Tuple
+from utils.redis_utils import r, try_catch_decorator
+
+logger = logging.getLogger("uvicorn")
+
+# Memory configuration
+MEMORY_KEY_PREFIX = "memory:"
+MEMORY_INDEX_KEY = "memory_index:"
+MEMORY_TTL = None  # Permanent memories
+
+# Memory types
+MEMORY_TYPES = {
+    'fact': 'Simple facts and information',
+    'preference': 'User preferences and likes/dislikes',
+    'relationship': 'People and relationships',
+    'routine': 'Regular activities and schedules',
+    'important_date': 'Birthdays, anniversaries, appointments',
+    'personal_info': 'Personal information like phone, email, address',
+    'allergy': 'Food allergies and restrictions',
+    'note': 'General notes and reminders'
+}
+
+# Auto-detection patterns
+MEMORY_PATTERNS = {
+    'allergy': [
+        r"allergic to (.+?)(?:\.|,|$)",
+        r"can't eat (.+?)(?:\.|,|$)",
+        r"intolerant to (.+?)(?:\.|,|$)"
+    ],
+    'relationship': [
+        r"my (\w+) (?:is|'s) (?:called |named )?(\w+)",
+        r"(\w+) is my (\w+)",
+        r"married to (\w+)"
+    ],
+    'preference': [
+        r"i (?:prefer|like|love|enjoy) (.+?)(?:\.|,|$)",
+        r"i (?:hate|dislike|don't like) (.+?)(?:\.|,|$)",
+        r"my favorite (.+?) is (.+?)(?:\.|,|$)"
+    ],
+    'routine': [
+        r"every (\w+) (?:i |we )?(.+?)(?:\.|,|$)",
+        r"(?:usually|always) (.+?) (?:at|on) (.+?)(?:\.|,|$)"
+    ],
+    'important_date': [
+        r"(\w+)'s birthday is (.+?)(?:\.|,|$)",
+        r"anniversary is (.+?)(?:\.|,|$)",
+        r"(.+?) on (\d{1,2}[/-]\d{1,2}[/-]?\d{0,4})"
+    ],
+    'personal_info': [
+        r"my (?:phone|number) is (.+?)(?:\.|,|$)",
+        r"my email is (.+?)(?:\.|,|$)",
+        r"my (?:car|vehicle) is (?:a )?(.+?)(?:\.|,|$)"
+    ]
+}
+
+
+class MemoryManager:
+    """Manages long-term memory storage and retrieval for users."""
+    
+    @staticmethod
+    @try_catch_decorator
+    def get_memory_key(user_id: str, memory_id: str = None) -> str:
+        """Generate Redis key for memory storage."""
+        if memory_id:
+            return f"{MEMORY_KEY_PREFIX}{user_id}:{memory_id}"
+        return f"{MEMORY_KEY_PREFIX}{user_id}:*"
+    
+    @staticmethod
+    @try_catch_decorator
+    def get_index_key(user_id: str) -> str:
+        """Generate Redis key for memory index."""
+        return f"{MEMORY_INDEX_KEY}{user_id}"
+    
+    @staticmethod
+    @try_catch_decorator
+    def create_memory(
+        user_id: str,
+        content: str,
+        memory_type: str = 'note',
+        tags: List[str] = None,
+        importance: int = 5,
+        extracted_from: str = None
+    ) -> str:
+        """Create a new memory."""
+        memory_id = str(uuid.uuid4())[:8]
+        
+        memory = {
+            'id': memory_id,
+            'user_id': user_id,
+            'type': memory_type,
+            'content': content,
+            'tags': tags or [],
+            'importance': importance,
+            'created_at': datetime.now().isoformat(),
+            'last_accessed': datetime.now().isoformat(),
+            'access_count': 0,
+            'confidence': 1.0,
+            'extracted_from': extracted_from,
+            'status': 'active'
+        }
+        
+        # Store memory
+        key = MemoryManager.get_memory_key(user_id, memory_id)
+        r.set(key, json.dumps(memory))
+        
+        # Update index
+        index_key = MemoryManager.get_index_key(user_id)
+        r.sadd(index_key, memory_id)
+        
+        logger.info(f"Created memory {memory_id} for user {user_id}: {content[:50]}...")
+        return memory_id
+    
+    @staticmethod
+    @try_catch_decorator
+    def get_memory(user_id: str, memory_id: str) -> Optional[Dict]:
+        """Retrieve a specific memory."""
+        key = MemoryManager.get_memory_key(user_id, memory_id)
+        data = r.get(key)
+        
+        if data:
+            memory = json.loads(data)
+            # Update access stats
+            memory['last_accessed'] = datetime.now().isoformat()
+            memory['access_count'] += 1
+            r.set(key, json.dumps(memory))
+            return memory
+        
+        return None
+    
+    @staticmethod
+    @try_catch_decorator
+    def search_memories(
+        user_id: str,
+        query: str,
+        memory_type: str = None,
+        limit: int = 5
+    ) -> List[Dict]:
+        """Search memories by content or type."""
+        memories = MemoryManager.get_all_memories(user_id)
+        query_lower = query.lower()
+        
+        # Filter by type if specified
+        if memory_type:
+            memories = [m for m in memories if m['type'] == memory_type]
+        
+        # Score memories by relevance
+        scored_memories = []
+        for memory in memories:
+            score = 0
+            content_lower = memory['content'].lower()
+            
+            # Exact match
+            if query_lower in content_lower:
+                score += 10
+            
+            # Word match
+            query_words = query_lower.split()
+            for word in query_words:
+                if word in content_lower:
+                    score += 2
+            
+            # Tag match
+            for tag in memory.get('tags', []):
+                if query_lower in tag.lower():
+                    score += 5
+            
+            # Consider importance and recency
+            score += memory.get('importance', 5) / 10
+            
+            if score > 0:
+                scored_memories.append((score, memory))
+        
+        # Sort by score and return top results
+        scored_memories.sort(key=lambda x: x[0], reverse=True)
+        return [m[1] for m in scored_memories[:limit]]
+    
+    @staticmethod
+    @try_catch_decorator
+    def get_all_memories(user_id: str) -> List[Dict]:
+        """Get all memories for a user."""
+        index_key = MemoryManager.get_index_key(user_id)
+        memory_ids = r.smembers(index_key)
+        
+        memories = []
+        for memory_id in memory_ids:
+            memory_id = memory_id.decode() if isinstance(memory_id, bytes) else memory_id
+            memory = MemoryManager.get_memory(user_id, memory_id)
+            if memory and memory.get('status') == 'active':
+                memories.append(memory)
+        
+        return memories
+    
+    @staticmethod
+    @try_catch_decorator
+    def update_memory(user_id: str, memory_id: str, updates: Dict) -> bool:
+        """Update an existing memory."""
+        memory = MemoryManager.get_memory(user_id, memory_id)
+        if not memory:
+            return False
+        
+        # Update fields
+        for key, value in updates.items():
+            if key not in ['id', 'user_id', 'created_at']:
+                memory[key] = value
+        
+        memory['updated_at'] = datetime.now().isoformat()
+        
+        # Save updated memory
+        key = MemoryManager.get_memory_key(user_id, memory_id)
+        r.set(key, json.dumps(memory))
+        
+        logger.info(f"Updated memory {memory_id} for user {user_id}")
+        return True
+    
+    @staticmethod
+    @try_catch_decorator
+    def delete_memory(user_id: str, memory_id: str) -> bool:
+        """Delete a memory (soft delete by marking as archived)."""
+        return MemoryManager.update_memory(
+            user_id, 
+            memory_id, 
+            {'status': 'archived', 'archived_at': datetime.now().isoformat()}
+        )
+    
+    @staticmethod
+    @try_catch_decorator
+    def extract_memories_from_text(text: str, user_id: str) -> List[Tuple[str, str, str]]:
+        """Extract potential memories from text using patterns."""
+        extracted = []
+        text_lower = text.lower()
+        
+        # Check for explicit "remember" command
+        remember_match = re.search(r"remember (?:that )?(.+)", text_lower)
+        if remember_match:
+            content = remember_match.group(1).strip()
+            return [('note', content, text)]
+        
+        # Check all patterns
+        for memory_type, patterns in MEMORY_PATTERNS.items():
+            for pattern in patterns:
+                matches = re.finditer(pattern, text_lower)
+                for match in matches:
+                    content = match.group(0).strip()
+                    # Clean up the content
+                    content = content.capitalize()
+                    if content and len(content) > 5:  # Minimum content length
+                        extracted.append((memory_type, content, text))
+        
+        return extracted
+    
+    @staticmethod
+    @try_catch_decorator
+    def get_memories_by_type(user_id: str, memory_type: str) -> List[Dict]:
+        """Get all memories of a specific type."""
+        all_memories = MemoryManager.get_all_memories(user_id)
+        return [m for m in all_memories if m['type'] == memory_type]
+    
+    @staticmethod
+    @try_catch_decorator
+    def get_memories_by_tags(user_id: str, tags: List[str]) -> List[Dict]:
+        """Get memories that have any of the specified tags."""
+        all_memories = MemoryManager.get_all_memories(user_id)
+        matching = []
+        
+        for memory in all_memories:
+            memory_tags = memory.get('tags', [])
+            if any(tag in memory_tags for tag in tags):
+                matching.append(memory)
+        
+        return matching
+    
+    @staticmethod
+    @try_catch_decorator
+    def get_relevant_memories_for_context(user_id: str, message: str, limit: int = 3) -> List[Dict]:
+        """Get memories relevant to the current message context."""
+        relevant = []
+        message_lower = message.lower()
+        
+        # Time-based relevance
+        if any(word in message_lower for word in ['tomorrow', 'today', 'week', 'monday', 'tuesday']):
+            routines = MemoryManager.get_memories_by_type(user_id, 'routine')
+            relevant.extend(routines[:2])
+        
+        # Food/restaurant context
+        if any(word in message_lower for word in ['eat', 'food', 'restaurant', 'lunch', 'dinner']):
+            allergies = MemoryManager.get_memories_by_type(user_id, 'allergy')
+            preferences = MemoryManager.search_memories(user_id, 'food', 'preference')
+            relevant.extend(allergies)
+            relevant.extend(preferences[:2])
+        
+        # People context - extract names
+        import re
+        name_pattern = r'\b[A-Z][a-z]+\b'
+        names = re.findall(name_pattern, message)
+        for name in names:
+            people_memories = MemoryManager.search_memories(user_id, name, 'relationship')
+            relevant.extend(people_memories[:1])
+        
+        # Remove duplicates and limit
+        seen = set()
+        unique = []
+        for memory in relevant:
+            if memory['id'] not in seen:
+                seen.add(memory['id'])
+                unique.append(memory)
+        
+        return unique[:limit]
+    
+    @staticmethod
+    @try_catch_decorator
+    def format_memories_for_prompt(memories: List[Dict]) -> str:
+        """Format memories for inclusion in AI prompts."""
+        if not memories:
+            return ""
+        
+        formatted = []
+        for memory in memories:
+            formatted.append(f"[{memory['type']}] {memory['content']}")
+        
+        return "Relevant memories: " + "; ".join(formatted)
+    
+    @staticmethod
+    @try_catch_decorator
+    def check_memory_triggers(user_id: str) -> List[str]:
+        """Check for proactive memory-based reminders."""
+        triggers = []
+        memories = MemoryManager.get_all_memories(user_id)
+        now = datetime.now()
+        
+        for memory in memories:
+            # Birthday reminders (3 days before)
+            if memory['type'] == 'important_date' and 'birthday' in memory['content'].lower():
+                # Extract date from content
+                date_match = re.search(r'(\d{1,2})[/-](\d{1,2})', memory['content'])
+                if date_match:
+                    month, day = int(date_match.group(1)), int(date_match.group(2))
+                    birthday_this_year = datetime(now.year, month, day)
+                    
+                    # If birthday passed this year, check next year
+                    if birthday_this_year < now:
+                        birthday_this_year = datetime(now.year + 1, month, day)
+                    
+                    days_until = (birthday_this_year - now).days
+                    if 0 <= days_until <= 3:
+                        triggers.append(f"Reminder: {memory['content']} in {days_until} days!")
+            
+            # Routine reminders
+            if memory['type'] == 'routine':
+                # Check if it's time for the routine
+                day_match = re.search(r'every (\w+)', memory['content'].lower())
+                if day_match:
+                    routine_day = day_match.group(1)
+                    current_day = now.strftime('%A').lower()
+                    if routine_day == current_day or routine_day == 'day':
+                        triggers.append(f"Daily routine: {memory['content']}")
+        
+        return triggers

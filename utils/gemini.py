@@ -139,17 +139,27 @@ def simple_prompt_request(message: str, user_id: str = None) -> str:
         
         # Get user context if available
         context_summary = ""
+        memory_context = ""
         if user_id:
             try:
                 from utils.context_manager import ContextManager
+                from utils.memory_manager import MemoryManager
+                
+                # Get conversation context
                 context_summary = ContextManager.get_context_summary(user_id)
                 if context_summary:
                     context_summary = f"User context: {context_summary}. "
+                
+                # Get relevant memories
+                memories = MemoryManager.get_relevant_memories_for_context(user_id, message)
+                if memories:
+                    memory_context = MemoryManager.format_memories_for_prompt(memories) + ". "
+                    
             except Exception as e:
                 logger.debug(f"Could not get context: {e}")
         
-        # Add time and user context to message
-        contextualized_message = f'''The current time is {actual_time}. {context_summary}{message}'''
+        # Add time, context, and memories to message
+        contextualized_message = f'''The current time is {actual_time}. {context_summary}{memory_context}{message}'''
         logger.debug(f"Sending prompt: {contextualized_message}")
         
         response = model.generate_content(
