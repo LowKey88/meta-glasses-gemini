@@ -24,8 +24,21 @@ def send_whatsapp_message(text: str):
         'type': 'text',
         'text': {'body': text}
     }
-    response = requests.post(get_whatsapp_url(), headers=headers, json=json_data)
-    logger.info(f"send_whatsapp_message response: {response.json()}")
+    try:
+        response = requests.post(get_whatsapp_url(), headers=headers, json=json_data)
+        response_data = response.json()
+        
+        # Check for authentication errors
+        if response.status_code == 401 or (response_data.get('error', {}).get('code') == 190):
+            logger.error(f"WhatsApp token expired or invalid: {response_data}")
+            # Token has expired - log error details
+            error_msg = response_data.get('error', {}).get('message', 'Token authentication failed')
+            logger.error(f"Token error details: {error_msg}")
+            return
+            
+        logger.info(f"send_whatsapp_message response: {response_data}")
+    except Exception as e:
+        logger.error(f"Failed to send WhatsApp message: {e}")
 
 def send_whatsapp_image(content):
     logger.info(f"send_whatsapp_image: sending image with content {content}")
