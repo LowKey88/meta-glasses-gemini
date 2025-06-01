@@ -96,8 +96,7 @@ def create_google_calendar_event(title: str, description: str, date: str, time: 
             events_result = service.events().list(
                 calendarId='primary',
                 q=search_query,
-                singleEvents=False,  # Include recurring events
-                orderBy='startTime'
+                singleEvents=False  # Include recurring events (no orderBy allowed with singleEvents=false)
             ).execute()
         else:
             # For regular events, check only on the specific date
