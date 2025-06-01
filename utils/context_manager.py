@@ -122,11 +122,22 @@ class ContextManager:
         
         # Patterns to extract names
         patterns = [
-            r"(?:i am|i'm|my name is|this is|call me)\s+([A-Z][a-z]+)",
+            r"(?:i am|i'm|my name is|this is|call me)\s+([A-Z][a-z]+)(?:\s|$|\.)",
             r"^([A-Z][a-z]+)\s+here",
             r"(?:friends call me|people call me|just call me)\s+([A-Z][a-z]+)",
             r"(?:actually|it's actually)\s+([A-Z][a-z]+)",
         ]
+        
+        # Exclude patterns that are NOT names
+        exclude_patterns = [
+            r"i'm\s+(?:interested|excited|happy|sad|tired|busy|working)",
+            r"i am\s+(?:interested|excited|happy|sad|tired|busy|working)",
+        ]
+        
+        # Check exclusions first
+        for exclude_pattern in exclude_patterns:
+            if re.search(exclude_pattern, message, re.IGNORECASE):
+                return None
         
         for pattern in patterns:
             match = re.search(pattern, message, re.IGNORECASE)
