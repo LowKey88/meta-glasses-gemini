@@ -311,7 +311,7 @@ class MemoryManager:
             Analyze this message for memorable personal information: "{text}"
             
             Classification guidelines:
-            - relationship: family members, friends, colleagues
+            - relationship: family members, friends, colleagues (include their names!)
             - important_date: birthdays, anniversaries, special dates
             - allergy: food allergies, medical restrictions
             - preference: likes, dislikes, favorites
@@ -321,11 +321,12 @@ class MemoryManager:
             Task:
             1. If this is a question, return "QUESTION"
             2. Extract and rephrase as natural statements
-            3. Pay special attention: birthdays/birth dates = important_date (not personal_info)
+            3. IMPORTANT: For relationships, keep the specific names (e.g., "My wife is Fafa" not just "married")
+            4. Pay special attention: birthdays/birth dates = important_date (not personal_info)
             
             Return format:
             TYPE: relationship|preference|allergy|important_date|personal_info|note|QUESTION
-            CONTENT: [natural statement] or QUESTION
+            CONTENT: [natural statement with names preserved] or QUESTION
             """
             
             response = simple_prompt_request(analysis_prompt)

@@ -337,25 +337,6 @@ def process_text_message(text: str, message_data: dict):
         send_response_with_context(user_id, text, response, 'other')
         return ok
     
-    # Handle manual relationship memory creation
-    if text_lower.startswith('my wife name is') or text_lower.startswith('my wife is'):
-        # Extract the name
-        name = text_lower.replace('my wife name is', '').replace('my wife is', '').strip()
-        if name:
-            # Create relationship memory
-            MemoryManager.create_memory(
-                user_id=user_id,
-                content=f"My wife is {name}",
-                memory_type='relationship',
-                importance=10
-            )
-            response = f"I'll remember that your wife is {name}."
-            send_response_with_context(user_id, text, response, 'other')
-        else:
-            response = "What's your wife's name?"
-            send_response_with_context(user_id, text, response, 'other')
-        return ok
-    
     # Handle specific memory deletion
     if text_lower.startswith('delete memory '):
         memory_id = text_lower.replace('delete memory ', '').strip()
