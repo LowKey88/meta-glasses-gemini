@@ -117,7 +117,7 @@ determine_notion_page_inputs_description = f'''Based on the message, create a ne
 Make sure to return all the required inputs for the page creation.
 '''.replace('    ', '')
 
-def simple_prompt_request(message: str, user_id: str = None) -> str:
+def simple_prompt_request(message: str, user_id: str = None, minimal_context: bool = False) -> str:
     """
     Send a simple prompt request to Gemini API with current time context.
     
@@ -147,34 +147,41 @@ def simple_prompt_request(message: str, user_id: str = None) -> str:
                 from utils.memory_manager import MemoryManager
                 import re
                 
-                # Get conversation context
-                context_summary = ContextManager.get_context_summary(user_id)
-                if context_summary:
-                    context_summary = f"User context: {context_summary}. "
-                
-                # For questions about people, search memories first
-                if any(phrase in message.lower() for phrase in ['who is', 'what about', 'tell me about', 'how old', 'age of', 'birthday', 'when', 'born']):
-                    # Extract names from the question
-                    name_pattern = r'\b[A-Z][a-z]+\b'
-                    names = re.findall(name_pattern, message)
+                if minimal_context:
+                    # For minimal context (greetings), only include user's name
+                    profile = ContextManager.get_user_profile(user_id)
+                    if profile and profile.get('name'):
+                        context_summary = f"User's name is {profile['name']}. "
+                else:
+                    # Full context for regular conversations
+                    # Get conversation context
+                    context_summary = ContextManager.get_context_summary(user_id)
+                    if context_summary:
+                        context_summary = f"User context: {context_summary}. "
                     
-                    if names:
-                        # Only get memories about the specific person(s) mentioned
-                        for name in names:
-                            person_memory = MemoryManager.search_memories(user_id, name, limit=5)
-                            logger.debug(f"Memory search for '{name}': found {len(person_memory) if person_memory else 0} memories")
-                            if person_memory:
-                                person_memories += f"About {name}: {'; '.join([m['content'] for m in person_memory])}. "
+                    # For questions about people, search memories first
+                    if any(phrase in message.lower() for phrase in ['who is', 'what about', 'tell me about', 'how old', 'age of', 'birthday', 'when', 'born']):
+                        # Extract names from the question
+                        name_pattern = r'\b[A-Z][a-z]+\b'
+                        names = re.findall(name_pattern, message)
+                        
+                        if names:
+                            # Only get memories about the specific person(s) mentioned
+                            for name in names:
+                                person_memory = MemoryManager.search_memories(user_id, name, limit=5)
+                                logger.debug(f"Memory search for '{name}': found {len(person_memory) if person_memory else 0} memories")
+                                if person_memory:
+                                    person_memories += f"About {name}: {'; '.join([m['content'] for m in person_memory])}. "
+                        else:
+                            # If no specific names found, get general context
+                            memories = MemoryManager.get_relevant_memories_for_context(user_id, message)
+                            if memories:
+                                memory_context = MemoryManager.format_memories_for_prompt(memories) + ". "
                     else:
-                        # If no specific names found, get general context
+                        # For non-person questions, get general context
                         memories = MemoryManager.get_relevant_memories_for_context(user_id, message)
                         if memories:
                             memory_context = MemoryManager.format_memories_for_prompt(memories) + ". "
-                else:
-                    # For non-person questions, get general context
-                    memories = MemoryManager.get_relevant_memories_for_context(user_id, message)
-                    if memories:
-                        memory_context = MemoryManager.format_memories_for_prompt(memories) + ". "
                     
             except Exception as e:
                 logger.debug(f"Could not get context: {e}")

@@ -534,9 +534,9 @@ def process_text_message(text: str, message_data: dict):
             send_whatsapp_threaded(response)
             return ok
         else:
-            # For very short messages like "Hi", use minimal context to avoid over-mentioning family
+            # For very short messages like "Hi", use minimal context (name only) to avoid over-mentioning family
             if len(text.split()) <= 2 and len(text) <= 10:
-                response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.')
+                response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.', user_id, minimal_context=True)
             else:
                 # For other messages, use full context
                 response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.', user_id)
@@ -545,9 +545,9 @@ def process_text_message(text: str, message_data: dict):
 
     except AssertionError:
         try:
-            # For very short messages like "Hi", use minimal context to avoid over-mentioning family
+            # For very short messages like "Hi", use minimal context (name only) to avoid over-mentioning family
             if len(text.split()) <= 2 and len(text) <= 10:
-                response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.')
+                response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.', user_id, minimal_context=True)
             else:
                 response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.', user_id)
             send_response_with_context(user_id, text, response, 'other')
