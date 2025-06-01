@@ -334,6 +334,16 @@ def process_text_message(text: str, message_data: dict):
         send_response_with_context(user_id, text, response, 'other')
         return ok
     
+    # Handle debug command to see raw memories
+    if text_lower == 'debug memories':
+        memories = MemoryManager.get_all_memories(user_id)
+        memory_list = []
+        for i, memory in enumerate(memories[:10], 1):
+            memory_list.append(f"{i}. [{memory['type']}] {memory['content']} (ID: {memory['id']})")
+        response = "Raw memories:\n" + "\n".join(memory_list) if memory_list else "No memories found."
+        send_response_with_context(user_id, text, response, 'other')
+        return ok
+    
     if text_lower in COMMON_RESPONSES:
         response = COMMON_RESPONSES[text_lower]
         send_whatsapp_threaded(response)
