@@ -534,8 +534,16 @@ def process_text_message(text: str, message_data: dict):
             send_whatsapp_threaded(response)
             return ok
         else:
-            # For simple greetings, use minimal context
-            if text.lower().strip() in ['hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening']:
+            # Use AI to detect if this is a simple greeting
+            is_simple_greeting = False
+            if len(text.split()) <= 3:  # Only check short messages
+                try:
+                    greeting_check = simple_prompt_request(f"Is this a simple greeting that doesn't need personal context? '{text}' Answer only: YES or NO")
+                    is_simple_greeting = greeting_check.strip().upper() == 'YES'
+                except:
+                    pass
+            
+            if is_simple_greeting:
                 response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.')
             else:
                 # For other messages, use full context
@@ -545,8 +553,16 @@ def process_text_message(text: str, message_data: dict):
 
     except AssertionError:
         try:
-            # For simple greetings, use minimal context
-            if text.lower().strip() in ['hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening']:
+            # Use AI to detect if this is a simple greeting
+            is_simple_greeting = False
+            if len(text.split()) <= 3:  # Only check short messages
+                try:
+                    greeting_check = simple_prompt_request(f"Is this a simple greeting that doesn't need personal context? '{text}' Answer only: YES or NO")
+                    is_simple_greeting = greeting_check.strip().upper() == 'YES'
+                except:
+                    pass
+            
+            if is_simple_greeting:
                 response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.')
             else:
                 response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.', user_id)
