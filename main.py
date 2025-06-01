@@ -334,6 +334,16 @@ def process_text_message(text: str, message_data: dict):
         send_response_with_context(user_id, text, response, 'other')
         return ok
     
+    # Handle specific memory deletion
+    if text_lower.startswith('delete memory '):
+        memory_id = text_lower.replace('delete memory ', '').strip()
+        if MemoryManager.delete_memory(user_id, memory_id):
+            response = f"Deleted memory {memory_id}."
+        else:
+            response = f"Could not find memory {memory_id}."
+        send_response_with_context(user_id, text, response, 'other')
+        return ok
+    
     # Handle debug command to see raw memories
     if text_lower == 'debug memories':
         memories = MemoryManager.get_all_memories(user_id)
@@ -480,8 +490,8 @@ def process_text_message(text: str, message_data: dict):
             # Check memories first before web search
             import re
             
-            # For "who is X" questions, check memories first
-            if any(phrase in text.lower() for phrase in ['who is', 'what about', 'tell me about']):
+            # For personal questions, check memories first (NEVER web search for personal info)
+            if any(phrase in text.lower() for phrase in ['who is', 'what about', 'tell me about', 'when', 'birthday', 'born', 'how old', 'age']):
                 # Extract names from the question
                 name_pattern = r'\b[A-Z][a-z]+\b'
                 names = re.findall(name_pattern, text)
