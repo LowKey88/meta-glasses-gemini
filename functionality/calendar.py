@@ -69,7 +69,7 @@ def get_event_color(title: str, description: str) -> int:
     
     return color_id
 
-def create_google_calendar_event(title: str, description: str, date: str, time: str, duration: int = 1, color_id: Optional[int] = None) -> tuple[str, str]:
+def create_google_calendar_event(title: str, description: str, date: str, time: str, duration: int = 1, color_id: Optional[int] = None, user_id: str = None) -> tuple[str, str]:
     """Create a new Google Calendar event."""
     service = get_calendar_service()
     if not service:
@@ -119,6 +119,54 @@ def create_google_calendar_event(title: str, description: str, date: str, time: 
         
         # Check if an event with similar title already exists
         title_lower = title.lower()
+        
+        # For anniversary/birthday events, use AI to check if they refer to the same person
+        if existing_events and ('anniversary' in title_lower or 'birthday' in title_lower):
+            try:
+                from utils.gemini import simple_prompt_request
+                from utils.memory_manager import MemoryManager
+                
+                # Get user's relationship context
+                relationships = []
+                if user_id:
+                    # Get user context from stored memories
+                    try:
+                        relationship_memories = MemoryManager.get_memories_by_type(user_id, 'relationship')
+                        relationships = [m['content'] for m in relationship_memories]
+                        logger.debug(f"Found {len(relationships)} relationship memories for duplicate check")
+                    except Exception as e:
+                        logger.debug(f"Could not get relationship memories: {e}")
+                
+                existing_titles = [event.get('summary', '') for event in existing_events]
+                
+                check_prompt = f"""
+                New event title: "{title}"
+                Existing events: {', '.join([f'"{t}"' for t in existing_titles])}
+                Known relationships: {'; '.join(relationships) if relationships else 'None'}
+                
+                Are any of these existing events for the SAME person/anniversary as the new event?
+                Consider nicknames, relationships (wife/spouse/partner), and context.
+                
+                Answer only: YES (if same) or NO (if different)
+                """
+                
+                response = simple_prompt_request(check_prompt).strip().upper()
+                
+                if response == 'YES':
+                    # Find the matching event
+                    for event in existing_events:
+                        event_title = event.get('summary', '')
+                        if 'anniversary' in event_title.lower() or 'birthday' in event_title.lower():
+                            logger.info(f"AI detected duplicate event: {event_title} matches {title}")
+                            if event.get('recurrence'):
+                                return event.get('htmlLink'), f"You already have this anniversary scheduled as '{event_title}'!"
+                            else:
+                                return event.get('htmlLink'), f"You already have this event scheduled as '{event_title}'!"
+                
+            except Exception as e:
+                logger.warning(f"AI duplicate detection failed, falling back to simple matching: {e}")
+        
+        # Fallback to simple string matching
         for event in existing_events:
             event_title = event.get('summary', '').lower()
             # Check for exact match or very similar titles
