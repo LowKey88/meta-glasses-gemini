@@ -33,7 +33,7 @@ Based on the message type, execute some different requests to APIs or other tool
 - calendar: types are related to ACTIONS on calendar, NOT questions about dates/birthdays:
   * Checking your actual calendar schedule/meetings/appointments (e.g. "check my meeting", "check my meetings", "what's my schedule", "do I have any meetings")
   * Creating NEW events/meetings/reminders with action words (e.g. "schedule meeting", "set reminder", "create event", "add appointment")
-  * STATEMENTS about birthdays/anniversaries that should be added to calendar (e.g. "my anniversary is on...", "my birthday is...", "add wife's birthday on...")
+  * STATEMENTS about birthdays/anniversaries that should be added to calendar (e.g. "my anniversary is on...", "my birthday is...", "add [person]'s birthday on...")
   * Canceling events (e.g. "cancel meeting 3", "cancel event 2")
   * NOT for questions like "when is X's birthday?", "what date is our anniversary?" - these are search/other types
   

@@ -321,7 +321,7 @@ class MemoryManager:
             Task:
             1. If this is a question, return "QUESTION"
             2. Extract and rephrase as natural statements
-            3. IMPORTANT: For relationships, keep the specific names (e.g., "My wife is Fafa" not just "married")
+            3. IMPORTANT: For relationships, keep the specific names (e.g., "My [relation] is [name]" not just "has [relation]")
             4. Pay special attention: birthdays/birth dates = important_date (not personal_info)
             
             Return format:
