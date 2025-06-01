@@ -158,22 +158,31 @@ def simple_prompt_request(message: str, user_id: str = None) -> str:
                     name_pattern = r'\b[A-Z][a-z]+\b'
                     names = re.findall(name_pattern, message)
                     
-                    for name in names:
-                        person_memory = MemoryManager.search_memories(user_id, name, limit=5)  # Get more memories for age calculations
-                        logger.debug(f"Memory search for '{name}': found {len(person_memory) if person_memory else 0} memories")
-                        if person_memory:
-                            person_memories += f"About {name}: {'; '.join([m['content'] for m in person_memory])}. "
-                
-                # Get relevant memories for context
-                memories = MemoryManager.get_relevant_memories_for_context(user_id, message)
-                if memories:
-                    memory_context = MemoryManager.format_memories_for_prompt(memories) + ". "
+                    if names:
+                        # Only get memories about the specific person(s) mentioned
+                        for name in names:
+                            person_memory = MemoryManager.search_memories(user_id, name, limit=5)
+                            logger.debug(f"Memory search for '{name}': found {len(person_memory) if person_memory else 0} memories")
+                            if person_memory:
+                                person_memories += f"About {name}: {'; '.join([m['content'] for m in person_memory])}. "
+                    else:
+                        # If no specific names found, get general context
+                        memories = MemoryManager.get_relevant_memories_for_context(user_id, message)
+                        if memories:
+                            memory_context = MemoryManager.format_memories_for_prompt(memories) + ". "
+                else:
+                    # For non-person questions, get general context
+                    memories = MemoryManager.get_relevant_memories_for_context(user_id, message)
+                    if memories:
+                        memory_context = MemoryManager.format_memories_for_prompt(memories) + ". "
                     
             except Exception as e:
                 logger.debug(f"Could not get context: {e}")
         
         # Add time, context, person memories, and general memories to message
-        contextualized_message = f'''The current time is {actual_time}. {context_summary}{person_memories}{memory_context}{message}'''
+        contextualized_message = f'''The current time is {actual_time}. {context_summary}{person_memories}{memory_context}{message}
+
+Answer the question directly and specifically. If asked about one person, focus only on that person.'''
         logger.debug(f"Sending prompt: {contextualized_message}")
         
         response = model.generate_content(
