@@ -281,9 +281,11 @@ def process_text_message(text: str, message_data: dict):
             memories = MemoryManager.get_all_memories(user_id)[:10]
         
         if memories:
+            logger.info(f"Formatting {len(memories)} memories for display")
             # Use AI to format memories naturally
             try:
                 memory_context = "\n".join([f"- {m['content']}" for m in memories])
+                logger.debug(f"Memory context: {memory_context}")
                 format_prompt = f"""
                 Convert these personal memories into a natural, warm response:
                 
@@ -477,6 +479,7 @@ def process_text_message(text: str, message_data: dict):
                 for name in names:
                     person_memories = MemoryManager.search_memories(user_id, name, limit=3)
                     if person_memories:
+                        logger.info(f"Found {len(person_memories)} memories for {name}: {[m['content'] for m in person_memories]}")
                         # Use AI to generate a natural response from memories
                         try:
                             memory_context = "; ".join([m['content'] for m in person_memories])
