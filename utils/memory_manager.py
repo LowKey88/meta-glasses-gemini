@@ -232,7 +232,29 @@ class MemoryManager:
     def extract_memories_from_text(text: str, user_id: str) -> List[Tuple[str, str, str]]:
         """Extract potential memories from text using patterns."""
         extracted = []
-        text_lower = text.lower()
+        text_lower = text.lower().strip()
+        
+        # Exclude patterns that indicate questions, not statements
+        question_patterns = [
+            r'^who is\b',
+            r'^what is\b', 
+            r'^where is\b',
+            r'^when is\b',
+            r'^how is\b',
+            r'^why is\b',
+            r'^which is\b',
+            r'^what about\b',
+            r'^tell me about\b',
+            r'^do you know\b',
+            r'^\w+\s*\?',  # Any text ending with question mark
+            r'\?\s*$'      # Text ending with question mark
+        ]
+        
+        # Check if this is a question - if so, don't extract memories
+        for question_pattern in question_patterns:
+            if re.search(question_pattern, text_lower):
+                logger.debug(f"Skipping memory extraction from question: {text}")
+                return []
         
         # Check for explicit "remember" command
         remember_match = re.search(r"remember (?:that )?(.+)", text_lower)

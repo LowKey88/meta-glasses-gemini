@@ -439,6 +439,28 @@ def process_text_message(text: str, message_data: dict):
             send_whatsapp_threaded('Notion page created successfully!')
             return ok
         elif operation_type == 'search':
+            # Check memories first before web search
+            import re
+            
+            # For "who is X" questions, check memories first
+            if any(phrase in text.lower() for phrase in ['who is', 'what about', 'tell me about']):
+                # Extract names from the question
+                name_pattern = r'\b[A-Z][a-z]+\b'
+                names = re.findall(name_pattern, text)
+                
+                for name in names:
+                    person_memories = MemoryManager.search_memories(user_id, name, limit=3)
+                    if person_memories:
+                        # Found in memories - use memory instead of web search
+                        memory_response = []
+                        for memory in person_memories:
+                            memory_response.append(memory['content'])
+                        
+                        response = f"{name} is in your memories: {'; '.join(memory_response)}"
+                        send_response_with_context(user_id, text, response, 'search')
+                        return ok
+            
+            # If no relevant memories found, proceed with web search
             response = google_search_pipeline(text)
             send_whatsapp_threaded(response)
             return ok

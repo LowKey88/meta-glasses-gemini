@@ -140,17 +140,30 @@ def simple_prompt_request(message: str, user_id: str = None) -> str:
         # Get user context if available
         context_summary = ""
         memory_context = ""
+        person_memories = ""
         if user_id:
             try:
                 from utils.context_manager import ContextManager
                 from utils.memory_manager import MemoryManager
+                import re
                 
                 # Get conversation context
                 context_summary = ContextManager.get_context_summary(user_id)
                 if context_summary:
                     context_summary = f"User context: {context_summary}. "
                 
-                # Get relevant memories
+                # For questions about people, search memories first
+                if any(phrase in message.lower() for phrase in ['who is', 'what about', 'tell me about']):
+                    # Extract names from the question
+                    name_pattern = r'\b[A-Z][a-z]+\b'
+                    names = re.findall(name_pattern, message)
+                    
+                    for name in names:
+                        person_memory = MemoryManager.search_memories(user_id, name, limit=3)
+                        if person_memory:
+                            person_memories += f"About {name}: {'; '.join([m['content'] for m in person_memory])}. "
+                
+                # Get relevant memories for context
                 memories = MemoryManager.get_relevant_memories_for_context(user_id, message)
                 if memories:
                     memory_context = MemoryManager.format_memories_for_prompt(memories) + ". "
@@ -158,8 +171,8 @@ def simple_prompt_request(message: str, user_id: str = None) -> str:
             except Exception as e:
                 logger.debug(f"Could not get context: {e}")
         
-        # Add time, context, and memories to message
-        contextualized_message = f'''The current time is {actual_time}. {context_summary}{memory_context}{message}'''
+        # Add time, context, person memories, and general memories to message
+        contextualized_message = f'''The current time is {actual_time}. {context_summary}{person_memories}{memory_context}{message}'''
         logger.debug(f"Sending prompt: {contextualized_message}")
         
         response = model.generate_content(
@@ -392,6 +405,25 @@ def retrieve_message_type_from_message(message: str, user_id: str = None) -> str
     """
     if not message:
         return ''
+    
+    # Pre-check: if asking about people, check if they exist in memories first
+    if user_id and any(phrase in message.lower() for phrase in ['who is', 'what about', 'tell me about']):
+        try:
+            from utils.memory_manager import MemoryManager
+            import re
+            
+            # Extract names from the question
+            name_pattern = r'\b[A-Z][a-z]+\b'
+            names = re.findall(name_pattern, message)
+            
+            for name in names:
+                person_memories = MemoryManager.search_memories(user_id, name, limit=1)
+                if person_memories:
+                    # Found in memories - this should be handled as "other" for direct response
+                    logger.debug(f"Found {name} in memories, treating as memory query instead of search")
+                    return 'other'  # Will trigger memory-enhanced response
+        except Exception as e:
+            logger.debug(f"Error checking memories in message type detection: {e}")
 
     tool = _get_tool(
         'execute_based_on_message_type',
