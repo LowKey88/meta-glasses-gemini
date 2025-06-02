@@ -35,9 +35,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - API_URL=http://api:8080
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
+      - NEXT_PUBLIC_API_URL=http://rayban.gbhome.my:8111
       - NEXTAUTH_URL=http://localhost:3000
       - NEXTAUTH_SECRET=${DASHBOARD_SECRET:-your-secret-key-here}
       - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD:-meta-admin-2024}
