@@ -1,4 +1,4 @@
-const API_URL = '';
+const API_URL = typeof window !== 'undefined' ? window.location.origin.replace(':3000', ':8111') : 'http://localhost:8111';
 
 export interface LoginResponse {
   token: string;
