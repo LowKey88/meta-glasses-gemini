@@ -1,4 +1,10 @@
-const API_URL = typeof window !== 'undefined' ? window.location.origin.replace(':3000', ':8111') : 'http://localhost:8111';
+const getApiUrl = () => {
+  if (typeof window !== 'undefined') {
+    const origin = window.location.origin;
+    return origin.replace(':3000', ':8111');
+  }
+  return 'http://localhost:8111';
+};
 
 export interface LoginResponse {
   token: string;
@@ -70,14 +76,16 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${API_URL}${endpoint}`, {
+    const response = await fetch(`${getApiUrl()}${endpoint}`, {
       ...options,
       headers,
     });
 
     if (response.status === 401) {
       this.clearToken();
-      window.location.href = '/login';
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      }
       throw new Error('Unauthorized');
     }
 
