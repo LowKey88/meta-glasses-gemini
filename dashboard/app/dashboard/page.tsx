@@ -43,7 +43,7 @@ export default function DashboardPage() {
         System Overview
       </h1>
 
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="bg-white dark:bg-gray-700 overflow-hidden shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
             <dt className="text-sm font-medium text-gray-500 dark:text-gray-300 truncate">
@@ -98,7 +98,7 @@ export default function DashboardPage() {
           <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
             AI Model Information
           </h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div>
               <dt className="text-sm font-medium text-gray-500 dark:text-gray-300">Vision Model</dt>
               <dd className="mt-1 text-sm text-gray-900 dark:text-white font-mono">
@@ -191,7 +191,7 @@ export default function DashboardPage() {
           <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
             Message Activity (Last 24 Hours)
           </h2>
-          <div className="h-64">
+          <div className="h-64 -mx-2 sm:mx-0">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={messageChartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />

@@ -171,14 +171,13 @@ export default function MemoriesPage() {
         </div>
       )}
 
-      <div className="mt-8 flex flex-col">
-        <div className="-my-2 -mx-4 overflow-x-auto sm:-mx-6 lg:-mx-8">
-          <div className="inline-block min-w-full py-2 align-middle md:px-6 lg:px-8">
-            <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
+      <div className="mt-8">
+        <div className="-mx-4 sm:mx-0">
+          <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">
               <table className="min-w-full divide-y divide-gray-300 dark:divide-gray-600">
                 <thead className="bg-gray-50 dark:bg-gray-800">
                   <tr>
-                    <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
+                    <th className="hidden sm:table-cell px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
                       User ID
                     </th>
                     <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
@@ -187,13 +186,13 @@ export default function MemoriesPage() {
                     <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
                       Content
                     </th>
-                    <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
+                    <th className="hidden lg:table-cell px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
                       Tags
                     </th>
-                    <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
+                    <th className="hidden md:table-cell px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
                       Importance
                     </th>
-                    <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
+                    <th className="hidden sm:table-cell px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
                       Created
                     </th>
                     <th className="relative py-3.5 pl-3 pr-4 sm:pr-6">
@@ -204,7 +203,7 @@ export default function MemoriesPage() {
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900">
                   {memories.map((memory) => (
                     <tr key={memory.id}>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-900 dark:text-white">
+                      <td className="hidden sm:table-cell whitespace-nowrap px-3 py-4 text-sm text-gray-900 dark:text-white">
                         {memory.user_id}
                       </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-900 dark:text-white">
@@ -225,7 +224,7 @@ export default function MemoriesPage() {
                           <div className="max-w-xs truncate">{memory.content}</div>
                         )}
                       </td>
-                      <td className="px-3 py-4 text-sm text-gray-900 dark:text-white">
+                      <td className="hidden lg:table-cell px-3 py-4 text-sm text-gray-900 dark:text-white">
                         {editingId === memory.id ? (
                           <input
                             className="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
@@ -241,7 +240,7 @@ export default function MemoriesPage() {
                           memory.tags.join(', ')
                         )}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-900 dark:text-white">
+                      <td className="hidden md:table-cell whitespace-nowrap px-3 py-4 text-sm text-gray-900 dark:text-white">
                         {editingId === memory.id ? (
                           <input
                             type="number"
@@ -257,7 +256,7 @@ export default function MemoriesPage() {
                           memory.importance
                         )}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-400">
+                      <td className="hidden sm:table-cell whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-400">
                         {new Date(memory.created_at).toLocaleDateString()}
                       </td>
                       <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
@@ -298,7 +297,6 @@ export default function MemoriesPage() {
                 </tbody>
               </table>
             </div>
-          </div>
         </div>
       </div>
     </div>

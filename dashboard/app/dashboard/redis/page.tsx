@@ -61,7 +61,7 @@ export default function RedisPage() {
       </h1>
 
       <form onSubmit={handleSearch} className="mb-6">
-        <div className="flex gap-4">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
           <input
             type="text"
             placeholder="Search pattern (e.g., user:*, reminder:*)"
@@ -69,29 +69,31 @@ export default function RedisPage() {
             value={searchPattern}
             onChange={(e) => setSearchPattern(e.target.value)}
           />
-          <button
-            type="submit"
-            className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-          >
-            Search
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setSearchPattern('');
-              fetchKeys();
-            }}
-            className="rounded-md bg-gray-300 dark:bg-gray-600 px-4 py-2 text-sm font-medium text-gray-700 dark:text-white hover:bg-gray-400 dark:hover:bg-gray-500"
-          >
-            Reset
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              className="flex-1 sm:flex-none rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+            >
+              Search
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSearchPattern('');
+                fetchKeys();
+              }}
+              className="flex-1 sm:flex-none rounded-md bg-gray-300 dark:bg-gray-600 px-4 py-2 text-sm font-medium text-gray-700 dark:text-white hover:bg-gray-400 dark:hover:bg-gray-500"
+            >
+              Reset
+            </button>
+          </div>
         </div>
       </form>
 
       {loading && <div>Loading Redis keys...</div>}
       {error && <div className="text-red-600">Error: {error}</div>}
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:gap-6 lg:grid-cols-2">
         <div className="bg-white dark:bg-gray-700 shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">

@@ -10,7 +10,12 @@ const navigation = [
   { name: 'Redis Monitor', href: '/dashboard/redis' },
 ];
 
-export default function Sidebar() {
+interface SidebarProps {
+  isOpen: boolean;
+  onClose?: () => void;
+}
+
+export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
 
   const handleLogout = () => {
@@ -18,8 +23,27 @@ export default function Sidebar() {
     window.location.href = '/login';
   };
 
+  const handleLinkClick = () => {
+    // Close sidebar on mobile after clicking a link
+    if (onClose) {
+      onClose();
+    }
+  };
+
   return (
-    <div className="flex h-full w-64 flex-col bg-gray-900">
+    <>
+      {/* Mobile backdrop */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-20 bg-black bg-opacity-50 md:hidden"
+          onClick={onClose}
+        />
+      )}
+      
+      {/* Sidebar */}
+      <div className={`fixed inset-y-0 left-0 z-30 flex h-full w-64 flex-col bg-gray-900 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${
+        isOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}>
       <div className="flex h-16 items-center justify-center">
         <h1 className="text-xl font-semibold text-white">Meta Glasses</h1>
       </div>
@@ -30,6 +54,7 @@ export default function Sidebar() {
             <Link
               key={item.name}
               href={item.href}
+              onClick={handleLinkClick}
               className={`
                 group flex items-center px-2 py-2 text-sm font-medium rounded-md
                 ${
@@ -53,5 +78,6 @@ export default function Sidebar() {
         </button>
       </div>
     </div>
+    </>
   );
 }
