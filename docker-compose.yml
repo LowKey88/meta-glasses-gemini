@@ -29,7 +29,7 @@ services:
       - ./logs:/app/logs
 
   dashboard:
-    build: ./dashboard
+    image: ghcr.io/lowkey88/meta-glasses-gemini-dashboard:dev
     container_name: metadashboard
     restart: unless-stopped
     ports:
@@ -40,6 +40,7 @@ services:
       - REDIS_PORT=6379
       - NEXTAUTH_URL=http://localhost:3000
       - NEXTAUTH_SECRET=${DASHBOARD_SECRET:-your-secret-key-here}
+      - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD:-meta-admin-2024}
     depends_on:
       - api
       - redis
