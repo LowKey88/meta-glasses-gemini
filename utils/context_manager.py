@@ -9,7 +9,7 @@ logger = logging.getLogger("uvicorn")
 # Constants
 CONVERSATION_HISTORY_KEY = "conversation_history"
 USER_PROFILE_KEY = "user_profile"
-HISTORY_LIMIT = 20  # Keep last 20 messages
+HISTORY_LIMIT = 100  # Keep last 100 messages
 HISTORY_TTL = 86400 * 7  # 7 days TTL for conversation history
 
 

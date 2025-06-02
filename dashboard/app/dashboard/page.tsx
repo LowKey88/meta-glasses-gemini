@@ -61,10 +61,13 @@ export default function DashboardPage() {
         <div className="bg-white dark:bg-gray-700 overflow-hidden shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
             <dt className="text-sm font-medium text-gray-500 dark:text-gray-300 truncate">
-              Recent Messages
+              Messages (24h)
             </dt>
             <dd className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">
               {stats.recent_messages}
+            </dd>
+            <dd className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Last 24 hours
             </dd>
           </div>
         </div>
