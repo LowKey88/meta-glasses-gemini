@@ -13,6 +13,7 @@ from utils.context_manager import ContextManager
 from utils.reminder import ReminderManager
 from utils.gemini import GEMINI_VISION_MODEL, GEMINI_CHAT_MODEL
 from utils.metrics import MetricsTracker
+from utils.whatsapp_status import check_whatsapp_token_status
 from .config import (
     JWT_SECRET, DASHBOARD_PASSWORD, TOKEN_EXPIRY_HOURS,
     API_PREFIX, DEFAULT_USER_ID, DEFAULT_LIMIT, MAX_LIMIT
@@ -45,6 +46,8 @@ class DashboardStats(BaseModel):
     ai_model_chat: str
     total_ai_requests_today: int
     message_activity: Dict[str, int]  # Hourly message counts for last 24 hours
+    whatsapp_status: str
+    whatsapp_token_info: Dict[str, any]  # Token status and expiry info
 
 def verify_token(authorization: Optional[str] = Header(None)):
     """Verify JWT token for dashboard access"""
@@ -118,6 +121,10 @@ async def get_dashboard_stats(user_id: str = "60122873632"):
         total_ai_requests = MetricsTracker.get_ai_requests_today()
         message_activity = MetricsTracker.get_message_activity(24)  # Last 24 hours
         
+        # Get WhatsApp status
+        whatsapp_token_info = check_whatsapp_token_status()
+        whatsapp_status = whatsapp_token_info.get('status', 'unknown')
+        
         return DashboardStats(
             total_memories=len(memories),
             memory_by_type=memory_by_type,
@@ -128,7 +135,9 @@ async def get_dashboard_stats(user_id: str = "60122873632"):
             ai_model_vision=GEMINI_VISION_MODEL,
             ai_model_chat=GEMINI_CHAT_MODEL,
             total_ai_requests_today=total_ai_requests,
-            message_activity=message_activity
+            message_activity=message_activity,
+            whatsapp_status=whatsapp_status,
+            whatsapp_token_info=whatsapp_token_info
         )
     except Exception as e:
         logger.error(f"Error getting dashboard stats: {e}")

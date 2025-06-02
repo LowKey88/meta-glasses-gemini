@@ -121,6 +121,70 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* WhatsApp Status */}
+      <div className="mt-8 bg-white dark:bg-gray-700 shadow rounded-lg">
+        <div className="px-4 py-5 sm:p-6">
+          <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+            WhatsApp API Status
+          </h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <dt className="text-sm font-medium text-gray-500 dark:text-gray-300">Status</dt>
+              <dd className="mt-1 flex items-center">
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                  stats.whatsapp_status === 'active' 
+                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
+                    : stats.whatsapp_status === 'expired'
+                    ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                    : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                }`}>
+                  <span className={`mr-1.5 h-2 w-2 rounded-full ${
+                    stats.whatsapp_status === 'active' 
+                      ? 'bg-green-400' 
+                      : stats.whatsapp_status === 'expired'
+                      ? 'bg-red-400'
+                      : 'bg-yellow-400'
+                  }`} />
+                  {stats.whatsapp_status.toUpperCase()}
+                </span>
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-gray-500 dark:text-gray-300">Token Type</dt>
+              <dd className="mt-1 text-sm text-gray-900 dark:text-white">
+                {stats.whatsapp_token_info.token_type || 'Unknown'}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-gray-500 dark:text-gray-300">API Version</dt>
+              <dd className="mt-1 text-sm text-gray-900 dark:text-white font-mono">
+                {stats.whatsapp_token_info.api_version || 'N/A'}
+              </dd>
+            </div>
+            <div className="sm:col-span-2 lg:col-span-3">
+              <dt className="text-sm font-medium text-gray-500 dark:text-gray-300">Message</dt>
+              <dd className="mt-1 text-sm text-gray-900 dark:text-white">
+                {stats.whatsapp_token_info.message}
+              </dd>
+            </div>
+            {stats.whatsapp_token_info.error && (
+              <div className="sm:col-span-2 lg:col-span-3">
+                <dt className="text-sm font-medium text-gray-500 dark:text-gray-300">Error</dt>
+                <dd className="mt-1 text-sm text-red-600 dark:text-red-400">
+                  {stats.whatsapp_token_info.error}
+                </dd>
+              </div>
+            )}
+            <div className="sm:col-span-2 lg:col-span-3">
+              <dt className="text-sm font-medium text-gray-500 dark:text-gray-300">Last Checked</dt>
+              <dd className="mt-1 text-sm text-gray-900 dark:text-white">
+                {new Date(stats.whatsapp_token_info.last_checked).toLocaleString()}
+              </dd>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Message Activity Graph */}
       <div className="mt-8 bg-white dark:bg-gray-700 shadow rounded-lg">
         <div className="px-4 py-5 sm:p-6">

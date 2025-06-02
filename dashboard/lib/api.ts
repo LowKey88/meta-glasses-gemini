@@ -40,6 +40,16 @@ export interface SystemStats {
   ai_model_chat: string;
   total_ai_requests_today: number;
   message_activity: Record<string, number>;
+  whatsapp_status: string;
+  whatsapp_token_info: {
+    status: string;
+    is_valid: boolean;
+    message: string;
+    token_type?: string;
+    api_version?: string;
+    last_checked: string;
+    error?: string;
+  };
 }
 
 class ApiClient {
