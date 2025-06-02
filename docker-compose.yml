@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7.2.5
+    container_name: redismeta
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - meta-network
+
+  api:
+    image: ghcr.io/lowkey88/meta-glasses-gemini:dev
+    container_name: raybanmeta
+    restart: unless-stopped
+    ports:
+      - "8111:8080"
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - redis
+    networks:
+      - meta-network
+    volumes:
+      - ./media:/app/media
+      - ./logs:/app/logs
+
+  dashboard:
+    build: ./dashboard
+    container_name: metadashboard
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - API_URL=http://api:8080
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=${DASHBOARD_SECRET:-your-secret-key-here}
+    depends_on:
+      - api
+      - redis
+    networks:
+      - meta-network
+
+networks:
+  meta-network:
+    driver: bridge
+
+volumes:
+  redis_data:

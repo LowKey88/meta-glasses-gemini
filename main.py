@@ -36,6 +36,7 @@ from utils.google_auth import GoogleAuth
 from utils.whatsapp import send_whatsapp_threaded, send_whatsapp_image, download_file
 from utils.context_manager import ContextManager
 from utils.memory_manager import MemoryManager
+from api.dashboard import dashboard_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("uvicorn")
@@ -59,12 +60,17 @@ app.add_middleware(
    allow_origins=[
        "https://www.messenger.com",
        "https://www.facebook.com",
+       "http://localhost:3000",  # Dashboard development
+       "http://localhost:8111",  # Production dashboard
        os.getenv('HOME_ASSISTANT_URL')
    ],
    allow_credentials=True,
    allow_methods=["*"],
    allow_headers=["*"],
 )
+
+# Include dashboard routes
+app.include_router(dashboard_router)
 
 @app.get('/')
 def home():
