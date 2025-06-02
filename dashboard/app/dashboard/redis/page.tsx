@@ -111,7 +111,7 @@ export default function RedisPage() {
                           {key.key}
                         </p>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Type: {key.type} | TTL: {key.ttl === -1 ? 'No expiry' : `${key.ttl}s`}
+                          Type: {key.type} | TTL: {key.ttl === null ? 'No expiry' : `${key.ttl}s`}
                         </p>
                       </div>
                       <button
@@ -154,7 +154,7 @@ export default function RedisPage() {
                   <div>
                     <dt className="text-sm font-medium text-gray-500 dark:text-gray-300">TTL</dt>
                     <dd className="mt-1 text-sm text-gray-900 dark:text-white">
-                      {selectedKey.ttl === -1 ? 'No expiry' : `${selectedKey.ttl} seconds`}
+                      {selectedKey.ttl === null ? 'No expiry' : `${selectedKey.ttl} seconds`}
                     </dd>
                   </div>
                 </dl>

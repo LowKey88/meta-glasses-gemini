@@ -25,7 +25,7 @@ export interface Memory {
 export interface RedisKey {
   key: string;
   type: string;
-  ttl: number;
+  ttl: number | null;
   value?: any;
 }
 
@@ -108,7 +108,8 @@ class ApiClient {
   }
 
   async getMemories(): Promise<Memory[]> {
-    return this.request<Memory[]>('/api/dashboard/memories');
+    const response = await this.request<{memories: Memory[], total: number}>('/api/dashboard/memories');
+    return response.memories;
   }
 
   async getMemory(id: string): Promise<Memory> {
@@ -137,7 +138,8 @@ class ApiClient {
 
   async getRedisKeys(pattern?: string): Promise<RedisKey[]> {
     const params = pattern ? `?pattern=${encodeURIComponent(pattern)}` : '';
-    return this.request<RedisKey[]>(`/api/dashboard/redis/keys${params}`);
+    const response = await this.request<{keys: RedisKey[], total: number}>(`/api/dashboard/redis/keys${params}`);
+    return response.keys;
   }
 
   async getRedisKey(key: string): Promise<RedisKey> {
