@@ -3,7 +3,7 @@
 import json
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 from fastapi import APIRouter, HTTPException, Depends, Header
 from pydantic import BaseModel
 import jwt
@@ -47,7 +47,7 @@ class DashboardStats(BaseModel):
     total_ai_requests_today: int
     message_activity: Dict[str, int]  # Hourly message counts for last 24 hours
     whatsapp_status: str
-    whatsapp_token_info: Dict[str, any]  # Token status and expiry info
+    whatsapp_token_info: Dict[str, Any]  # Token status and expiry info
 
 def verify_token(authorization: Optional[str] = Header(None)):
     """Verify JWT token for dashboard access"""
