@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { api, SystemStats } from '@/lib/api';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<SystemStats | null>(null);
@@ -29,6 +30,12 @@ export default function DashboardPage() {
   if (loading) return <div>Loading stats...</div>;
   if (error) return <div className="text-red-600">Error: {error}</div>;
   if (!stats) return null;
+
+  // Prepare chart data
+  const messageChartData = Object.entries(stats.message_activity).map(([hour, count]) => ({
+    hour,
+    messages: count,
+  }));
 
   return (
     <div>
@@ -85,6 +92,76 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* AI Model Information */}
+      <div className="mt-8 bg-white dark:bg-gray-700 shadow rounded-lg">
+        <div className="px-4 py-5 sm:p-6">
+          <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+            AI Model Information
+          </h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div>
+              <dt className="text-sm font-medium text-gray-500 dark:text-gray-300">Vision Model</dt>
+              <dd className="mt-1 text-sm text-gray-900 dark:text-white font-mono">
+                {stats.ai_model_vision}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-gray-500 dark:text-gray-300">Chat Model</dt>
+              <dd className="mt-1 text-sm text-gray-900 dark:text-white font-mono">
+                {stats.ai_model_chat}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-gray-500 dark:text-gray-300">AI Requests Today</dt>
+              <dd className="mt-1 text-sm text-gray-900 dark:text-white">
+                {stats.total_ai_requests_today}
+              </dd>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Message Activity Graph */}
+      <div className="mt-8 bg-white dark:bg-gray-700 shadow rounded-lg">
+        <div className="px-4 py-5 sm:p-6">
+          <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+            Message Activity (Last 24 Hours)
+          </h2>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={messageChartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis 
+                  dataKey="hour" 
+                  stroke="#9CA3AF"
+                  style={{ fontSize: '12px' }}
+                />
+                <YAxis 
+                  stroke="#9CA3AF"
+                  style={{ fontSize: '12px' }}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#1F2937', 
+                    border: '1px solid #374151',
+                    borderRadius: '6px'
+                  }}
+                  labelStyle={{ color: '#E5E7EB' }}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="messages" 
+                  stroke="#3B82F6" 
+                  strokeWidth={2}
+                  dot={{ fill: '#3B82F6', r: 4 }}
+                  activeDot={{ r: 6 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
       <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="bg-white dark:bg-gray-700 shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
@@ -107,20 +184,43 @@ export default function DashboardPage() {
         <div className="bg-white dark:bg-gray-700 shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
             <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-              Memory Types
+              Memory Types Distribution
             </h2>
-            <dl className="grid grid-cols-1 gap-x-4 gap-y-6">
-              {Object.entries(stats.memory_by_type).map(([type, count]) => (
-                <div key={type}>
-                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-300 capitalize">
-                    {type.replace('_', ' ')}
-                  </dt>
-                  <dd className="mt-1 text-sm text-gray-900 dark:text-white">
-                    {count}
-                  </dd>
-                </div>
-              ))}
-            </dl>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={Object.entries(stats.memory_by_type).map(([type, count]) => ({
+                  type: type.replace('_', ' '),
+                  count
+                }))}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <XAxis 
+                    dataKey="type" 
+                    stroke="#9CA3AF"
+                    style={{ fontSize: '12px' }}
+                    angle={-45}
+                    textAnchor="end"
+                    height={60}
+                  />
+                  <YAxis 
+                    stroke="#9CA3AF"
+                    style={{ fontSize: '12px' }}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: '#1F2937', 
+                      border: '1px solid #374151',
+                      borderRadius: '6px'
+                    }}
+                    labelStyle={{ color: '#E5E7EB' }}
+                  />
+                  <Bar 
+                    dataKey="count" 
+                    fill="#10B981"
+                    radius={[8, 8, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </div>
       </div>

@@ -1,12 +1,14 @@
 import os
 import re
 import logging
+import time
 import google.ai.generativelanguage as glm
 import google.generativeai as genai
 import requests
 from PIL import Image
 from pydub import AudioSegment
 from datetime import datetime, timedelta
+from utils.metrics import MetricsTracker
 
 # Configure logging
 logger = logging.getLogger("uvicorn")
@@ -198,6 +200,9 @@ def simple_prompt_request(message: str, user_id: str = None, minimal_context: bo
 Answer the question directly and specifically. If asked about one person, focus only on that person.'''
         logger.debug(f"Sending prompt: {contextualized_message}")
         
+        # Track API request timing
+        start_time = time.time()
+        
         response = model.generate_content(
             contextualized_message,
             generation_config={
@@ -206,6 +211,10 @@ Answer the question directly and specifically. If asked about one person, focus 
                 'candidate_count': 1
             }
         )
+        
+        # Track response time
+        response_time = time.time() - start_time
+        MetricsTracker.track_ai_request("chat", response_time)
         
         if not response.text:
             raise ValueError("Empty response from Gemini API")
@@ -331,6 +340,10 @@ def analyze_image(img_url: str, question: str = None) -> str:
         logger.debug(f"Using prompt: {prompt}")
         
         model = genai.GenerativeModel(GEMINI_VISION_MODEL)
+        
+        # Track API request timing
+        start_time = time.time()
+        
         response = model.generate_content(
             [prompt, img],
             generation_config={
@@ -338,6 +351,10 @@ def analyze_image(img_url: str, question: str = None) -> str:
                 'max_output_tokens': 100
             }
         )
+        
+        # Track response time
+        response_time = time.time() - start_time
+        MetricsTracker.track_ai_request("vision", response_time)
 
         # Process response
         response_text = response.text.strip()

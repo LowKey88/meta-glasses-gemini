@@ -36,6 +36,10 @@ export interface SystemStats {
   redis_keys: number;
   active_reminders: number;
   recent_messages: number;
+  ai_model_vision: string;
+  ai_model_chat: string;
+  total_ai_requests_today: number;
+  message_activity: Record<string, number>;
 }
 
 class ApiClient {

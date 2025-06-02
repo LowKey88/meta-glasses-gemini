@@ -36,6 +36,7 @@ from utils.google_auth import GoogleAuth
 from utils.whatsapp import send_whatsapp_threaded, send_whatsapp_image, download_file
 from utils.context_manager import ContextManager
 from utils.memory_manager import MemoryManager
+from utils.metrics import MetricsTracker
 from api.dashboard import dashboard_router
 
 logging.basicConfig(level=logging.INFO)
@@ -129,6 +130,9 @@ def send_response_with_context(user_id: str, message: str, response: str, msg_ty
 def process_text_message(text: str, message_data: dict):
     text_lower = text.lower().strip()
     user_id = message_data.get('from', 'unknown')
+    
+    # Track message
+    MetricsTracker.track_message(user_id, "text")
     
     # Extract user name and preferences if mentioned
     ContextManager.extract_user_name(text, user_id)
@@ -594,6 +598,8 @@ def logic(message: dict):
 
         if message['type'] == 'image':
             logger.info("Processing image message")
+            user_id = message.get('from', 'unknown')
+            MetricsTracker.track_message(user_id, "image")
             logic_for_prompt_before_image(message)
             image_path = download_file(message['image'])
             if image_path:
@@ -607,6 +613,8 @@ def logic(message: dict):
             return ok
         elif message['type'] == 'audio':
             logger.info("Processing audio message")
+            user_id = message.get('from', 'unknown')
+            MetricsTracker.track_message(user_id, "audio")
             result = retrieve_transcript_from_audio(message)
         else:
             text = message['text']['body']

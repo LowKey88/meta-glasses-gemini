@@ -11,6 +11,8 @@ from utils.redis_utils import r
 from utils.memory_manager import MemoryManager
 from utils.context_manager import ContextManager
 from utils.reminder import ReminderManager
+from utils.gemini import GEMINI_VISION_MODEL, GEMINI_CHAT_MODEL
+from utils.metrics import MetricsTracker
 from .config import (
     JWT_SECRET, DASHBOARD_PASSWORD, TOKEN_EXPIRY_HOURS,
     API_PREFIX, DEFAULT_USER_ID, DEFAULT_LIMIT, MAX_LIMIT
@@ -39,6 +41,10 @@ class DashboardStats(BaseModel):
     active_reminders: int
     recent_messages: int
     uptime: str
+    ai_model_vision: str
+    ai_model_chat: str
+    total_ai_requests_today: int
+    message_activity: Dict[str, int]  # Hourly message counts for last 24 hours
 
 def verify_token(authorization: Optional[str] = Header(None)):
     """Verify JWT token for dashboard access"""
@@ -108,13 +114,21 @@ async def get_dashboard_stats(user_id: str = "60122873632"):
         else:
             uptime = f"{seconds}s"
         
+        # Get AI metrics
+        total_ai_requests = MetricsTracker.get_ai_requests_today()
+        message_activity = MetricsTracker.get_message_activity(24)  # Last 24 hours
+        
         return DashboardStats(
             total_memories=len(memories),
             memory_by_type=memory_by_type,
             redis_keys=redis_keys,
             active_reminders=active_reminders,
             recent_messages=recent_messages,
-            uptime=uptime
+            uptime=uptime,
+            ai_model_vision=GEMINI_VISION_MODEL,
+            ai_model_chat=GEMINI_CHAT_MODEL,
+            total_ai_requests_today=total_ai_requests,
+            message_activity=message_activity
         )
     except Exception as e:
         logger.error(f"Error getting dashboard stats: {e}")
