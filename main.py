@@ -62,6 +62,8 @@ app.add_middleware(
        "https://www.facebook.com",
        "http://localhost:3000",  # Dashboard development
        "http://localhost:8111",  # Production dashboard
+       "http://rayban.gbhome.my:3000",  # Production dashboard frontend
+       "https://rayban.gbhome.my:3000",  # Production dashboard frontend HTTPS
        os.getenv('HOME_ASSISTANT_URL')
    ],
    allow_credentials=True,
