@@ -30,11 +30,12 @@ export interface RedisKey {
 }
 
 export interface SystemStats {
-  uptime: number;
-  memory_usage: number;
-  redis_keys: number;
+  uptime: string;
   total_memories: number;
+  memory_by_type: Record<string, number>;
+  redis_keys: number;
   active_reminders: number;
+  recent_messages: number;
 }
 
 class ApiClient {
