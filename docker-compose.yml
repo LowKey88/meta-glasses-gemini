@@ -20,6 +20,7 @@ services:
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD:-meta-admin-2024}
     depends_on:
       - redis
     networks:
@@ -37,7 +38,6 @@ services:
     environment:
       - NEXTAUTH_URL=http://localhost:3000
       - NEXTAUTH_SECRET=${DASHBOARD_SECRET:-your-secret-key-here}
-      - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD:-meta-admin-2024}
     depends_on:
       - app
       - redis
