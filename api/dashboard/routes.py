@@ -99,7 +99,7 @@ async def get_dashboard_stats(user_id: str = "60122873632"):
         
         # Get recent message count from metrics (last 24 hours)
         message_activity_24h = MetricsTracker.get_message_activity(24)
-        recent_messages = sum(sum(hour_data.values()) for hour_data in message_activity_24h.values())
+        recent_messages = sum(message_activity_24h.values())
         
         # Calculate uptime
         uptime_seconds = int((datetime.now() - app_start_time).total_seconds())
