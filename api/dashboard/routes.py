@@ -18,6 +18,9 @@ from .config import (
 
 logger = logging.getLogger("uvicorn")
 
+# Track application start time
+app_start_time = datetime.now()
+
 # Dashboard API Router
 dashboard_router = APIRouter(prefix=API_PREFIX, tags=["dashboard"])
 
@@ -89,8 +92,21 @@ async def get_dashboard_stats(user_id: str = "60122873632"):
         history = ContextManager.get_conversation_history(user_id, limit=100)
         recent_messages = len(history)
         
-        # Calculate uptime (simple estimation)
-        uptime = "Running"
+        # Calculate uptime
+        uptime_seconds = int((datetime.now() - app_start_time).total_seconds())
+        days = uptime_seconds // 86400
+        hours = (uptime_seconds % 86400) // 3600
+        minutes = (uptime_seconds % 3600) // 60
+        seconds = uptime_seconds % 60
+        
+        if days > 0:
+            uptime = f"{days}d {hours}h {minutes}m"
+        elif hours > 0:
+            uptime = f"{hours}h {minutes}m {seconds}s"
+        elif minutes > 0:
+            uptime = f"{minutes}m {seconds}s"
+        else:
+            uptime = f"{seconds}s"
         
         return DashboardStats(
             total_memories=len(memories),
