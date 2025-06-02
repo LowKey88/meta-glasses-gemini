@@ -2,6 +2,9 @@
 const nextConfig = {
   output: 'standalone',
   reactStrictMode: true,
+  experimental: {
+    outputFileTracingRoot: undefined,
+  },
   async rewrites() {
     return [
       {
