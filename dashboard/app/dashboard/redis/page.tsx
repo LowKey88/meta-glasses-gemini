@@ -65,7 +65,7 @@ export default function RedisPage() {
           <input
             type="text"
             placeholder="Search pattern (e.g., user:*, reminder:*)"
-            className="flex-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+            className="flex-1 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-400 dark:border-gray-600 px-3 py-2 focus:border-indigo-500 focus:ring-indigo-500"
             value={searchPattern}
             onChange={(e) => setSearchPattern(e.target.value)}
           />

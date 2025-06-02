@@ -116,12 +116,12 @@ export default function MemoriesPage() {
             <input
               type="text"
               placeholder="User ID"
-              className="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+              className="rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-400 dark:border-gray-600 px-3 py-2 focus:border-indigo-500 focus:ring-indigo-500"
               value={newForm.user_id}
               onChange={(e) => setNewForm({ ...newForm, user_id: e.target.value })}
             />
             <select
-              className="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+              className="rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-400 dark:border-gray-600 px-3 py-2 focus:border-indigo-500 focus:ring-indigo-500"
               value={newForm.type}
               onChange={(e) => setNewForm({ ...newForm, type: e.target.value })}
             >
@@ -133,7 +133,7 @@ export default function MemoriesPage() {
             <input
               type="text"
               placeholder="Tags (comma separated)"
-              className="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+              className="rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-400 dark:border-gray-600 px-3 py-2 focus:border-indigo-500 focus:ring-indigo-500"
               value={newForm.tags}
               onChange={(e) => setNewForm({ ...newForm, tags: e.target.value })}
             />
@@ -142,14 +142,14 @@ export default function MemoriesPage() {
               placeholder="Importance (1-10)"
               min="1"
               max="10"
-              className="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+              className="rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-400 dark:border-gray-600 px-3 py-2 focus:border-indigo-500 focus:ring-indigo-500"
               value={newForm.importance}
               onChange={(e) => setNewForm({ ...newForm, importance: parseInt(e.target.value) })}
             />
             <textarea
               placeholder="Content"
               rows={3}
-              className="col-span-2 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+              className="col-span-2 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-400 dark:border-gray-600 px-3 py-2 focus:border-indigo-500 focus:ring-indigo-500"
               value={newForm.content}
               onChange={(e) => setNewForm({ ...newForm, content: e.target.value })}
             />
@@ -214,7 +214,7 @@ export default function MemoriesPage() {
                       <td className="px-3 py-4 text-sm text-gray-900 dark:text-white">
                         {editingId === memory.id ? (
                           <textarea
-                            className="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                            className="w-full rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-400 dark:border-gray-600 px-3 py-2 focus:border-indigo-500 focus:ring-indigo-500"
                             value={editForm.content}
                             onChange={(e) =>
                               setEditForm({ ...editForm, content: e.target.value })
@@ -227,7 +227,7 @@ export default function MemoriesPage() {
                       <td className="hidden lg:table-cell px-3 py-4 text-sm text-gray-900 dark:text-white">
                         {editingId === memory.id ? (
                           <input
-                            className="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                            className="w-full rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-400 dark:border-gray-600 px-3 py-2 focus:border-indigo-500 focus:ring-indigo-500"
                             value={editForm.tags?.join(', ')}
                             onChange={(e) =>
                               setEditForm({
@@ -246,7 +246,7 @@ export default function MemoriesPage() {
                             type="number"
                             min="1"
                             max="10"
-                            className="w-16 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                            className="w-16 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-400 dark:border-gray-600 px-2 py-1 focus:border-indigo-500 focus:ring-indigo-500"
                             value={editForm.importance}
                             onChange={(e) =>
                               setEditForm({ ...editForm, importance: parseInt(e.target.value) })

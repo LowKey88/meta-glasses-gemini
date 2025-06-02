@@ -41,11 +41,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       )}
       
       {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-30 flex h-full w-64 flex-col bg-gray-900 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${
+      <div className={`fixed inset-y-0 left-0 z-30 flex h-full w-64 flex-col bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${
         isOpen ? 'translate-x-0' : '-translate-x-full'
       }`}>
-      <div className="flex h-16 items-center justify-center">
-        <h1 className="text-xl font-semibold text-white">Meta Glasses</h1>
+      <div className="flex h-16 items-center justify-center border-b border-gray-200 dark:border-gray-700">
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Meta Glasses</h1>
       </div>
       <nav className="flex-1 space-y-1 px-2 py-4">
         {navigation.map((item) => {
@@ -59,8 +59,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 group flex items-center px-2 py-2 text-sm font-medium rounded-md
                 ${
                   isActive
-                    ? 'bg-gray-800 text-white'
-                    : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                    ? 'bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-white'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
                 }
               `}
             >
@@ -72,7 +72,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       <div className="flex-shrink-0 p-4">
         <button
           onClick={handleLogout}
-          className="group flex w-full items-center px-2 py-2 text-sm font-medium text-gray-300 rounded-md hover:bg-gray-700 hover:text-white"
+          className="group flex w-full items-center px-2 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white"
         >
           Logout
         </button>
