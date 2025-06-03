@@ -8,6 +8,20 @@ For the best web hosting and domain registration services, visit [GB Network Sol
 
 ## Features
 
+### Admin Dashboard
+
+A comprehensive web-based administration interface for managing and monitoring the system:
+
+- **System Overview**: Real-time metrics, uptime tracking, and AI usage statistics
+- **WhatsApp API Monitoring**: Token status validation and error reporting
+- **Memory Management**: View, edit, and manage all stored memories
+- **Redis Monitor**: Browse and manage Redis keys with search functionality
+- **Dark Mode Support**: Toggle between light and dark themes
+- **Mobile Responsive**: Full functionality on mobile devices with collapsible sidebar
+- **Secure Access**: JWT-based authentication with password protection
+
+Access the dashboard at `http://localhost:3000` after running with Docker Compose.
+
 ### WhatsApp Notifications
 
 - Text messages
@@ -243,11 +257,24 @@ The system features a robust three-stage notification system with improved error
 
 ### API Endpoints
 
+#### Core Endpoints
 - `POST /send-notification`: Send WhatsApp notifications with optional images
 - `GET /webhook`: WhatsApp webhook verification
 - `POST /webhook`: WhatsApp message processing
 - `GET /auth/google`: Initiate Google OAuth flow (requires x-api-key header)
 - `GET /auth/callback`: Handle OAuth callback (requires x-api-key header)
+
+#### Dashboard API Endpoints
+- `POST /api/dashboard/auth/login`: Dashboard authentication
+- `GET /api/dashboard/system/stats`: System statistics and metrics
+- `GET /api/dashboard/system/whatsapp-status`: WhatsApp API token status
+- `GET /api/dashboard/memories`: List all memories with filtering
+- `PUT /api/dashboard/memories/{id}`: Update memory
+- `DELETE /api/dashboard/memories/{id}`: Delete memory
+- `POST /api/dashboard/memories`: Create new memory
+- `GET /api/dashboard/redis/keys`: List Redis keys
+- `GET /api/dashboard/redis/keys/{key}`: Get Redis key value
+- `DELETE /api/dashboard/redis/keys/{key}`: Delete Redis key
 
 ### Services Integration
 
@@ -313,6 +340,8 @@ services:
       - cache
     volumes:
       - ./creds:/app/creds
+    networks:
+      - meta-network
 
   cache:
     container_name: redismeta
@@ -324,6 +353,31 @@ services:
       - REDIS_PASSWORD=${REDIS_DB_PASSWORD}
     volumes:
       - ./db:/data/
+    networks:
+      - meta-network
+
+  dashboard:
+    container_name: metadashboard
+    image: ghcr.io/lowkey88/meta-glasses-gemini:dashboard
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - API_URL=http://app:8000
+      - REDIS_HOST=cache
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_DB_PASSWORD}
+      - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD}
+      - NEXTAUTH_SECRET=${DASHBOARD_SECRET}
+    depends_on:
+      - app
+      - cache
+    networks:
+      - meta-network
+
+networks:
+  meta-network:
+    driver: bridge
 ```
 
 To start the services, run:
@@ -357,6 +411,8 @@ HOME_ASSISTANT_URL=
 HOME_ASSISTANT_AGENT_ID=
 APP_URL=
 API_SECRET_KEY=
+DASHBOARD_PASSWORD=
+DASHBOARD_SECRET=
 ```
 
 - `WHATSAPP_AUTH_TOKEN`: Create an app at [Meta for Developers](https://developers.facebook.com/) and retrieve the WhatsApp authentication token.
@@ -374,6 +430,8 @@ API_SECRET_KEY=
 - `HOME_ASSISTANT_AGENT_ID`: The ID of the agent in Home Assistant that will handle the integration.
 - `APP_URL`: The base URL of your application, used for OAuth redirects and callbacks.
 - `API_SECRET_KEY`: A secure random key used to protect OAuth endpoints. This key must be provided in the x-api-key header when accessing OAuth-related endpoints.
+- `DASHBOARD_PASSWORD`: Password for accessing the admin dashboard.
+- `DASHBOARD_SECRET`: Secret key for NextAuth authentication used by the dashboard (maps to NEXTAUTH_SECRET).
 
 ### Additional Configuration
 

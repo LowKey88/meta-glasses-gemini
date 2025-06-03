@@ -2,6 +2,71 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.3] - 2025-01-XX
+
+### Major Features
+
+#### Admin Dashboard
+- **New Web-Based Administration Interface**:
+  * Built with Next.js/React and TypeScript
+  * JWT-based authentication system
+  * Docker containerized deployment
+  * Mobile-responsive design with collapsible sidebar
+  * Dark mode support with persistent preferences
+
+- **Dashboard Features**:
+  * System Overview:
+    - Real-time uptime tracking
+    - 24-hour message count tracking
+    - Total memories and active reminders count
+    - AI model information display
+    - Daily AI request tracking with charts
+    - Message activity line chart (24-hour view)
+    - Memory type distribution bar chart
+  * WhatsApp API Status Monitoring:
+    - Real-time token validation
+    - Token status indicators
+    - Error reporting and diagnostics
+  * Memory Management:
+    - CRUD operations for stored memories
+    - Search and filter functionality
+    - Edit memory importance and type
+    - Mobile-friendly table interface
+  * Redis Monitor:
+    - Browse and search Redis keys
+    - View key values, types, and TTL
+    - Delete functionality
+    - URL-encoded key support
+
+#### Metrics & Analytics System
+- AI request tracking by model type (chat/vision)
+- Response time monitoring (last 100 samples)
+- 24-hour message activity tracking by type
+- 7-day data retention for analytics
+- Hourly message count aggregation
+
+### Infrastructure Enhancements
+- Three-container Docker architecture (API, Redis, Dashboard)
+- New `/api/dashboard/*` endpoints for admin functions
+- Improved error handling and logging
+- Health checks for all services
+- CORS configuration for dashboard access
+
+### Bug Fixes
+- Fixed Redis Monitor URL encoding issues with special characters
+- Corrected dashboard stats 24-hour message count calculation
+- Fixed dark mode input field visibility
+- Improved mobile responsive layout
+- Fixed active reminders always showing 0
+- Resolved API endpoint path mismatches
+- Fixed conversation history limit (increased to 100)
+
+### Documentation
+- Added comprehensive dashboard setup guide
+- Created system architecture documentation
+- Added API integration guides
+- Updated CLAUDE.md with development instructions
+
 ## [1.1.2] - 2025-01-29
 
 ### Improvements
