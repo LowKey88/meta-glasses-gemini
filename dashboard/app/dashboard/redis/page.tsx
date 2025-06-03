@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { api, RedisKey } from '@/lib/api';
-import { Trash2, Copy, Search, RefreshCw } from 'lucide-react';
+import { Trash2, Copy, Search, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
 
 export default function RedisPage() {
   const [keys, setKeys] = useState<RedisKey[]>([]);
@@ -13,6 +13,7 @@ export default function RedisPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [keyToDelete, setKeyToDelete] = useState<string>('');
   const [copiedKey, setCopiedKey] = useState<string>('');
+  const [isJsonCollapsed, setIsJsonCollapsed] = useState(true);
 
   const fetchKeys = async (pattern?: string) => {
     setLoading(true);
@@ -39,6 +40,7 @@ export default function RedisPage() {
     try {
       const data = await api.getRedisKey(key);
       setSelectedKey(data);
+      setIsJsonCollapsed(true); // Reset collapse state for new key
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to load key details');
     }
@@ -66,16 +68,25 @@ export default function RedisPage() {
     }
   };
 
-  const formatValue = (value: any): string => {
+  const formatValue = (value: any): { formatted: string; isJson: boolean } => {
     if (typeof value === 'string') {
       try {
         const parsed = JSON.parse(value);
-        return JSON.stringify(parsed, null, 2);
+        return {
+          formatted: JSON.stringify(parsed, null, 2),
+          isJson: true
+        };
       } catch {
-        return value;
+        return {
+          formatted: value,
+          isJson: false
+        };
       }
     }
-    return JSON.stringify(value, null, 2);
+    return {
+      formatted: JSON.stringify(value, null, 2),
+      isJson: true
+    };
   };
 
   return (
@@ -194,28 +205,34 @@ export default function RedisPage() {
             
             {selectedKey ? (
               <div className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
+                {/* Key Name Section */}
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-3">
                     <h3 className="text-sm font-medium text-gray-900 dark:text-white">
                       Key
                     </h3>
-                    <code className="text-sm bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
+                    <button
+                      onClick={() => copyToClipboard(selectedKey.key)}
+                      className={`p-2 rounded-lg transition-colors ${
+                        copiedKey === selectedKey.key
+                          ? 'bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-400'
+                          : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      }`}
+                      title="Copy key"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                  </div>
+                  
+                  {/* Scrollable key container for long keys */}
+                  <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 overflow-x-auto max-w-full">
+                    <code className="text-sm font-mono text-gray-800 dark:text-gray-200 whitespace-nowrap">
                       {selectedKey.key}
                     </code>
                   </div>
-                  <button
-                    onClick={() => copyToClipboard(selectedKey.key)}
-                    className={`p-2 rounded-lg transition-colors ${
-                      copiedKey === selectedKey.key
-                        ? 'bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-400'
-                        : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-                    }`}
-                    title="Copy key"
-                  >
-                    <Copy className="w-4 h-4" />
-                  </button>
                 </div>
 
+                {/* Metadata Section */}
                 <div className="flex items-center gap-6 mb-6">
                   <div className="flex items-center gap-2">
                     <span className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium">
@@ -227,10 +244,65 @@ export default function RedisPage() {
                   </div>
                 </div>
 
-                <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 font-mono text-sm overflow-x-auto">
-                  <pre className="text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
-{formatValue(selectedKey.value)}
-                  </pre>
+                {/* Value Section */}
+                <div className="mb-4">
+                  <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
+                    Value
+                  </h3>
+                  
+                  {(() => {
+                    const { formatted, isJson } = formatValue(selectedKey.value);
+                    const isLongContent = formatted.length > 500;
+                    
+                    return (
+                      <div className="bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+                        {/* JSON Toggle Header (only for JSON content) */}
+                        {isJson && isLongContent && (
+                          <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3">
+                            <button
+                              onClick={() => setIsJsonCollapsed(!isJsonCollapsed)}
+                              className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+                            >
+                              {isJsonCollapsed ? (
+                                <ChevronRight className="w-4 h-4" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4" />
+                              )}
+                              {isJsonCollapsed ? 'Expand JSON' : 'Collapse JSON'}
+                              <span className="text-xs text-gray-500">
+                                ({formatted.length} characters)
+                              </span>
+                            </button>
+                          </div>
+                        )}
+                        
+                        {/* Value Content */}
+                        <div className="p-4">
+                          <pre className={`font-mono text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words overflow-y-auto ${
+                            isJson && isLongContent && isJsonCollapsed 
+                              ? 'max-h-32' 
+                              : 'max-h-80'
+                          }`}>
+                            {isJson && isLongContent && isJsonCollapsed 
+                              ? formatted.substring(0, 200) + '...' 
+                              : formatted
+                            }
+                          </pre>
+                          
+                          {/* Copy Value Button */}
+                          <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                            <button
+                              onClick={() => copyToClipboard(formatted)}
+                              className="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors flex items-center gap-1"
+                            >
+                              <Copy className="w-3 h-3" />
+                              Copy Value
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {showDeleteConfirm && (
