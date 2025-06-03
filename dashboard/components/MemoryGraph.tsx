@@ -356,14 +356,14 @@ export default function MemoryGraph({ memories, onNodeClick, width = 800, height
           <div className="text-sm text-gray-700 dark:text-gray-300">
             {hoveredNode.memory.content}
           </div>
-          {hoveredNode.memory.tags && (
+          {hoveredNode.memory.tags && hoveredNode.memory.tags.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1">
-              {hoveredNode.memory.tags.split(',').map((tag, index) => (
+              {hoveredNode.memory.tags.map((tag, index) => (
                 <span
                   key={index}
                   className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-xs rounded-full"
                 >
-                  {tag.trim()}
+                  {tag}
                 </span>
               ))}
             </div>
