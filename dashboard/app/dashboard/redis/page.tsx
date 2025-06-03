@@ -227,16 +227,16 @@ export default function RedisPage() {
                           <Key className="w-3 h-3 text-gray-600 dark:text-gray-400" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                          <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
                             {key.key}
                           </p>
                           <div className="flex items-center gap-2 mt-1">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
                               <Type className="w-3 h-3" />
                               {key.type}
                             </span>
                             {key.ttl !== null && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-orange-100 dark:bg-orange-900/20 text-orange-800 dark:text-orange-300">
                                 <Clock className="w-3 h-3" />
                                 {key.ttl}s
                               </span>
@@ -252,8 +252,8 @@ export default function RedisPage() {
                           }}
                           className={`p-2 rounded-lg transition-all duration-200 ${
                             copiedKey === key.key
-                              ? 'bg-green-100 text-green-600 dark:bg-green-900/20 dark:text-green-400'
-                              : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'
+                              ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400'
+                              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600'
                           }`}
                           title="Copy key"
                         >
@@ -265,7 +265,7 @@ export default function RedisPage() {
                             setKeyToDelete(key.key);
                             setShowDeleteConfirm(true);
                           }}
-                          className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200"
+                          className="p-2 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200"
                           title="Delete key"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -297,8 +297,8 @@ export default function RedisPage() {
                 <div className="mb-6">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <Key className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                      <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                      <Key className="w-4 h-4 text-gray-700 dark:text-gray-300" />
+                      <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
                         Key Name
                       </h3>
                     </div>
@@ -306,8 +306,8 @@ export default function RedisPage() {
                       onClick={() => copyToClipboard(selectedKey.key)}
                       className={`p-2 rounded-lg transition-all duration-200 ${
                         copiedKey === selectedKey.key
-                          ? 'bg-green-100 text-green-600 dark:bg-green-900/20 dark:text-green-400'
-                          : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400'
+                          : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                       }`}
                       title="Copy key"
                     >
@@ -317,7 +317,7 @@ export default function RedisPage() {
                   
                   {/* Scrollable key container for long keys */}
                   <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 overflow-x-auto max-w-full border border-gray-200 dark:border-gray-600">
-                    <code className="text-sm font-mono text-gray-800 dark:text-gray-200 whitespace-nowrap">
+                    <code className="text-sm font-mono font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap">
                       {selectedKey.key}
                     </code>
                   </div>
@@ -328,12 +328,12 @@ export default function RedisPage() {
                   <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
                     <div className="flex items-center gap-2 mb-2">
                       <Clock className="w-4 h-4 text-orange-600 dark:text-orange-400" />
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">TTL</span>
+                      <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">TTL</span>
                     </div>
-                    <span className={`text-sm font-mono ${
+                    <span className={`text-sm font-mono font-medium ${
                       selectedKey.ttl === null 
-                        ? 'text-green-600 dark:text-green-400' 
-                        : 'text-orange-600 dark:text-orange-400'
+                        ? 'text-green-700 dark:text-green-400' 
+                        : 'text-orange-700 dark:text-orange-400'
                     }`}>
                       {selectedKey.ttl === null ? 'PERMANENT' : `${selectedKey.ttl}s`}
                     </span>
@@ -341,9 +341,9 @@ export default function RedisPage() {
                   <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
                     <div className="flex items-center gap-2 mb-2">
                       <Type className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Type</span>
+                      <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">Type</span>
                     </div>
-                    <span className="text-sm font-mono text-blue-600 dark:text-blue-400">
+                    <span className="text-sm font-mono font-medium text-blue-700 dark:text-blue-400">
                       {selectedKey.type.toUpperCase()}
                     </span>
                   </div>
@@ -351,7 +351,7 @@ export default function RedisPage() {
 
                 {/* Value Section */}
                 <div className="mb-4">
-                  <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
                     Value
                   </h3>
                   
@@ -366,7 +366,7 @@ export default function RedisPage() {
                           <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3">
                             <button
                               onClick={() => setIsJsonCollapsed(!isJsonCollapsed)}
-                              className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+                              className="flex items-center gap-2 text-sm font-medium text-gray-800 dark:text-gray-200 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
                             >
                               {isJsonCollapsed ? (
                                 <ChevronRight className="w-4 h-4" />
@@ -374,7 +374,7 @@ export default function RedisPage() {
                                 <ChevronDown className="w-4 h-4" />
                               )}
                               {isJsonCollapsed ? 'Expand JSON' : 'Collapse JSON'}
-                              <span className="text-xs text-gray-500">
+                              <span className="text-xs text-gray-600 dark:text-gray-400">
                                 ({formatted.length} characters)
                               </span>
                             </button>
@@ -383,7 +383,7 @@ export default function RedisPage() {
                         
                         {/* Value Content */}
                         <div className="p-4">
-                          <pre className={`font-mono text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words overflow-y-auto ${
+                          <pre className={`font-mono text-sm font-medium text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words overflow-y-auto ${
                             isJson && isLongContent && isJsonCollapsed 
                               ? 'max-h-32' 
                               : 'max-h-80'
@@ -398,7 +398,7 @@ export default function RedisPage() {
                           <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
                             <button
                               onClick={() => copyToClipboard(formatted)}
-                              className="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors flex items-center gap-1"
+                              className="text-xs font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors flex items-center gap-1"
                             >
                               <Copy className="w-3 h-3" />
                               Copy Value
