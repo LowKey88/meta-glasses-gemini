@@ -2,12 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import { api, SystemStats } from '@/lib/api';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { MessageActivityChart, WeeklyActivityChart, ComparisonChart } from '@/components/charts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+
+type ChartView = 'message-activity' | 'weekly-activity' | 'comparison';
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<SystemStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [activeChart, setActiveChart] = useState<ChartView>('message-activity');
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -27,8 +31,8 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, []);
 
-  if (loading) return <div>Loading stats...</div>;
-  if (error) return <div className="text-red-600">Error: {error}</div>;
+  if (loading) return <div className="flex items-center justify-center h-screen">Loading stats...</div>;
+  if (error) return <div className="flex items-center justify-center h-screen text-red-600">Error: {error}</div>;
   if (!stats) return null;
 
   // Prepare chart data
@@ -37,327 +41,164 @@ export default function DashboardPage() {
     messages: count,
   }));
 
-  return (
-    <div>
-      <h1 className="text-2xl font-semibold text-gray-900 dark:text-white mb-8">
-        System Overview
-      </h1>
+  const weeklyData = Object.entries(stats.weekly_activity || {}).map(([day, count]) => ({
+    day,
+    messages: count
+  }));
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="bg-white dark:bg-gray-700 overflow-hidden shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <dt className="text-sm font-medium text-gray-500 dark:text-gray-300 truncate">
+  const comparisonData = Object.keys(stats.today_vs_yesterday?.today || {}).map(hour => ({
+    hour,
+    today: stats.today_vs_yesterday?.today[hour] || 0,
+    yesterday: stats.today_vs_yesterday?.yesterday[hour] || 0
+  }));
+
+  const memoryTypeData = Object.entries(stats.memory_by_type).map(([type, count]) => ({
+    type: type.replace('_', ' '),
+    count
+  }));
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-8">
+          System Overview
+        </h1>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
+            <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">
               System Uptime
             </dt>
-            <dd className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">
+            <dd className="mt-2 text-3xl font-semibold text-gray-900 dark:text-white">
               {stats.uptime}
             </dd>
             <dd className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               Running continuously
             </dd>
           </div>
-        </div>
 
-        <div className="bg-white dark:bg-gray-700 overflow-hidden shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <dt className="text-sm font-medium text-gray-500 dark:text-gray-300 truncate">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
+            <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">
               Messages Today
             </dt>
-            <dd className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">
+            <dd className="mt-2 text-3xl font-semibold text-gray-900 dark:text-white">
               {stats.recent_messages}
             </dd>
             <dd className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               Last 24 hours
             </dd>
           </div>
-        </div>
 
-        <div className="bg-white dark:bg-gray-700 overflow-hidden shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <dt className="text-sm font-medium text-gray-500 dark:text-gray-300 truncate">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
+            <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">
               Total Memories
             </dt>
-            <dd className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">
+            <dd className="mt-2 text-3xl font-semibold text-gray-900 dark:text-white">
               {stats.total_memories}
             </dd>
           </div>
-        </div>
 
-        <div className="bg-white dark:bg-gray-700 overflow-hidden shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <dt className="text-sm font-medium text-gray-500 dark:text-gray-300 truncate">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
+            <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">
               Active Reminders
             </dt>
-            <dd className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">
+            <dd className="mt-2 text-3xl font-semibold text-gray-900 dark:text-white">
               {stats.active_reminders}
             </dd>
           </div>
         </div>
-      </div>
 
-      {/* AI Model Information */}
-      <div className="mt-8 bg-white dark:bg-gray-700 shadow rounded-lg">
-        <div className="px-4 py-5 sm:p-6">
-          <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-            AI Model Information
-          </h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <div>
-              <dt className="text-sm font-medium text-gray-500 dark:text-gray-300">Vision Model</dt>
-              <dd className="mt-1 text-sm text-gray-900 dark:text-white font-mono">
-                {stats.ai_model_vision}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-sm font-medium text-gray-500 dark:text-gray-300">Chat Model</dt>
-              <dd className="mt-1 text-sm text-gray-900 dark:text-white font-mono">
-                {stats.ai_model_chat}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-sm font-medium text-gray-500 dark:text-gray-300">AI Requests Today</dt>
-              <dd className="mt-1 text-sm text-gray-900 dark:text-white">
-                {stats.total_ai_requests_today}
-              </dd>
+        {/* Main Chart Section with Toggle */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 sm:mb-0">
+              Activity Charts
+            </h2>
+            <div className="flex space-x-2">
+              <button
+                onClick={() => setActiveChart('message-activity')}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  activeChart === 'message-activity'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                24h Activity
+              </button>
+              <button
+                onClick={() => setActiveChart('weekly-activity')}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  activeChart === 'weekly-activity'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                Weekly
+              </button>
+              <button
+                onClick={() => setActiveChart('comparison')}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  activeChart === 'comparison'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                Comparison
+              </button>
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* WhatsApp Status */}
-      <div className="mt-8 bg-white dark:bg-gray-700 shadow rounded-lg">
-        <div className="px-4 py-5 sm:p-6">
-          <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-            WhatsApp API Status
-          </h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <div>
-              <dt className="text-sm font-medium text-gray-500 dark:text-gray-300">Status</dt>
-              <dd className="mt-1 flex items-center">
-                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                  stats.whatsapp_status === 'active' 
-                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
-                    : stats.whatsapp_status === 'expired'
-                    ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                    : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                }`}>
-                  <span className={`mr-1.5 h-2 w-2 rounded-full ${
-                    stats.whatsapp_status === 'active' 
-                      ? 'bg-green-400' 
-                      : stats.whatsapp_status === 'expired'
-                      ? 'bg-red-400'
-                      : 'bg-yellow-400'
-                  }`} />
-                  {stats.whatsapp_status.toUpperCase()}
-                </span>
-              </dd>
-            </div>
-            <div>
-              <dt className="text-sm font-medium text-gray-500 dark:text-gray-300">Token Type</dt>
-              <dd className="mt-1 text-sm text-gray-900 dark:text-white">
-                {stats.whatsapp_token_info.token_type || 'Unknown'}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-sm font-medium text-gray-500 dark:text-gray-300">API Version</dt>
-              <dd className="mt-1 text-sm text-gray-900 dark:text-white font-mono">
-                {stats.whatsapp_token_info.api_version || 'N/A'}
-              </dd>
-            </div>
-            <div className="sm:col-span-2 lg:col-span-3">
-              <dt className="text-sm font-medium text-gray-500 dark:text-gray-300">Message</dt>
-              <dd className="mt-1 text-sm text-gray-900 dark:text-white">
-                {stats.whatsapp_token_info.message}
-              </dd>
-            </div>
-            {stats.whatsapp_token_info.error && (
-              <div className="sm:col-span-2 lg:col-span-3">
-                <dt className="text-sm font-medium text-gray-500 dark:text-gray-300">Error</dt>
-                <dd className="mt-1 text-sm text-red-600 dark:text-red-400">
-                  {stats.whatsapp_token_info.error}
-                </dd>
-              </div>
+          
+          <div className="h-[250px]">
+            {activeChart === 'message-activity' && (
+              <MessageActivityChart data={messageChartData} />
             )}
-            <div className="sm:col-span-2 lg:col-span-3">
-              <dt className="text-sm font-medium text-gray-500 dark:text-gray-300">Last Checked</dt>
-              <dd className="mt-1 text-sm text-gray-900 dark:text-white">
-                {new Date(stats.whatsapp_token_info.last_checked).toLocaleString()}
-              </dd>
+            {activeChart === 'weekly-activity' && (
+              <WeeklyActivityChart data={weeklyData} />
+            )}
+            {activeChart === 'comparison' && (
+              <ComparisonChart data={comparisonData} />
+            )}
+          </div>
+        </div>
+
+        {/* Secondary Charts Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {/* AI Model Information */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              AI Model Information
+            </h2>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-500 dark:text-gray-400">Vision Model</span>
+                <span className="text-sm font-mono text-gray-900 dark:text-white">
+                  {stats.ai_model_vision}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-500 dark:text-gray-400">Chat Model</span>
+                <span className="text-sm font-mono text-gray-900 dark:text-white">
+                  {stats.ai_model_chat}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-500 dark:text-gray-400">AI Requests Today</span>
+                <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                  {stats.total_ai_requests_today}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Message Activity Graph */}
-      <div className="mt-8 bg-white dark:bg-gray-700 shadow rounded-lg">
-        <div className="px-4 py-5 sm:p-6">
-          <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-            Message Activity (Last 24 Hours)
-          </h2>
-          <div className="h-64 -mx-2 sm:mx-0">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={messageChartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis 
-                  dataKey="hour" 
-                  stroke="#9CA3AF"
-                  style={{ fontSize: '12px' }}
-                />
-                <YAxis 
-                  stroke="#9CA3AF"
-                  style={{ fontSize: '12px' }}
-                />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: '#1F2937', 
-                    border: '1px solid #374151',
-                    borderRadius: '6px'
-                  }}
-                  labelStyle={{ color: '#E5E7EB' }}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="messages" 
-                  stroke="#3B82F6" 
-                  strokeWidth={2}
-                  dot={{ fill: '#3B82F6', r: 4 }}
-                  activeDot={{ r: 6 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
-
-      {/* Weekly Activity Chart */}
-      <div className="mt-8">
-        <div className="bg-white dark:bg-gray-700 shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-              Weekly Message Activity
-            </h2>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={Object.entries(stats.weekly_activity || {}).map(([day, count]) => ({
-                day,
-                messages: count
-              }))}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis 
-                  dataKey="day" 
-                  stroke="#9CA3AF"
-                  style={{ fontSize: '12px' }}
-                />
-                <YAxis 
-                  stroke="#9CA3AF"
-                  style={{ fontSize: '12px' }}
-                />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: '#1F2937', 
-                    border: '1px solid #374151',
-                    borderRadius: '6px'
-                  }}
-                  labelStyle={{ color: '#E5E7EB' }}
-                />
-                <Bar 
-                  dataKey="messages" 
-                  fill="#10B981"
-                  radius={[8, 8, 0, 0]}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
-
-      {/* Today vs Yesterday Comparison */}
-      <div className="mt-8">
-        <div className="bg-white dark:bg-gray-700 shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-              Today vs Yesterday (Hourly)
-            </h2>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={Object.keys(stats.today_vs_yesterday?.today || {}).map(hour => ({
-                hour,
-                today: stats.today_vs_yesterday?.today[hour] || 0,
-                yesterday: stats.today_vs_yesterday?.yesterday[hour] || 0
-              }))}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis 
-                  dataKey="hour" 
-                  stroke="#9CA3AF"
-                  style={{ fontSize: '12px' }}
-                />
-                <YAxis 
-                  stroke="#9CA3AF"
-                  style={{ fontSize: '12px' }}
-                />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: '#1F2937', 
-                    border: '1px solid #374151',
-                    borderRadius: '6px'
-                  }}
-                  labelStyle={{ color: '#E5E7EB' }}
-                />
-                <Legend 
-                  wrapperStyle={{ paddingTop: '20px' }}
-                  iconType="line"
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="today" 
-                  stroke="#3B82F6" 
-                  strokeWidth={2}
-                  dot={{ fill: '#3B82F6', r: 3 }}
-                  activeDot={{ r: 5 }}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="yesterday" 
-                  stroke="#6B7280" 
-                  strokeWidth={2}
-                  strokeDasharray="5 5"
-                  dot={{ fill: '#6B7280', r: 3 }}
-                  activeDot={{ r: 5 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="bg-white dark:bg-gray-700 shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-              Redis Information
-            </h2>
-            <dl className="grid grid-cols-1 gap-x-4 gap-y-6">
-              <div>
-                <dt className="text-sm font-medium text-gray-500 dark:text-gray-300">
-                  Total Keys
-                </dt>
-                <dd className="mt-1 text-sm text-gray-900 dark:text-white">
-                  {stats.redis_keys}
-                </dd>
-              </div>
-            </dl>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-700 shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+          {/* Memory Types Distribution */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
               Memory Types Distribution
             </h2>
-            <div className="h-64">
+            <div className="h-[200px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={Object.entries(stats.memory_by_type).map(([type, count]) => ({
-                  type: type.replace('_', ' '),
-                  count
-                }))}>
+                <BarChart data={memoryTypeData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                   <XAxis 
                     dataKey="type" 
@@ -387,6 +228,85 @@ export default function DashboardPage() {
                 </BarChart>
               </ResponsiveContainer>
             </div>
+          </div>
+        </div>
+
+        {/* WhatsApp Status */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            WhatsApp API Status
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div>
+              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Status</dt>
+              <dd className="mt-1 flex items-center">
+                <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                  stats.whatsapp_status === 'active' 
+                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
+                    : stats.whatsapp_status === 'expired'
+                    ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                    : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                }`}>
+                  <span className={`mr-1.5 h-2 w-2 rounded-full ${
+                    stats.whatsapp_status === 'active' 
+                      ? 'bg-green-400' 
+                      : stats.whatsapp_status === 'expired'
+                      ? 'bg-red-400'
+                      : 'bg-yellow-400'
+                  }`} />
+                  {stats.whatsapp_status.toUpperCase()}
+                </span>
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Token Type</dt>
+              <dd className="mt-1 text-sm text-gray-900 dark:text-white">
+                {stats.whatsapp_token_info.token_type || 'Unknown'}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">API Version</dt>
+              <dd className="mt-1 text-sm font-mono text-gray-900 dark:text-white">
+                {stats.whatsapp_token_info.api_version || 'N/A'}
+              </dd>
+            </div>
+            <div className="sm:col-span-2 lg:col-span-3">
+              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Last Checked</dt>
+              <dd className="mt-1 text-sm text-gray-900 dark:text-white">
+                {new Date(stats.whatsapp_token_info.last_checked).toLocaleString()}
+              </dd>
+            </div>
+            {stats.whatsapp_token_info.message && (
+              <div className="sm:col-span-2 lg:col-span-3">
+                <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Message</dt>
+                <dd className="mt-1 text-sm text-gray-900 dark:text-white">
+                  {stats.whatsapp_token_info.message}
+                </dd>
+              </div>
+            )}
+            {stats.whatsapp_token_info.error && (
+              <div className="sm:col-span-2 lg:col-span-3">
+                <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Error</dt>
+                <dd className="mt-1 text-sm text-red-600 dark:text-red-400">
+                  {stats.whatsapp_token_info.error}
+                </dd>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Redis Information */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            Redis Information
+          </h2>
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
+              Total Keys
+            </span>
+            <span className="text-2xl font-semibold text-gray-900 dark:text-white">
+              {stats.redis_keys}
+            </span>
           </div>
         </div>
       </div>
