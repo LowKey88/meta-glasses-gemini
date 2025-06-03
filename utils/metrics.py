@@ -64,31 +64,89 @@ class MetricsTracker:
     
     @staticmethod
     def get_message_activity(hours: int = 24) -> Dict[str, int]:
-        """Get message activity for the last N hours"""
+        """Get message activity for the last N hours - returns hourly counts for charting"""
         try:
             activity = {}
             now = datetime.now()
             
-            for i in range(hours):
-                hour = now - timedelta(hours=i)
-                hour_key = f"metrics:messages:{hour.strftime('%Y-%m-%d-%H')}"
-                hour_label = hour.strftime('%H:00')
+            # Iterate through each hour in the window (from oldest to newest)
+            for i in range(hours - 1, -1, -1):
+                hour_time = now - timedelta(hours=i)
+                hour_key = f"metrics:messages:{hour_time.strftime('%Y-%m-%d-%H')}"
                 
-                total = 0
-                # Check if the key exists first
+                # Create hour label - for a 24-hour window, each hour is unique
+                # Format: "HH:00" for current day, "Day HH:00" for previous days
+                if hour_time.date() == now.date():
+                    hour_label = hour_time.strftime('%H:00')
+                else:
+                    # Include day abbreviation for hours from previous day
+                    hour_label = hour_time.strftime('%a %H:00')
+                
+                hour_total = 0
+                # Check if the key exists and sum all message types
+                if r.exists(hour_key):
+                    for msg_type in r.hkeys(hour_key):
+                        count = r.hget(hour_key, msg_type)
+                        if count:
+                            hour_total += int(count)
+                
+                # Store the count for this hour
+                activity[hour_label] = hour_total
+            
+            return activity
+        except Exception as e:
+            logger.error(f"Error getting message activity: {e}")
+            return {}
+    
+    @staticmethod
+    def get_24h_message_count() -> int:
+        """Get total message count for the last 24 hours"""
+        try:
+            total = 0
+            now = datetime.now()
+            
+            # Sum messages from the last 24 hours
+            for i in range(24):
+                hour_time = now - timedelta(hours=i)
+                hour_key = f"metrics:messages:{hour_time.strftime('%Y-%m-%d-%H')}"
+                
                 if r.exists(hour_key):
                     for msg_type in r.hkeys(hour_key):
                         count = r.hget(hour_key, msg_type)
                         if count:
                             total += int(count)
-                
-                activity[hour_label] = total
             
-            # Return in chronological order
-            return dict(sorted(activity.items()))
+            return total
         except Exception as e:
-            logger.error(f"Error getting message activity: {e}")
-            return {}
+            logger.error(f"Error getting 24h message count: {e}")
+            return 0
+    
+    @staticmethod
+    def get_messages_today() -> int:
+        """Get total message count for today (since midnight)"""
+        try:
+            total = 0
+            now = datetime.now()
+            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            
+            # Calculate hours since midnight
+            hours_since_midnight = now.hour + 1  # +1 to include current hour
+            
+            # Sum messages from midnight to now
+            for i in range(hours_since_midnight):
+                hour_time = today_start + timedelta(hours=i)
+                hour_key = f"metrics:messages:{hour_time.strftime('%Y-%m-%d-%H')}"
+                
+                if r.exists(hour_key):
+                    for msg_type in r.hkeys(hour_key):
+                        count = r.hget(hour_key, msg_type)
+                        if count:
+                            total += int(count)
+            
+            return total
+        except Exception as e:
+            logger.error(f"Error getting today's message count: {e}")
+            return 0
     
     @staticmethod
     def get_command_distribution() -> Dict[str, int]:
