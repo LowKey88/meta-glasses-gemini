@@ -125,6 +125,7 @@ export default function MemoriesPage() {
     setEditingId(memory.id);
     setEditForm({
       content: memory.content,
+      type: memory.type,
       tags: memory.tags,
       importance: memory.importance,
     });
@@ -132,11 +133,21 @@ export default function MemoriesPage() {
 
   const handleSave = async (id: string) => {
     try {
-      await api.updateMemory(id, editForm);
+      // Ensure tags are properly formatted as array and clean up the data
+      const updateData = {
+        content: editForm.content || '',
+        type: editForm.type || 'general',
+        tags: Array.isArray(editForm.tags) ? editForm.tags : [],
+        importance: editForm.importance || 5
+      };
+      console.log('Updating memory with data:', updateData);
+      await api.updateMemory(id, updateData);
       await fetchMemories();
       setEditingId(null);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to update memory');
+      console.error('Update error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update memory';
+      alert(`Update failed: ${errorMessage}`);
     }
   };
 
@@ -597,7 +608,12 @@ export default function MemoriesPage() {
                 memories={filteredMemories} 
                 onNodeClick={(memory) => {
                   setEditingId(memory.id);
-                  setEditForm(memory);
+                  setEditForm({
+                    content: memory.content,
+                    type: memory.type,
+                    tags: memory.tags,
+                    importance: memory.importance,
+                  });
                 }}
                 width={1200}
                 height={800}
