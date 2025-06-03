@@ -26,8 +26,7 @@ import {
   Clock,
   Info,
   AlertTriangle,
-  StickyNote,
-  Tag
+  StickyNote
 } from 'lucide-react';
 import MemoryGraph from '@/components/MemoryGraph';
 
@@ -129,7 +128,6 @@ export default function MemoriesPage() {
     if (searchTerm) {
       filtered = filtered.filter(m => 
         m.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        m.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase())) ||
         m.user_id.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
@@ -548,25 +546,6 @@ export default function MemoriesPage() {
                       )}
                     </div>
 
-                    {/* Tags (Read-only during edit since backend doesn't support tag updates) */}
-                    <div className="mb-4">
-                      <div className="flex flex-wrap gap-1.5">
-                        {memory.tags.map((tag, index) => (
-                          <span
-                            key={index}
-                            className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
-                          >
-                            <Tag className="h-3 w-3 mr-1" />
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                      {isEditing && (
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          Note: Tags cannot be edited in this version.
-                        </p>
-                      )}
-                    </div>
 
                     {/* Footer */}
                     <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
