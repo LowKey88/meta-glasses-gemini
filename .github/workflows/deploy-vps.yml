@@ -8,11 +8,13 @@ on:
     branches:
       - dev
       - master  # Deploy when either dev or master branch Docker build completes
+  
+  workflow_dispatch:  # Allow manual triggering
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     
     steps:
     - name: Deploy to VPS
