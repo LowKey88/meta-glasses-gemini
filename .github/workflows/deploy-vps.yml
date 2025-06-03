@@ -7,9 +7,7 @@ on:
       - completed
     branches:
       - dev
-      - master  # Deploy when either dev or master branch Docker build completes
-  
-  workflow_dispatch:  # Allow manual triggering
+      - master
 
 jobs:
   deploy:
@@ -23,6 +21,7 @@ jobs:
         host: ${{ secrets.VPS_HOST }}
         username: ${{ secrets.VPS_USERNAME }}
         key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_SSH_PORT }}
         script: |
           cd /home/meta
           
