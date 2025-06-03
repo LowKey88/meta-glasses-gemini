@@ -7,9 +7,7 @@ on:
       - completed
     branches:
       - dev
-      - master  # Deploy when either dev or master branch Docker build completes
-  
-  workflow_dispatch:  # Allow manual triggering
+      - master
 
 jobs:
   deploy:
@@ -35,9 +33,3 @@ jobs:
           
           # Start with new images
           docker compose up -d
-          
-          # Clean up old unused images to save space
-          docker image prune -f
-          
-          # Optional: Show running containers
-          docker compose ps
