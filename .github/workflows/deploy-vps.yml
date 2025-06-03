@@ -6,7 +6,8 @@ on:
     types:
       - completed
     branches:
-      - dev  # Only deploy when dev branch Docker build completes
+      - dev
+      - master  # Deploy when either dev or master branch Docker build completes
 
 jobs:
   deploy:
