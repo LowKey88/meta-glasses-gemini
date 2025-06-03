@@ -166,7 +166,7 @@ export default function RedisPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Keys List */}
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all duration-200">
-            <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-750 rounded-t-xl">
+            <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded-t-xl">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
                   <Key className="w-5 h-5 text-blue-600 dark:text-blue-400" />
@@ -174,7 +174,7 @@ export default function RedisPage() {
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                   Redis Keys
                 </h2>
-                <span className="px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full text-sm font-medium">
+                <span className="px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-full text-sm font-semibold">
                   {keys.length}
                 </span>
               </div>
@@ -224,19 +224,19 @@ export default function RedisPage() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3 flex-1 min-w-0">
                         <div className="p-1.5 bg-gray-100 dark:bg-gray-700 rounded">
-                          <Key className="w-3 h-3 text-gray-600 dark:text-gray-400" />
+                          <Key className="w-3 h-3 text-gray-700 dark:text-gray-300" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
                             {key.key}
                           </p>
                           <div className="flex items-center gap-2 mt-1">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100">
                               <Type className="w-3 h-3" />
                               {key.type}
                             </span>
                             {key.ttl !== null && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-orange-100 dark:bg-orange-900/20 text-orange-800 dark:text-orange-300">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-orange-100 dark:bg-orange-900/20 text-orange-900 dark:text-orange-200">
                                 <Clock className="w-3 h-3" />
                                 {key.ttl}s
                               </span>
@@ -253,7 +253,7 @@ export default function RedisPage() {
                           className={`p-2 rounded-lg transition-all duration-200 ${
                             copiedKey === key.key
                               ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400'
-                              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600'
+                              : 'text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-600'
                           }`}
                           title="Copy key"
                         >
@@ -265,7 +265,7 @@ export default function RedisPage() {
                             setKeyToDelete(key.key);
                             setShowDeleteConfirm(true);
                           }}
-                          className="p-2 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200"
+                          className="p-2 text-gray-600 hover:text-red-600 dark:text-gray-300 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200"
                           title="Delete key"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -280,7 +280,7 @@ export default function RedisPage() {
 
           {/* Key Details */}
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all duration-200">
-            <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-750 rounded-t-xl">
+            <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded-t-xl">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
                   <AlertCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
