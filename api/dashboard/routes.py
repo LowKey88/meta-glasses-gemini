@@ -230,13 +230,17 @@ async def get_redis_keys(pattern: str = "*", limit: int = 100):
 async def get_redis_value(key: str):
     """Get value of a specific Redis key"""
     try:
-        if not r.exists(key):
-            raise HTTPException(status_code=404, detail="Key not found")
+        # URL decode the key since it comes encoded from the frontend
+        from urllib.parse import unquote
+        decoded_key = unquote(key)
         
-        key_type = r.type(key).decode() if hasattr(r.type(key), 'decode') else str(r.type(key))
+        if not r.exists(decoded_key):
+            raise HTTPException(status_code=404, detail=f"Key not found: {decoded_key}")
+        
+        key_type = r.type(decoded_key).decode() if hasattr(r.type(decoded_key), 'decode') else str(r.type(decoded_key))
         
         if key_type == "string":
-            value = r.get(key)
+            value = r.get(decoded_key)
             if isinstance(value, bytes):
                 try:
                     value = value.decode()
@@ -245,25 +249,44 @@ async def get_redis_value(key: str):
                 except (json.JSONDecodeError, UnicodeDecodeError):
                     pass
         elif key_type == "hash":
-            value = r.hgetall(key)
+            value = r.hgetall(decoded_key)
             value = {k.decode(): v.decode() for k, v in value.items()}
         elif key_type == "list":
-            value = r.lrange(key, 0, -1)
+            value = r.lrange(decoded_key, 0, -1)
             value = [v.decode() if isinstance(v, bytes) else v for v in value]
         elif key_type == "set":
-            value = r.smembers(key)
+            value = r.smembers(decoded_key)
             value = [v.decode() if isinstance(v, bytes) else v for v in value]
         else:
             value = f"Unsupported type: {key_type}"
         
         return {
-            "key": key,
+            "key": decoded_key,
             "type": key_type,
             "value": value,
-            "ttl": r.ttl(key)
+            "ttl": r.ttl(decoded_key)
         }
     except Exception as e:
         logger.error(f"Error getting Redis value: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@dashboard_router.delete("/redis/key/{key:path}", dependencies=[Depends(verify_token)])
+async def delete_redis_key(key: str):
+    """Delete a specific Redis key"""
+    try:
+        # URL decode the key since it comes encoded from the frontend
+        from urllib.parse import unquote
+        decoded_key = unquote(key)
+        
+        if not r.exists(decoded_key):
+            raise HTTPException(status_code=404, detail=f"Key not found: {decoded_key}")
+        
+        # Delete the key
+        r.delete(decoded_key)
+        
+        return {"message": f"Key '{decoded_key}' deleted successfully"}
+    except Exception as e:
+        logger.error(f"Error deleting Redis key: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @dashboard_router.get("/messages/recent", dependencies=[Depends(verify_token)])

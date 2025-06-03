@@ -157,11 +157,11 @@ class ApiClient {
   }
 
   async getRedisKey(key: string): Promise<RedisKey> {
-    return this.request<RedisKey>(`/api/dashboard/redis/keys/${encodeURIComponent(key)}`);
+    return this.request<RedisKey>(`/api/dashboard/redis/key/${encodeURIComponent(key)}`);
   }
 
   async deleteRedisKey(key: string): Promise<{ message: string }> {
-    return this.request<{ message: string }>(`/api/dashboard/redis/keys/${encodeURIComponent(key)}`, {
+    return this.request<{ message: string }>(`/api/dashboard/redis/key/${encodeURIComponent(key)}`, {
       method: 'DELETE',
     });
   }
