@@ -26,7 +26,8 @@ import {
   Clock,
   Info,
   AlertTriangle,
-  StickyNote
+  StickyNote,
+  Tag
 } from 'lucide-react';
 import MemoryGraph from '@/components/MemoryGraph';
 
