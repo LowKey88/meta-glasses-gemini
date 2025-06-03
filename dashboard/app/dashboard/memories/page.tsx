@@ -173,8 +173,9 @@ export default function MemoriesPage() {
 
       <div className="mt-8">
         <div className="-mx-4 sm:mx-0">
-          <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">
-              <table className="min-w-full divide-y divide-gray-300 dark:divide-gray-600">
+          <div className="overflow-x-auto shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">
+            <div className="min-w-full inline-block align-middle">
+              <table className="min-w-full w-max sm:w-full divide-y divide-gray-300 dark:divide-gray-600">
                 <thead className="bg-gray-50 dark:bg-gray-800">
                   <tr>
                     <th className="hidden sm:table-cell px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
@@ -221,7 +222,9 @@ export default function MemoriesPage() {
                             }
                           />
                         ) : (
-                          <div className="max-w-xs truncate">{memory.content}</div>
+                          <div className="max-w-xs sm:max-w-md lg:max-w-lg truncate" title={memory.content}>
+                            {memory.content}
+                          </div>
                         )}
                       </td>
                       <td className="hidden lg:table-cell px-3 py-4 text-sm text-gray-900 dark:text-white">
@@ -297,6 +300,7 @@ export default function MemoriesPage() {
                 </tbody>
               </table>
             </div>
+          </div>
         </div>
       </div>
     </div>

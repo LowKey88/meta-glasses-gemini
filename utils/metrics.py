@@ -75,10 +75,12 @@ class MetricsTracker:
                 hour_label = hour.strftime('%H:00')
                 
                 total = 0
-                for msg_type in r.hkeys(hour_key):
-                    count = r.hget(hour_key, msg_type)
-                    if count:
-                        total += int(count)
+                # Check if the key exists first
+                if r.exists(hour_key):
+                    for msg_type in r.hkeys(hour_key):
+                        count = r.hget(hour_key, msg_type)
+                        if count:
+                            total += int(count)
                 
                 activity[hour_label] = total
             

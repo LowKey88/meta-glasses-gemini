@@ -94,7 +94,7 @@ async def get_dashboard_stats(user_id: str = "60122873632"):
         redis_keys = len(r.keys("*"))
         
         # Count active reminders
-        reminder_keys = r.keys("reminder:*")
+        reminder_keys = r.keys("josancamon:rayban-meta-glasses-api:reminder:*")
         active_reminders = len(reminder_keys)
         
         # Get recent message count from metrics (last 24 hours)
@@ -280,7 +280,7 @@ async def get_recent_messages(user_id: str = "60122873632", limit: int = 50):
 async def get_active_reminders():
     """Get all active reminders"""
     try:
-        reminder_keys = r.keys("reminder:*")
+        reminder_keys = r.keys("josancamon:rayban-meta-glasses-api:reminder:*")
         reminders = []
         
         for key in reminder_keys:
