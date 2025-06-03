@@ -1,0 +1,39 @@
+name: Deploy to VPS
+
+on:
+  workflow_run:
+    workflows: ["Docker"]  # This matches your docker-publish.yml workflow name
+    types:
+      - completed
+    branches:
+      - dev  # Only deploy when dev branch Docker build completes
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    
+    steps:
+    - name: Deploy to VPS
+      uses: appleboy/ssh-action@v1.0.1
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USERNAME }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        script: |
+          cd /home/meta
+          
+          # Pull latest images from GitHub Container Registry
+          docker compose pull
+          
+          # Stop current containers
+          docker compose down
+          
+          # Start with new images
+          docker compose up -d
+          
+          # Clean up old unused images to save space
+          docker image prune -f
+          
+          # Optional: Show running containers
+          docker compose ps
