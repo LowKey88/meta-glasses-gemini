@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Memory } from '@/lib/api';
-import { Calendar, Users, Brain, FileText, User } from 'lucide-react';
+import { Calendar, Users, Brain, FileText, User, Info, Star, Clock, AlertTriangle, StickyNote } from 'lucide-react';
 
 interface Node {
   id: string;
@@ -34,9 +34,14 @@ interface MemoryGraphProps {
 }
 
 const MEMORY_TYPE_CONFIG = {
-  important_date: { color: '#8B5CF6', icon: Calendar, label: 'Important Date' },
-  relationship: { color: '#3B82F6', icon: Users, label: 'Relationship' },
-  personality: { color: '#10B981', icon: Brain, label: 'Personality' },
+  fact: { color: '#3B82F6', icon: Info, label: 'Fact' },
+  preference: { color: '#10B981', icon: Star, label: 'Preference' },
+  relationship: { color: '#EC4899', icon: Users, label: 'Relationship' },
+  routine: { color: '#8B5CF6', icon: Clock, label: 'Routine' },
+  important_date: { color: '#F59E0B', icon: Calendar, label: 'Important Date' },
+  personal_info: { color: '#6366F1', icon: User, label: 'Personal Info' },
+  allergy: { color: '#EF4444', icon: AlertTriangle, label: 'Allergy' },
+  note: { color: '#6B7280', icon: StickyNote, label: 'Note' },
   default: { color: '#6B7280', icon: FileText, label: 'Other' }
 };
 

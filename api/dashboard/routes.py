@@ -3,7 +3,7 @@
 import json
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, List
 from fastapi import APIRouter, HTTPException, Depends, Header
 from pydantic import BaseModel
 import jwt
@@ -29,6 +29,13 @@ dashboard_router = APIRouter(prefix=API_PREFIX, tags=["dashboard"])
 
 class LoginRequest(BaseModel):
     password: str
+
+class MemoryCreate(BaseModel):
+    user_id: str
+    content: str
+    type: str
+    tags: List[str] = []
+    importance: int = 5
 
 class MemoryUpdate(BaseModel):
     content: str
@@ -167,6 +174,26 @@ async def get_memories(
         return {"memories": memories, "total": len(memories)}
     except Exception as e:
         logger.error(f"Error getting memories: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@dashboard_router.post("/memories", dependencies=[Depends(verify_token)])
+async def create_memory(memory: MemoryCreate):
+    """Create a new memory"""
+    try:
+        memory_id = MemoryManager.create_memory(
+            user_id=memory.user_id,
+            content=memory.content,
+            memory_type=memory.type,
+            tags=memory.tags,
+            importance=memory.importance
+        )
+        
+        if memory_id == "duplicate":
+            raise HTTPException(status_code=409, detail="Memory already exists")
+        
+        return {"success": True, "message": "Memory created", "id": memory_id}
+    except Exception as e:
+        logger.error(f"Error creating memory: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @dashboard_router.put("/memories/{memory_id}", dependencies=[Depends(verify_token)])

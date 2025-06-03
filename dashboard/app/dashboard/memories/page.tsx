@@ -11,7 +11,6 @@ import {
   Save, 
   X, 
   Brain, 
-  Tag, 
   Calendar,
   Filter,
   ChevronDown,
@@ -20,26 +19,41 @@ import {
   Star,
   Hash,
   Grid3X3,
-  Network
+  Network,
+  Heart,
+  FileText,
+  Users,
+  Clock,
+  Info,
+  AlertTriangle,
+  StickyNote
 } from 'lucide-react';
 import MemoryGraph from '@/components/MemoryGraph';
 
-type MemoryType = 'all' | 'general' | 'personal' | 'preference' | 'relationship';
+type MemoryType = 'all' | 'fact' | 'preference' | 'relationship' | 'routine' | 'important_date' | 'personal_info' | 'allergy' | 'note';
 
-// Memory type icon map
+// Memory type icon map (matching backend MEMORY_TYPES)
 const memoryTypeIcons = {
-  general: Hash,
-  personal: User,
+  fact: Info,
   preference: Star,
-  relationship: Brain,
+  relationship: Users,
+  routine: Clock,
+  important_date: Calendar,
+  personal_info: User,
+  allergy: AlertTriangle,
+  note: StickyNote,
 };
 
-// Memory type colors
+// Memory type colors with better contrast for dark mode
 const memoryTypeColors = {
-  general: 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400',
-  personal: 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400',
-  preference: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400',
-  relationship: 'bg-pink-100 text-pink-800 dark:bg-pink-900/20 dark:text-pink-400',
+  fact: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+  preference: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+  relationship: 'bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-300',
+  routine: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
+  important_date: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
+  personal_info: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300',
+  allergy: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+  note: 'bg-gray-100 text-gray-800 dark:bg-gray-800/50 dark:text-gray-300',
 };
 
 // Skeleton loader for memory cards
@@ -78,10 +92,9 @@ export default function MemoriesPage() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'graph'>('grid');
   const [newForm, setNewForm] = useState({
-    user_id: '',
-    type: 'general',
+    user_id: '60122873632', // Default user ID matching backend
+    type: 'note',
     content: '',
-    tags: '',
     importance: 5,
   });
   const { toast } = useToast();
@@ -205,16 +218,18 @@ export default function MemoriesPage() {
   const handleCreate = async () => {
     try {
       await api.createMemory({
-        ...newForm,
-        tags: newForm.tags.split(',').map((t) => t.trim()).filter(Boolean),
+        user_id: newForm.user_id,
+        type: newForm.type,
+        content: newForm.content,
+        importance: newForm.importance,
+        tags: [], // Empty array since tags are not used
       });
       await fetchMemories();
       setShowNewForm(false);
       setNewForm({
-        user_id: '',
-        type: 'general',
+        user_id: '60122873632',
+        type: 'note',
         content: '',
-        tags: '',
         importance: 5,
       });
       
@@ -305,7 +320,7 @@ export default function MemoriesPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search memories by content, tags, or user..."
+                placeholder="Search memories by content or user..."
                 className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -335,7 +350,7 @@ export default function MemoriesPage() {
                 >
                   All Types
                 </button>
-                {(['general', 'personal', 'preference', 'relationship'] as const).map((type) => {
+                {(['fact', 'preference', 'relationship', 'routine', 'important_date', 'personal_info', 'allergy', 'note'] as const).map((type) => {
                   const Icon = memoryTypeIcons[type];
                   return (
                     <button
@@ -348,7 +363,7 @@ export default function MemoriesPage() {
                       }`}
                     >
                       <Icon className="h-4 w-4 mr-1.5" />
-                      {type.charAt(0).toUpperCase() + type.slice(1)}
+                      {type.replace('_', ' ').split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
                     </button>
                   );
                 })}
@@ -394,23 +409,15 @@ export default function MemoriesPage() {
                   value={newForm.type}
                   onChange={(e) => setNewForm({ ...newForm, type: e.target.value })}
                 >
-                  <option value="general">General</option>
-                  <option value="personal">Personal</option>
+                  <option value="fact">Fact</option>
                   <option value="preference">Preference</option>
                   <option value="relationship">Relationship</option>
+                  <option value="routine">Routine</option>
+                  <option value="important_date">Important Date</option>
+                  <option value="personal_info">Personal Info</option>
+                  <option value="allergy">Allergy</option>
+                  <option value="note">Note</option>
                 </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Tags
-                </label>
-                <input
-                  type="text"
-                  placeholder="work, meeting, important (comma separated)"
-                  className="w-full rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200"
-                  value={newForm.tags}
-                  onChange={(e) => setNewForm({ ...newForm, tags: e.target.value })}
-                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
