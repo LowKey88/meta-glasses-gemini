@@ -17,8 +17,11 @@ import {
   AlertCircle,
   User,
   Star,
-  Hash
+  Hash,
+  Grid3X3,
+  Network
 } from 'lucide-react';
+import MemoryGraph from '@/components/MemoryGraph';
 
 type MemoryType = 'all' | 'general' | 'personal' | 'preference' | 'relationship';
 
@@ -72,6 +75,7 @@ export default function MemoriesPage() {
   const [filterType, setFilterType] = useState<MemoryType>('all');
   const [showFilters, setShowFilters] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'grid' | 'graph'>('grid');
   const [newForm, setNewForm] = useState({
     user_id: '',
     type: 'general',
@@ -194,7 +198,33 @@ export default function MemoriesPage() {
                 Manage and organize your AI assistant's knowledge base
               </p>
             </div>
-            <div className="mt-4 sm:mt-0">
+            <div className="mt-4 sm:mt-0 flex items-center gap-3">
+              {/* View Toggle */}
+              <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-l-lg transition-all duration-200 ${
+                    viewMode === 'grid'
+                      ? 'bg-purple-600 text-white'
+                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  <Grid3X3 className="h-4 w-4 mr-2" />
+                  Grid View
+                </button>
+                <button
+                  onClick={() => setViewMode('graph')}
+                  className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-r-lg transition-all duration-200 ${
+                    viewMode === 'graph'
+                      ? 'bg-purple-600 text-white'
+                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  <Network className="h-4 w-4 mr-2" />
+                  Visual View
+                </button>
+              </div>
+              
               <button
                 onClick={() => setShowNewForm(true)}
                 className="inline-flex items-center justify-center rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white shadow-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-all duration-200"
@@ -364,28 +394,31 @@ export default function MemoriesPage() {
           </div>
         )}
 
-        {/* Memories Grid */}
-        {loading ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-            {[...Array(6)].map((_, i) => (
-              <MemoryCardSkeleton key={i} />
-            ))}
-          </div>
-        ) : filteredMemories.length === 0 ? (
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-12 text-center">
-            <Brain className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-              {searchTerm || filterType !== 'all' ? 'No memories found' : 'No memories yet'}
-            </h3>
-            <p className="text-gray-500 dark:text-gray-400">
-              {searchTerm || filterType !== 'all' 
-                ? 'Try adjusting your search or filters'
-                : 'Create your first memory to get started'
-              }
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+        {/* Content Views */}
+        {viewMode === 'grid' ? (
+          <>
+            {/* Memories Grid */}
+            {loading ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                {[...Array(6)].map((_, i) => (
+                  <MemoryCardSkeleton key={i} />
+                ))}
+              </div>
+            ) : filteredMemories.length === 0 ? (
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-12 text-center">
+                <Brain className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                  {searchTerm || filterType !== 'all' ? 'No memories found' : 'No memories yet'}
+                </h3>
+                <p className="text-gray-500 dark:text-gray-400">
+                  {searchTerm || filterType !== 'all' 
+                    ? 'Try adjusting your search or filters'
+                    : 'Create your first memory to get started'
+                  }
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
             {filteredMemories.map((memory) => {
               const Icon = memoryTypeIcons[memory.type as keyof typeof memoryTypeIcons] || Hash;
               const isEditing = editingId === memory.id;
@@ -531,6 +564,45 @@ export default function MemoriesPage() {
                 </div>
               );
             })}
+          </div>
+        )}
+          </>
+        ) : (
+          // Graph View
+          <div className="h-[800px] w-full">
+            {loading ? (
+              <div className="flex items-center justify-center h-full bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+                  <p className="text-gray-500 dark:text-gray-400">Loading knowledge graph...</p>
+                </div>
+              </div>
+            ) : filteredMemories.length === 0 ? (
+              <div className="flex items-center justify-center h-full bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+                <div className="text-center">
+                  <Network className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2">
+                    {searchTerm || filterType !== 'all' ? 'No memories to visualize' : 'No knowledge graph yet'}
+                  </h3>
+                  <p className="text-gray-500 dark:text-gray-400">
+                    {searchTerm || filterType !== 'all' 
+                      ? 'Try adjusting your search or filters to see connections'
+                      : 'Add some memories to see their relationships in the graph'
+                    }
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <MemoryGraph 
+                memories={filteredMemories} 
+                onNodeClick={(memory) => {
+                  setEditingId(memory.id);
+                  setEditForm(memory);
+                }}
+                width={1200}
+                height={800}
+              />
+            )}
           </div>
         )}
       </div>
