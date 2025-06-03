@@ -120,7 +120,7 @@ export default function RedisPage() {
           <div className="flex gap-2">
             <button
               onClick={() => fetchKeys(searchPattern)}
-              className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 hover:shadow-md transition-all duration-200 flex items-center gap-2"
+              className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 hover:shadow-md transition-all duration-200 flex items-center gap-2 text-gray-700 dark:text-gray-200"
             >
               <Filter className="w-4 h-4" />
               Filter
@@ -130,7 +130,7 @@ export default function RedisPage() {
                 setSearchPattern('');
                 fetchKeys();
               }}
-              className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 hover:shadow-md transition-all duration-200 flex items-center gap-2"
+              className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 hover:shadow-md transition-all duration-200 flex items-center gap-2 text-gray-700 dark:text-gray-200"
             >
               <RotateCcw className="w-4 h-4" />
               Reset
