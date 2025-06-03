@@ -40,6 +40,11 @@ export interface SystemStats {
   ai_model_chat: string;
   total_ai_requests_today: number;
   message_activity: Record<string, number>;
+  weekly_activity: Record<string, number>;
+  today_vs_yesterday: {
+    today: Record<string, number>;
+    yesterday: Record<string, number>;
+  };
   whatsapp_status: string;
   whatsapp_token_info: {
     status: string;

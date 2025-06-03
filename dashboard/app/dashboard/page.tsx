@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { api, SystemStats } from '@/lib/api';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<SystemStats | null>(null);
@@ -222,6 +222,105 @@ export default function DashboardPage() {
                   strokeWidth={2}
                   dot={{ fill: '#3B82F6', r: 4 }}
                   activeDot={{ r: 6 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {/* Weekly Activity Chart */}
+      <div className="mt-8">
+        <div className="bg-white dark:bg-gray-700 shadow rounded-lg">
+          <div className="px-4 py-5 sm:p-6">
+            <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+              Weekly Message Activity
+            </h2>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={Object.entries(stats.weekly_activity || {}).map(([day, count]) => ({
+                day,
+                messages: count
+              }))}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis 
+                  dataKey="day" 
+                  stroke="#9CA3AF"
+                  style={{ fontSize: '12px' }}
+                />
+                <YAxis 
+                  stroke="#9CA3AF"
+                  style={{ fontSize: '12px' }}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#1F2937', 
+                    border: '1px solid #374151',
+                    borderRadius: '6px'
+                  }}
+                  labelStyle={{ color: '#E5E7EB' }}
+                />
+                <Bar 
+                  dataKey="messages" 
+                  fill="#10B981"
+                  radius={[8, 8, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {/* Today vs Yesterday Comparison */}
+      <div className="mt-8">
+        <div className="bg-white dark:bg-gray-700 shadow rounded-lg">
+          <div className="px-4 py-5 sm:p-6">
+            <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+              Today vs Yesterday (Hourly)
+            </h2>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={Object.keys(stats.today_vs_yesterday?.today || {}).map(hour => ({
+                hour,
+                today: stats.today_vs_yesterday?.today[hour] || 0,
+                yesterday: stats.today_vs_yesterday?.yesterday[hour] || 0
+              }))}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis 
+                  dataKey="hour" 
+                  stroke="#9CA3AF"
+                  style={{ fontSize: '12px' }}
+                />
+                <YAxis 
+                  stroke="#9CA3AF"
+                  style={{ fontSize: '12px' }}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#1F2937', 
+                    border: '1px solid #374151',
+                    borderRadius: '6px'
+                  }}
+                  labelStyle={{ color: '#E5E7EB' }}
+                />
+                <Legend 
+                  wrapperStyle={{ paddingTop: '20px' }}
+                  iconType="line"
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="today" 
+                  stroke="#3B82F6" 
+                  strokeWidth={2}
+                  dot={{ fill: '#3B82F6', r: 3 }}
+                  activeDot={{ r: 5 }}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="yesterday" 
+                  stroke="#6B7280" 
+                  strokeWidth={2}
+                  strokeDasharray="5 5"
+                  dot={{ fill: '#6B7280', r: 3 }}
+                  activeDot={{ r: 5 }}
                 />
               </LineChart>
             </ResponsiveContainer>

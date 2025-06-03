@@ -74,12 +74,15 @@ class MetricsTracker:
                 hour_time = now - timedelta(hours=i)
                 hour_key = f"metrics:messages:{hour_time.strftime('%Y-%m-%d-%H')}"
                 
-                # Create hour label - for a 24-hour window, each hour is unique
-                # Format: "HH:00" for current day, "Day HH:00" for previous days
+                # Create hour label with visual separation for different days
                 if hour_time.date() == now.date():
+                    # Today: just show hour
                     hour_label = hour_time.strftime('%H:00')
+                elif hour_time.date() == (now - timedelta(days=1)).date():
+                    # Yesterday: prefix with "Y-"
+                    hour_label = f"Y-{hour_time.strftime('%H:00')}"
                 else:
-                    # Include day abbreviation for hours from previous day
+                    # Other days: show day abbreviation
                     hour_label = hour_time.strftime('%a %H:00')
                 
                 hour_total = 0
@@ -147,6 +150,93 @@ class MetricsTracker:
         except Exception as e:
             logger.error(f"Error getting today's message count: {e}")
             return 0
+    
+    @staticmethod
+    def get_weekly_message_activity() -> Dict[str, int]:
+        """Get daily message totals for the last 7 days"""
+        try:
+            activity = {}
+            now = datetime.now()
+            
+            # Get data for the last 7 days
+            for days_ago in range(6, -1, -1):  # Start from 6 days ago to today
+                day = now - timedelta(days=days_ago)
+                day_total = 0
+                
+                # Sum all hours for this day
+                for hour in range(24):
+                    # Only count up to current hour for today
+                    if days_ago == 0 and hour > now.hour:
+                        break
+                        
+                    hour_time = day.replace(hour=hour, minute=0, second=0, microsecond=0)
+                    hour_key = f"metrics:messages:{hour_time.strftime('%Y-%m-%d-%H')}"
+                    
+                    if r.exists(hour_key):
+                        for msg_type in r.hkeys(hour_key):
+                            count = r.hget(hour_key, msg_type)
+                            if count:
+                                day_total += int(count)
+                
+                # Format day label
+                if days_ago == 0:
+                    day_label = "Today"
+                elif days_ago == 1:
+                    day_label = "Yesterday"
+                else:
+                    day_label = day.strftime('%a')  # Mon, Tue, etc.
+                
+                activity[day_label] = day_total
+            
+            return activity
+        except Exception as e:
+            logger.error(f"Error getting weekly message activity: {e}")
+            return {}
+    
+    @staticmethod
+    def get_today_vs_yesterday_hourly() -> Dict[str, Dict[str, int]]:
+        """Get hourly comparison between today and yesterday"""
+        try:
+            today = datetime.now()
+            yesterday = today - timedelta(days=1)
+            
+            today_data = {}
+            yesterday_data = {}
+            
+            # Get hourly data for both days
+            for hour in range(24):
+                hour_label = f"{hour:02d}:00"
+                
+                # Today's data (only up to current hour)
+                if hour <= today.hour:
+                    today_key = f"metrics:messages:{today.strftime('%Y-%m-%d')}-{hour:02d}"
+                    today_total = 0
+                    if r.exists(today_key):
+                        for msg_type in r.hkeys(today_key):
+                            count = r.hget(today_key, msg_type)
+                            if count:
+                                today_total += int(count)
+                    today_data[hour_label] = today_total
+                else:
+                    today_data[hour_label] = 0
+                
+                # Yesterday's data (all 24 hours)
+                yesterday_key = f"metrics:messages:{yesterday.strftime('%Y-%m-%d')}-{hour:02d}"
+                yesterday_total = 0
+                if r.exists(yesterday_key):
+                    for msg_type in r.hkeys(yesterday_key):
+                        count = r.hget(yesterday_key, msg_type)
+                        if count:
+                            yesterday_total += int(count)
+                yesterday_data[hour_label] = yesterday_total
+            
+            return {
+                "today": today_data,
+                "yesterday": yesterday_data
+            }
+        except Exception as e:
+            logger.error(f"Error getting today vs yesterday comparison: {e}")
+            return {"today": {}, "yesterday": {}}
     
     @staticmethod
     def get_command_distribution() -> Dict[str, int]:

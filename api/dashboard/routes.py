@@ -46,6 +46,8 @@ class DashboardStats(BaseModel):
     ai_model_chat: str
     total_ai_requests_today: int
     message_activity: Dict[str, int]  # Hourly message counts for last 24 hours
+    weekly_activity: Dict[str, int]  # Daily totals for last 7 days
+    today_vs_yesterday: Dict[str, Dict[str, int]]  # Hourly comparison
     whatsapp_status: str
     whatsapp_token_info: Dict[str, Any]  # Token status and expiry info
 
@@ -119,6 +121,8 @@ async def get_dashboard_stats(user_id: str = "60122873632"):
         # Get AI metrics
         total_ai_requests = MetricsTracker.get_ai_requests_today()
         message_activity = MetricsTracker.get_message_activity(24)  # Last 24 hours
+        weekly_activity = MetricsTracker.get_weekly_message_activity()  # Last 7 days
+        today_vs_yesterday = MetricsTracker.get_today_vs_yesterday_hourly()  # Comparison
         
         # Get WhatsApp status
         whatsapp_token_info = check_whatsapp_token_status()
@@ -135,6 +139,8 @@ async def get_dashboard_stats(user_id: str = "60122873632"):
             ai_model_chat=GEMINI_CHAT_MODEL,
             total_ai_requests_today=total_ai_requests,
             message_activity=message_activity,
+            weekly_activity=weekly_activity,
+            today_vs_yesterday=today_vs_yesterday,
             whatsapp_status=whatsapp_status,
             whatsapp_token_info=whatsapp_token_info
         )
