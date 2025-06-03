@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { api, RedisKey } from '@/lib/api';
+import { Trash2, Copy, Search, RefreshCw } from 'lucide-react';
 
 export default function RedisPage() {
   const [keys, setKeys] = useState<RedisKey[]>([]);
@@ -9,6 +10,9 @@ export default function RedisPage() {
   const [error, setError] = useState('');
   const [searchPattern, setSearchPattern] = useState('');
   const [selectedKey, setSelectedKey] = useState<RedisKey | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [keyToDelete, setKeyToDelete] = useState<string>('');
+  const [copiedKey, setCopiedKey] = useState<string>('');
 
   const fetchKeys = async (pattern?: string) => {
     setLoading(true);
@@ -40,141 +44,224 @@ export default function RedisPage() {
     }
   };
 
-  const handleDeleteKey = async (key: string) => {
-    if (!confirm(`Are you sure you want to delete the key "${key}"?`)) return;
-    
+  const handleDeleteKey = async () => {
     try {
-      await api.deleteRedisKey(key);
+      await api.deleteRedisKey(keyToDelete);
       await fetchKeys(searchPattern);
-      if (selectedKey?.key === key) {
+      if (selectedKey?.key === keyToDelete) {
         setSelectedKey(null);
       }
+      setShowDeleteConfirm(false);
+      setKeyToDelete('');
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to delete key');
     }
   };
 
-  return (
-    <div>
-      <h1 className="text-2xl font-semibold text-gray-900 dark:text-white mb-8">
-        Redis Monitor
-      </h1>
+  const copyToClipboard = (text: string, isKey: boolean = false) => {
+    navigator.clipboard.writeText(text);
+    if (isKey) {
+      setCopiedKey(text);
+      setTimeout(() => setCopiedKey(''), 2000);
+    }
+  };
 
-      <form onSubmit={handleSearch} className="mb-6">
-        <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
-          <input
-            type="text"
-            placeholder="Search pattern (e.g., user:*, reminder:*)"
-            className="flex-1 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-400 dark:border-gray-600 px-3 py-2 focus:border-indigo-500 focus:ring-indigo-500"
-            value={searchPattern}
-            onChange={(e) => setSearchPattern(e.target.value)}
-          />
+  const formatValue = (value: any): string => {
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        return JSON.stringify(parsed, null, 2);
+      } catch {
+        return value;
+      }
+    }
+    return JSON.stringify(value, null, 2);
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+            Redis Monitor
+          </h1>
           <div className="flex gap-2">
             <button
-              type="submit"
-              className="flex-1 sm:flex-none rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+              onClick={() => fetchKeys(searchPattern)}
+              className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
             >
-              Search
+              Filter
             </button>
             <button
-              type="button"
               onClick={() => {
                 setSearchPattern('');
                 fetchKeys();
               }}
-              className="flex-1 sm:flex-none rounded-md bg-gray-300 dark:bg-gray-600 px-4 py-2 text-sm font-medium text-gray-700 dark:text-white hover:bg-gray-400 dark:hover:bg-gray-500"
+              className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
             >
               Reset
             </button>
           </div>
         </div>
-      </form>
 
-      {loading && <div>Loading Redis keys...</div>}
-      {error && <div className="text-red-600">Error: {error}</div>}
+        <div className="mb-6">
+          <form onSubmit={handleSearch} className="flex gap-4">
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                placeholder="Search pattern (e.g, user:*, reminder:*)"
+                className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+                value={searchPattern}
+                onChange={(e) => setSearchPattern(e.target.value)}
+              />
+            </div>
+            <button
+              type="submit"
+              className="px-6 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
+            >
+              Filter
+              <Search className="w-4 h-4" />
+            </button>
+          </form>
+        </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:gap-6 lg:grid-cols-2">
-        <div className="bg-white dark:bg-gray-700 shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-              Redis Keys ({keys.length})
-            </h3>
-            <div className="overflow-hidden">
-              <ul className="divide-y divide-gray-200 dark:divide-gray-600 max-h-96 overflow-y-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Keys List */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Redis Keys ({keys.length})
+              </h2>
+            </div>
+            
+            {loading ? (
+              <div className="p-8 text-center text-gray-500">Loading Redis keys...</div>
+            ) : error ? (
+              <div className="p-8 text-center text-red-600">Error: {error}</div>
+            ) : (
+              <div className="divide-y divide-gray-200 dark:divide-gray-700 max-h-[600px] overflow-y-auto">
                 {keys.map((key) => (
-                  <li
+                  <div
                     key={key.key}
-                    className="py-3 px-2 hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer"
+                    className={`px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors ${
+                      selectedKey?.key === key.key ? 'bg-gray-50 dark:bg-gray-700' : ''
+                    }`}
                     onClick={() => handleViewKey(key.key)}
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
+                      <div className="flex-1 min-w-0 pr-4">
                         <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                           {key.key}
                         </p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Type: {key.type} | TTL: {key.ttl === null ? 'No expiry' : `${key.ttl}s`}
-                        </p>
                       </div>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setKeyToDelete(key.key);
+                            setShowDeleteConfirm(true);
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copyToClipboard(key.key, true);
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                          title="Copy"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Key Details */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Key Details
+              </h2>
+            </div>
+            
+            {selectedKey ? (
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                      Key
+                    </h3>
+                    <code className="text-sm bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
+                      {selectedKey.key}
+                    </code>
+                  </div>
+                  <button
+                    onClick={() => copyToClipboard(selectedKey.key)}
+                    className={`p-2 rounded-lg transition-colors ${
+                      copiedKey === selectedKey.key
+                        ? 'bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-400'
+                        : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                    title="Copy key"
+                  >
+                    <Copy className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-6 mb-6">
+                  <div className="flex items-center gap-2">
+                    <span className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium">
+                      {selectedKey.ttl === null ? 'PERMANENT' : `TTL: ${selectedKey.ttl}s`}
+                    </span>
+                  </div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    {selectedKey.type.toUpperCase()}
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 font-mono text-sm overflow-x-auto">
+                  <pre className="text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+{formatValue(selectedKey.value)}
+                  </pre>
+                </div>
+
+                {showDeleteConfirm && (
+                  <div className="mt-6 p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+                    <h4 className="text-sm font-medium text-red-800 dark:text-red-300 mb-3">
+                      Delete key?
+                    </h4>
+                    <div className="flex gap-3">
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteKey(key.key);
+                        onClick={() => {
+                          setShowDeleteConfirm(false);
+                          setKeyToDelete('');
                         }}
-                        className="ml-2 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                        className="flex-1 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                       >
-                        Delete
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleDeleteKey}
+                        className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                      >
+                        Confirm
                       </button>
                     </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-700 shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-              Key Details
-            </h3>
-            {selectedKey ? (
-              <div>
-                <dl className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
-                  <div>
-                    <dt className="text-sm font-medium text-gray-500 dark:text-gray-300">Key</dt>
-                    <dd className="mt-1 text-sm text-gray-900 dark:text-white break-all">
-                      {selectedKey.key}
-                    </dd>
                   </div>
-                  <div>
-                    <dt className="text-sm font-medium text-gray-500 dark:text-gray-300">Type</dt>
-                    <dd className="mt-1 text-sm text-gray-900 dark:text-white">
-                      {selectedKey.type}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm font-medium text-gray-500 dark:text-gray-300">TTL</dt>
-                    <dd className="mt-1 text-sm text-gray-900 dark:text-white">
-                      {selectedKey.ttl === null ? 'No expiry' : `${selectedKey.ttl} seconds`}
-                    </dd>
-                  </div>
-                </dl>
-                <div className="mt-4">
-                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
-                    Value
-                  </dt>
-                  <dd className="mt-1">
-                    <pre className="bg-gray-100 dark:bg-gray-800 rounded p-3 text-xs overflow-auto max-h-64">
-                      {JSON.stringify(selectedKey.value, null, 2)}
-                    </pre>
-                  </dd>
-                </div>
+                )}
               </div>
             ) : (
-              <p className="text-gray-500 dark:text-gray-400">
+              <div className="p-8 text-center text-gray-500 dark:text-gray-400">
                 Select a key from the list to view details
-              </p>
+              </div>
             )}
           </div>
         </div>
