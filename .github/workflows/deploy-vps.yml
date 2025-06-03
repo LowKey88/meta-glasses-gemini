@@ -33,9 +33,3 @@ jobs:
           
           # Start with new images
           docker compose up -d
-          
-          # Clean up old unused images to save space
-          docker image prune -f
-          
-          # Optional: Show running containers
-          docker compose ps
