@@ -71,7 +71,8 @@ class MemoryManager:
         """Generate Redis key for memory storage."""
         if memory_id:
             return redis_keys.get_user_memory_key(user_id, memory_id)
-        return redis_keys.get_all_user_keys_pattern(user_id).replace("*", "memory:*")
+        # Return pattern for all memories for this user: meta-glasses:user:memory:user_id:*
+        return f"{redis_keys.get_user_memory_key(user_id, '*')}"
     
     @staticmethod
     @try_catch_decorator
