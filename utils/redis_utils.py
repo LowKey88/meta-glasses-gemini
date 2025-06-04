@@ -50,7 +50,7 @@ def set_generic_cache(path: str, data: dict, ttl: int = 3600):  # Default 1 hour
 def delete_generic_cache(path: str):
     key = base64.b64encode(f'{path}'.encode('utf-8'))
     key = key.decode('utf-8')
-    r.delete(f'josancamon:rayban-meta-glasses-api{key}')
+    r.delete(f'josancamon:rayban-meta-glasses-api:{key}')
 
 # ------------ Reminder Management ------------
 @try_catch_decorator
