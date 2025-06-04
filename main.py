@@ -740,7 +740,17 @@ def process_text_message(text: str, message_data: dict):
                             memory_type = memory.get('type', 'other')
                             relevance_score = 0
                             
-                            # Score by memory type matching intent
+                            # MOST IMPORTANT: Does this memory actually mention the subject?
+                            subject_lower = subject.lower()
+                            if subject_lower in content_lower:
+                                relevance_score += 100  # High priority for subject mentions
+                                logger.info(f"Memory mentions subject '{subject}': {memory['content']}")
+                            else:
+                                # If memory doesn't mention the subject, it's irrelevant
+                                logger.info(f"Memory does NOT mention subject '{subject}': {memory['content']}")
+                                continue  # Skip this memory entirely
+                            
+                            # Secondary scoring: memory type matching intent
                             type_intent_mapping = {
                                 'preferences': ['preference', 'fact'],
                                 'work': ['personal_info'],
@@ -755,12 +765,12 @@ def process_text_message(text: str, message_data: dict):
                             if memory_type in type_intent_mapping.get(intent, []):
                                 relevance_score += 5
                             
-                            # Score by keyword matching
+                            # Tertiary scoring: keyword matching
                             for keyword in keywords:
                                 if keyword.lower() in content_lower:
                                     relevance_score += 3
                             
-                            # Additional intent-specific scoring
+                            # Intent-specific keywords (lower priority)
                             intent_keywords = {
                                 'preferences': ['like', 'enjoy', 'love', 'hate', 'prefer', 'favorite', 'watch', 'hobby'],
                                 'work': ['work', 'job', 'company', 'office', 'employ', 'career'],
@@ -772,10 +782,10 @@ def process_text_message(text: str, message_data: dict):
                             
                             for intent_keyword in intent_keywords.get(intent, []):
                                 if intent_keyword in content_lower:
-                                    relevance_score += 2
+                                    relevance_score += 1
                             
-                            if relevance_score > 0:
-                                relevant_memories.append((relevance_score, memory))
+                            # Only add memories that actually mention the subject
+                            relevant_memories.append((relevance_score, memory))
                         
                         # Sort by relevance score
                         relevant_memories.sort(key=lambda x: x[0], reverse=True)
