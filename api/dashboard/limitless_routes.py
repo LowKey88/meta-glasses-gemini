@@ -87,13 +87,17 @@ async def get_limitless_stats(user: str = Depends(verify_dashboard_token)) -> Di
                 end_time = datetime.now(timezone.utc)
                 start_time = end_time - timedelta(hours=24)
                 
+                logger.info(f"Checking pending sync from {start_time} to {end_time}")
+                
                 # Check how many are not processed
+                # Try without date filtering first to test API connectivity
+                logger.info("Testing Limitless API without date filtering...")
                 lifelogs = await limitless_client.get_all_lifelogs(
-                    start_time=start_time,
-                    end_time=end_time,
+                    start_time=None,
+                    end_time=None,
                     include_transcript=False,
                     include_summary=False,
-                    max_entries=50
+                    max_entries=10
                 )
                 
                 for log in lifelogs:

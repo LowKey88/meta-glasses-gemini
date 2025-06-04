@@ -71,12 +71,16 @@ class LimitlessAPIClient:
             params["excludeSummary"] = "true"
             
         url = f"{self.BASE_URL}/lifelogs?{urlencode(params)}"
+        logger.info(f"Limitless API request: {url}")
+        logger.info(f"Limitless API params: {params}")
         
         async with aiohttp.ClientSession() as session:
             try:
                 async with session.get(url, headers=self.headers) as response:
+                    logger.info(f"Limitless API response status: {response.status}")
                     response.raise_for_status()
                     data = await response.json()
+                    logger.info(f"Limitless API response data: {data}")
                     logger.info(f"Retrieved {len(data.get('items', []))} Lifelog entries")
                     return data
             except aiohttp.ClientError as e:
