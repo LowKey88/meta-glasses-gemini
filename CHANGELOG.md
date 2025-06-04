@@ -2,6 +2,61 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.4] - 2025-01-06
+
+### Major Infrastructure Update
+
+#### Redis Key Migration & Standardization
+- **New Centralized Key Management System**:
+  * Created `utils/redis_key_builder.py` for consistent key generation
+  * Implemented new naming convention: `meta-glasses:{category}:{subcategory}:{identifier}`
+  * Replaced inconsistent patterns like `josancamon:rayban-meta-glasses-api:*`, `memory:*`, `metrics:*`
+  
+- **Comprehensive Migration Process**:
+  * Built `scripts/migrate_redis_keys_enhanced.py` with full data type support
+  * Preserves TTL using Redis DUMP/RESTORE operations
+  * Handles string, hash, set, list, and zset data types
+  * Includes dry-run mode and comprehensive logging
+  * Rollback-friendly with verification checks
+  
+- **Key Pattern Examples**:
+  * Old: `memory:user123:abc123` → New: `meta-glasses:user:memory:user123:abc123`
+  * Old: `josancamon:rayban-meta-glasses-api:reminder:event123` → New: `meta-glasses:reminder:event:event123`
+  * Old: `metrics:messages:2025-01-06-14` → New: `meta-glasses:metrics:messages:2025-01-06:14`
+
+#### Dashboard Redis Monitor Improvements
+- **Enhanced Search Functionality**:
+  * Updated search placeholder to show new key pattern examples
+  * Added quick search pattern buttons for common key types
+  * One-click search for `meta-glasses:user:memory:*`, `meta-glasses:reminder:*`, etc.
+  * Improved user experience after key migration
+
+- **UI Bug Fixes**:
+  * Fixed Cancel button visibility in dark mode delete confirmation dialog
+  * Added proper text color classes (`text-gray-900 dark:text-white`)
+  * Improved accessibility and contrast compliance
+
+#### Safe Cleanup System
+- **Created `scripts/cleanup_old_redis_keys.py`**:
+  * Verifies new keys exist before deleting old ones
+  * Data integrity checks (type matching)
+  * Comprehensive reporting and logging
+  * Dry-run mode by default for safety
+  * Prevents accidental data loss
+
+#### Benefits
+- **Consistent Organization**: All Redis keys follow the same hierarchical pattern
+- **Better Maintainability**: Centralized key management prevents future inconsistencies
+- **Improved Dashboard**: Real-time monitoring with proper key filtering
+- **Enhanced Developer Experience**: Easier to find and manage Redis data
+
+### Updated Module Integration
+- **Modified Files**:
+  * `utils/memory_manager.py`: Updated to use new key patterns
+  * `utils/metrics.py`: Migrated to centralized key builder
+  * `api/dashboard/routes.py`: Fixed variable naming conflicts
+  * All functionality modules updated to use new patterns
+
 ## [1.1.3] - 2025-01-06
 
 ### Major Features
