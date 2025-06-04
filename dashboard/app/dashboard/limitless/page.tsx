@@ -126,7 +126,10 @@ export default function LimitlessPage() {
   }, [selectedDate]);
 
   // Format time
-  const formatTime = (isoString: string) => {
+  const formatTime = (isoString: string | null) => {
+    if (!isoString) {
+      return 'Date not available';
+    }
     try {
       return new Date(isoString).toLocaleString('en-US', {
         month: 'short',

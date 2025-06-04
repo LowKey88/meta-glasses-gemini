@@ -298,8 +298,8 @@ async def sync_limitless(
     """Manually trigger Limitless sync."""
     try:
         logger.info(f"Sync endpoint called with force={force}")
-        # Use a default phone number for dashboard sync
-        phone_number = "dashboard_user"
+        # Use the same user_id as the main dashboard
+        phone_number = "60122873632"
         
         # If force sync, clear all processed flags first
         if force:
