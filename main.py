@@ -12,7 +12,7 @@ import os
 import threading
 import time
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 # Third-party imports
@@ -159,9 +159,54 @@ def process_text_message(text: str, message_data: dict):
         profile = ContextManager.get_user_profile(user_id)
         history = ContextManager.get_conversation_history(user_id, limit=5)
         
+        # Check profile first
+        name = None
         if profile and profile.get('name'):
             name = profile['name']
+        
+        # If no name in profile, check memories for personal information
+        if not name:
+            personal_memories = MemoryManager.get_memories_by_type(user_id, 'personal_info')
+            for memory in personal_memories:
+                content_lower = memory['content'].lower()
+                if any(pattern in content_lower for pattern in ['my name is', 'i am', 'call me']):
+                    # Extract name from memory content
+                    for pattern in ['my name is ', 'i am ', 'call me ']:
+                        if pattern in content_lower:
+                            name_part = memory['content'][content_lower.index(pattern) + len(pattern):].strip()
+                            name = name_part.split()[0] if name_part else None
+                            break
+                    if name:
+                        break
+        
+        # Also check for relationship memories that might contain self-references
+        if not name:
+            relationship_memories = MemoryManager.get_memories_by_type(user_id, 'relationship')
+            for memory in relationship_memories:
+                content_lower = memory['content'].lower()
+                # Look for patterns like "my name is X" or "i am X"
+                if any(pattern in content_lower for pattern in ['my name is', 'i am']):
+                    for pattern in ['my name is ', 'i am ']:
+                        if pattern in content_lower:
+                            name_part = memory['content'][content_lower.index(pattern) + len(pattern):].strip()
+                            name = name_part.split()[0] if name_part else None
+                            break
+                    if name:
+                        break
+        
+        if name:
             response = f"Yes! You're {name}. "
+            
+            # Add relevant memories
+            all_memories = MemoryManager.get_all_memories(user_id)
+            if all_memories:
+                memory_info = []
+                for memory in all_memories[:3]:  # Show top 3 memories
+                    if memory['type'] in ['personal_info', 'preference', 'relationship']:
+                        memory_info.append(f"{memory['content']}")
+                
+                if memory_info:
+                    response += f"I also remember: {'; '.join(memory_info[:2])}. "
             
             # Add context about recent interactions
             if history:
@@ -181,7 +226,17 @@ def process_text_message(text: str, message_data: dict):
             ContextManager.add_to_conversation_history(user_id, text, response, 'other')
             return ok
         else:
-            response = "I don't know your name yet. You can tell me by saying 'I am [your name]' or 'My name is [your name]'."
+            # Check if we have any memories at all about the user
+            all_memories = MemoryManager.get_all_memories(user_id)
+            if all_memories:
+                memory_info = []
+                for memory in all_memories[:3]:  # Show relevant memories
+                    memory_info.append(f"{memory['type']}: {memory['content']}")
+                
+                response = f"I don't know your name specifically, but I remember some things about you: {'; '.join(memory_info)}. You can tell me your name by saying 'I am [your name]' or 'My name is [your name]'."
+            else:
+                response = "I don't know your name yet. You can tell me by saying 'I am [your name]' or 'My name is [your name]'."
+            
             send_whatsapp_threaded(response)
             ContextManager.add_to_conversation_history(user_id, text, response, 'other')
             return ok
