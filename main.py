@@ -332,18 +332,22 @@ def process_text_message(text: str, message_data: dict):
         send_response_with_context(user_id, text, response, 'other')
         return ok
     
-    # Handle contextual shortcuts
-    context_ref = ContextManager.understand_context_reference(text, user_id)
-    if context_ref:
-        if context_ref.startswith('repeat_'):
-            command_type = context_ref.replace('repeat_', '')
-            response = f"You usually ask about {command_type}. Would you like me to {command_type} now?"
-            send_response_with_context(user_id, text, response, 'other')
-            return ok
-        elif context_ref == 'modify_previous_meeting':
-            response = "I understand you want to modify the previous meeting. Please specify the new details."
-            send_response_with_context(user_id, text, response, 'other')
-            return ok
+    # Handle contextual shortcuts (but skip for personal memory queries)
+    personal_query_indicators = ['who', 'what', 'when', 'where', 'tell me about', 'my wife', 'my partner', 'my husband', 'anniversary', 'birthday', 'born']
+    is_likely_personal_query = any(indicator in text.lower() for indicator in personal_query_indicators)
+    
+    if not is_likely_personal_query:
+        context_ref = ContextManager.understand_context_reference(text, user_id)
+        if context_ref:
+            if context_ref.startswith('repeat_'):
+                command_type = context_ref.replace('repeat_', '')
+                response = f"You usually ask about {command_type}. Would you like me to {command_type} now?"
+                send_response_with_context(user_id, text, response, 'other')
+                return ok
+            elif context_ref == 'modify_previous_meeting':
+                response = "I understand you want to modify the previous meeting. Please specify the new details."
+                send_response_with_context(user_id, text, response, 'other')
+                return ok
     
 
     # Handle explicit memory commands
@@ -633,7 +637,14 @@ def process_text_message(text: str, message_data: dict):
                 # Parse the JSON response
                 import json
                 try:
-                    intent_data = json.loads(intent_response.strip())
+                    # Clean up the response - remove markdown code blocks if present
+                    cleaned_response = intent_response.strip()
+                    if cleaned_response.startswith('```json'):
+                        cleaned_response = cleaned_response.replace('```json', '').replace('```', '').strip()
+                    elif cleaned_response.startswith('```'):
+                        cleaned_response = cleaned_response.replace('```', '').strip()
+                    
+                    intent_data = json.loads(cleaned_response)
                 except json.JSONDecodeError:
                     # Fallback if JSON parsing fails
                     logger.error(f"Failed to parse intent JSON: {intent_response}")
