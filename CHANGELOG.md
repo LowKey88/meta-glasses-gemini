@@ -2,6 +2,92 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.5] - 2025-01-06
+
+### Major Features
+
+#### Response Performance Monitoring System
+- **New Performance Dashboard Page**:
+  * Dedicated `/dashboard/performance` route with comprehensive monitoring
+  * Real-time response latency tracking for all 8 operation types
+  * Visual performance indicators and status monitoring
+  * Time range selection (1h, 24h, 7d) for flexible analysis
+  * Mobile-responsive design with dark/light mode support
+
+- **Operation Categories Monitored**:
+  * AI Response (3-8s expected) - Memory retrieval and AI generation
+  * Calendar (2-5s expected) - Google Calendar operations  
+  * Task (1-3s expected) - Google Tasks CRUD operations
+  * Automation (1-4s expected) - Home Assistant commands
+  * Search (4-10s expected) - Web search pipeline
+  * Image (5-12s expected) - Image analysis processing
+  * Notion (2-6s expected) - Note creation operations
+  * Other (1-3s expected) - Audio transcription and misc operations
+
+- **Performance Analytics**:
+  * Overview cards: Average response time, 95th percentile, error rate
+  * Response time trend: Hourly latency line chart
+  * Category performance: Table with per-operation metrics and status indicators
+  * Request distribution: Pie chart showing usage by operation type
+  * Expected latency reference: Visual guide for performance thresholds
+
+- **Intelligent Alerting System**:
+  * Warning alerts when response time exceeds expected thresholds
+  * Error alerts when response time is 50%+ slower than expected
+  * Error rate alerts for operations with >10% failure rate
+  * Color-coded status indicators (green/yellow/red) for quick assessment
+
+#### Technical Infrastructure
+- **Performance Tracking Core**:
+  * Created `utils/performance_tracker.py` for centralized metrics collection
+  * Redis storage with `meta-glasses:metrics:performance:*` key patterns
+  * 7-day data retention with hourly granularity
+  * Success/failure tracking for all operations
+
+- **Message Processing Instrumentation**:
+  * Added comprehensive timing around all operation types in `main.py`
+  * Image, audio, calendar, task, search, automation, notion, and AI response tracking
+  * Error handling with performance impact measurement
+  * Real-time metrics collection during message processing
+
+- **Dashboard Integration**:
+  * React components with Recharts for data visualization
+  * TypeScript interfaces for type safety
+  * API endpoint `/api/dashboard/performance` with configurable time ranges
+  * Enhanced navigation with Performance menu item
+
+#### UI/UX Improvements
+- **Fixed Time Range Selector**: Added proper text contrast (`text-gray-900 dark:text-white`) for light mode visibility
+- **Enhanced Pie Chart**: Removed overlapping labels, added legend component, improved tooltip styling
+- **Better Accessibility**: Improved contrast and WCAG compliance for all performance dashboard elements
+- **Responsive Design**: Touch-friendly interface optimized for mobile and tablet devices
+
+#### API Enhancements
+- **New Performance API**:
+  * `/api/dashboard/performance` endpoint with time range parameters
+  * Comprehensive metrics aggregation and analysis
+  * Error handling and fallback data structures
+  * Added `getPerformanceMetrics()` method to dashboard API client
+
+#### Files Created/Modified
+- **New Files**:
+  * `utils/performance_tracker.py`: Core performance tracking utility
+  * `dashboard/app/dashboard/performance/page.tsx`: Complete performance dashboard page
+
+- **Enhanced Files**:
+  * `main.py`: Added timing instrumentation for all operation types
+  * `utils/redis_key_builder.py`: Added performance-specific Redis key patterns
+  * `api/dashboard/routes.py`: Added performance metrics API endpoint
+  * `dashboard/components/Sidebar.tsx`: Added Performance navigation item
+  * `dashboard/lib/api.ts`: Added getPerformanceMetrics API method with proper typing
+
+#### Benefits
+- **Proactive Monitoring**: Early detection of performance degradation
+- **Operational Visibility**: Clear insights into system bottlenecks and slow operations
+- **Data-Driven Optimization**: Historical performance data for tuning and capacity planning
+- **User Experience**: Faster issue resolution and improved system reliability
+- **Scalability Planning**: Usage patterns and performance trends for infrastructure decisions
+
 ## [1.1.4] - 2025-01-06
 
 ### Major Infrastructure Update
