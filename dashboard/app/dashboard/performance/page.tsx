@@ -80,11 +80,11 @@ export default function PerformancePage() {
   const fetchMetrics = async () => {
     try {
       setLoading(true);
-      const response = await api.get(`/performance?range=${timeRange}`);
-      setMetrics(response.data);
+      const data = await api.getPerformanceMetrics(timeRange);
+      setMetrics(data);
       setError('');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to fetch performance metrics');
+      setError(err.message || 'Failed to fetch performance metrics');
       console.error('Error fetching performance metrics:', err);
     } finally {
       setLoading(false);

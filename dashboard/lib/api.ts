@@ -200,6 +200,32 @@ class ApiClient {
   }> {
     return this.request('/api/dashboard/redis/stats');
   }
+
+  async getPerformanceMetrics(range: string = '24h'): Promise<{
+    responseLatency: {
+      avg: number;
+      p95: number;
+      errorRate: number;
+    };
+    categoryBreakdown: Array<{
+      category: string;
+      avgLatency: number;
+      count: number;
+      errorRate: number;
+    }>;
+    hourlyData: Array<{
+      hour: string;
+      avgLatency: number;
+      requestCount: number;
+    }>;
+    alerts: Array<{
+      category: string;
+      message: string;
+      severity: 'warning' | 'error';
+    }>;
+  }> {
+    return this.request(`/api/dashboard/performance?range=${range}`);
+  }
 }
 
 export const api = new ApiClient();
