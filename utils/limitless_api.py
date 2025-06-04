@@ -117,8 +117,10 @@ class LimitlessAPIClient:
         """
         all_entries = []
         offset = 0
+        max_pages = 20  # Safety limit to prevent infinite loops
+        page_count = 0
         
-        while True:
+        while page_count < max_pages:
             try:
                 response = await self.list_lifelogs(
                     start_time=start_time,
@@ -132,20 +134,25 @@ class LimitlessAPIClient:
                 
                 items = response.get("items", [])
                 if not items:
+                    logger.info(f"No more items found at offset {offset}, stopping pagination")
                     break
                     
                 all_entries.extend(items)
+                page_count += 1
                 
                 # Check if we've reached the desired max
                 if max_entries and len(all_entries) >= max_entries:
                     all_entries = all_entries[:max_entries]
+                    logger.info(f"Reached max_entries limit of {max_entries}, stopping pagination")
                     break
                     
                 # Check if there are more pages
                 if len(items) < 10:
+                    logger.info(f"Received {len(items)} items (less than 10), stopping pagination")
                     break
                     
                 offset += 10
+                logger.info(f"Fetching next page at offset {offset}")
                 
                 # Small delay to avoid rate limiting
                 await asyncio.sleep(0.5)
@@ -153,8 +160,11 @@ class LimitlessAPIClient:
             except Exception as e:
                 logger.error(f"Error in pagination at offset {offset}: {str(e)}")
                 break
+        
+        if page_count >= max_pages:
+            logger.warning(f"Hit maximum page limit of {max_pages}, may not have retrieved all entries")
                 
-        logger.info(f"Retrieved total of {len(all_entries)} Lifelog entries")
+        logger.info(f"Retrieved total of {len(all_entries)} Lifelog entries after {page_count} pages")
         return all_entries
         
     async def get_lifelog_by_id(self, lifelog_id: str) -> Optional[Dict[str, Any]]:

@@ -90,26 +90,17 @@ async def sync_recent_lifelogs(phone_number: str, hours: int = 24) -> str:
         hours: Number of hours to sync (default 24)
     """
     try:
-        # Calculate time range
-        end_time = datetime.now(timezone.utc)
-        start_time = end_time - timedelta(hours=hours)
+        # For initial sync, get all recordings without date filtering
+        # to ensure we capture all available recordings
+        logger.info("Starting Limitless sync - fetching all recordings without date filtering")
         
-        # Get last sync timestamp
-        last_sync_key = RedisKeyBuilder.build_limitless_sync_key(phone_number)
-        last_sync = redis_client.get(last_sync_key)
-        
-        if last_sync:
-            last_sync_time = datetime.fromisoformat(last_sync.decode() if isinstance(last_sync, bytes) else last_sync)
-            start_time = max(start_time, last_sync_time)
-            
-        # Fetch Lifelogs
-        send_whatsapp_threaded("🔄 Syncing your Limitless recordings...")
-        
+        # Fetch Lifelogs without date restrictions for first sync
         lifelogs = await limitless_client.get_all_lifelogs(
-            start_time=start_time,
-            end_time=end_time,
+            start_time=None,
+            end_time=None,
             include_transcript=True,
-            include_summary=True
+            include_summary=True,
+            max_entries=50  # Limit to prevent infinite loops
         )
         
         if not lifelogs:
@@ -149,7 +140,8 @@ async def sync_recent_lifelogs(phone_number: str, hours: int = 24) -> str:
                 continue
                 
         # Update last sync timestamp
-        redis_client.set(last_sync_key, end_time.isoformat())
+        last_sync_key = RedisKeyBuilder.build_limitless_sync_key(phone_number)
+        redis_client.set(last_sync_key, datetime.now(timezone.utc).isoformat())
         
         # Build response
         response = f"""✅ *Limitless Sync Complete*
