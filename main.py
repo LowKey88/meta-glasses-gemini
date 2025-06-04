@@ -584,111 +584,149 @@ def process_text_message(text: str, message_data: dict):
             send_whatsapp_threaded('Notion page created successfully!')
             return ok
         elif operation_type == 'search':
-            # Check memories first before web search
-            
-            # Check for self-referential questions first
-            self_queries = ['where was i born', 'what do i like', 'where do i work', 'what i like', 'where i work', 'where i live', 'my job', 'my work', 'my birth']
-            if any(phrase in text.lower() for phrase in self_queries):
-                logger.info(f"Detected self-referential query: {text}")
-                user_memories = MemoryManager.get_all_memories(user_id)
-                logger.info(f"Found {len(user_memories)} total user memories")
+            # Use AI-first approach for memory retrieval
+            try:
+                logger.info(f"Processing search query with AI intent extraction: {text}")
                 
-                if user_memories:
-                    # Filter relevant memories based on the question
-                    relevant_memories = []
-                    text_lower = text.lower()
+                # Use Gemini to extract intent and subject from the query
+                intent_extraction_prompt = f"""
+                Analyze this query and extract the intent and subject:
+                Query: "{text}"
+                
+                Respond in JSON format:
+                {{
+                    "is_personal_query": true/false,
+                    "subject": "person_name" or "self" or "unknown",
+                    "intent": "specific_intent_category",
+                    "keywords": ["relevant", "search", "terms"]
+                }}
+                
+                Intent categories:
+                - "preferences" (likes, dislikes, hobbies, interests)
+                - "work" (job, workplace, occupation)
+                - "personal_info" (name, contact, address)
+                - "relationships" (family, friends, partner)
+                - "birthplace" (where born, origin)
+                - "dates" (birthday, anniversary)
+                - "food" (favorite food, diet, allergies)
+                - "other" (general information)
+                
+                Examples:
+                - "What does Hisyam like?" → {{"is_personal_query": true, "subject": "Hisyam", "intent": "preferences", "keywords": ["like", "enjoy", "hobbies"]}}
+                - "Where do I work?" → {{"is_personal_query": true, "subject": "self", "intent": "work", "keywords": ["work", "job", "workplace"]}}
+                - "Where was I born?" → {{"is_personal_query": true, "subject": "self", "intent": "birthplace", "keywords": ["born", "birthplace"]}}
+                """
+                
+                intent_response = simple_prompt_request(intent_extraction_prompt, user_id)
+                logger.info(f"AI intent extraction response: {intent_response}")
+                
+                # Parse the JSON response
+                import json
+                try:
+                    intent_data = json.loads(intent_response.strip())
+                except json.JSONDecodeError:
+                    # Fallback if JSON parsing fails
+                    logger.error(f"Failed to parse intent JSON: {intent_response}")
+                    intent_data = {"is_personal_query": False}
+                
+                if intent_data.get("is_personal_query", False):
+                    subject = intent_data.get("subject", "unknown")
+                    intent = intent_data.get("intent", "other")
+                    keywords = intent_data.get("keywords", [])
                     
-                    for memory in user_memories:
-                        content_lower = memory['content'].lower()
-                        if ('born' in text_lower and 'born' in content_lower) or \
-                           ('work' in text_lower and 'work' in content_lower) or \
-                           ('like' in text_lower and 'like' in content_lower) or \
-                           ('eat' in text_lower and 'eat' in content_lower) or \
-                           ('watch' in text_lower and 'watch' in content_lower):
-                            relevant_memories.append(memory)
+                    logger.info(f"Detected personal query - Subject: {subject}, Intent: {intent}, Keywords: {keywords}")
                     
-                    logger.info(f"Found {len(relevant_memories)} relevant memories: {[m['content'] for m in relevant_memories]}")
+                    # Search memories based on subject
+                    memories = []
+                    if subject == "self":
+                        # Get all user's memories
+                        memories = MemoryManager.get_all_memories(user_id)
+                        logger.info(f"Found {len(memories)} memories for self")
+                    elif subject != "unknown":
+                        # Search for memories about the specific person
+                        memories = MemoryManager.search_memories(user_id, subject, limit=10)
+                        logger.info(f"Found {len(memories)} memories for {subject}")
                     
-                    if relevant_memories:
-                        memory_context = "; ".join([m['content'] for m in relevant_memories])
-                        natural_response_prompt = f"""
-                        Question: "{text}"
-                        Memories about you: {memory_context}
+                    if memories:
+                        # Filter and rank memories by intent and keywords
+                        relevant_memories = []
                         
-                        Answer the question naturally using the memory information. 
-                        Use "you" instead of the person's name since they're asking about themselves.
-                        Be conversational and personal.
-                        """
+                        for memory in memories:
+                            content_lower = memory['content'].lower()
+                            memory_type = memory.get('type', 'other')
+                            relevance_score = 0
+                            
+                            # Score by memory type matching intent
+                            type_intent_mapping = {
+                                'preferences': ['preference', 'fact'],
+                                'work': ['personal_info'],
+                                'personal_info': ['personal_info'],
+                                'relationships': ['relationship'],
+                                'birthplace': ['personal_info', 'fact'],
+                                'dates': ['important_date'],
+                                'food': ['preference', 'allergy'],
+                                'other': ['note', 'fact']
+                            }
+                            
+                            if memory_type in type_intent_mapping.get(intent, []):
+                                relevance_score += 5
+                            
+                            # Score by keyword matching
+                            for keyword in keywords:
+                                if keyword.lower() in content_lower:
+                                    relevance_score += 3
+                            
+                            # Additional intent-specific scoring
+                            intent_keywords = {
+                                'preferences': ['like', 'enjoy', 'love', 'hate', 'prefer', 'favorite', 'watch', 'hobby'],
+                                'work': ['work', 'job', 'company', 'office', 'employ', 'career'],
+                                'birthplace': ['born', 'birth', 'origin', 'from'],
+                                'food': ['eat', 'food', 'dish', 'meal', 'cook', 'restaurant'],
+                                'relationships': ['partner', 'wife', 'husband', 'family', 'friend']
+                            }
+                            
+                            for intent_keyword in intent_keywords.get(intent, []):
+                                if intent_keyword in content_lower:
+                                    relevance_score += 2
+                            
+                            if relevance_score > 0:
+                                relevant_memories.append((relevance_score, memory))
                         
-                        response = simple_prompt_request(natural_response_prompt, user_id)
-                        send_response_with_context(user_id, text, response, 'search')
-                        return ok
-            
-            # For personal questions, check memories first (NEVER web search for personal info)
-            personal_query_triggers = ['who is', 'what about', 'tell me about', 'when', 'birthday', 'born', 'how old', 'age', 'where', 'work', 'works', 'job', 'do you know', 'know about', 'what', 'like', 'likes', 'eat', 'watch']
-            if any(phrase in text.lower() for phrase in personal_query_triggers):
-                logger.info(f"Detected personal query: {text}")
-                
-                # Extract names from the question (including lowercase names)
-                # Look for names after "who is", "what about", etc.
-                name_pattern = r'(?:who is|what about|tell me about|when is|how old is|age of|where.*?|do you know|know about|what.*?|like.*?)\s+(\w+)(?:\s+work|born|like|eat|watch)?'
-                names = regex_module.findall(name_pattern, text.lower())
-                logger.info(f"Extracted names from pattern: {names}")
-                
-                if not names:
-                    # Fallback to general name pattern (capitalized words)
-                    name_pattern = r'\b[A-Z][a-z]+\b'
-                    names = regex_module.findall(name_pattern, text)
-                    logger.info(f"Fallback name extraction: {names}")
-                
-                # Also try to extract names from common patterns like "hisyam like" or "where hisyam"
-                common_patterns = [
-                    r'\bhisyam\b',
-                    r'what\s+(\w+)\s+like',
-                    r'where\s+(\w+)\s+',
-                    r'(\w+)\s+like\s+',
-                    r'(\w+)\s+work\s+',
-                    r'(\w+)\s+born\s+',
-                    r'where\s+was\s+(\w+)\s+'
-                ]
-                
-                for pattern in common_patterns:
-                    matches = regex_module.findall(pattern, text.lower())
-                    if matches:
-                        names.extend(matches)
-                        logger.info(f"Found additional names with pattern '{pattern}': {matches}")
-                
-                # Remove duplicates and filter names
-                names = list(set([name.capitalize() for name in names if len(name) > 2]))
-                logger.info(f"Final processed names: {names}")
-                
-                for name in names:
-                    logger.info(f"Searching memories for: {name}")
-                    person_memories = MemoryManager.search_memories(user_id, name, limit=5)
-                    logger.info(f"Found {len(person_memories)} memories for {name}: {[m['content'] for m in person_memories]}")
-                    
-                    if person_memories:
-                        # Use AI to generate a natural response from memories
-                        try:
-                            memory_context = "; ".join([m['content'] for m in person_memories])
+                        # Sort by relevance score
+                        relevant_memories.sort(key=lambda x: x[0], reverse=True)
+                        top_memories = [memory for score, memory in relevant_memories[:3]]
+                        
+                        logger.info(f"Found {len(top_memories)} relevant memories for intent '{intent}': {[m['content'] for m in top_memories]}")
+                        
+                        if top_memories:
+                            # Generate natural response using AI
+                            memory_context = "; ".join([m['content'] for m in top_memories])
+                            
                             natural_response_prompt = f"""
                             Question: "{text}"
-                            Memories: {memory_context}
+                            Relevant memories: {memory_context}
+                            Subject: {subject}
+                            Intent: {intent}
                             
-                            Answer their question naturally using the memory information.
-                            Be conversational, personal, and concise.
+                            Generate a natural, conversational response to their question using the memory information.
+                            Guidelines:
+                            - If subject is "self", use "you" when referring to the person
+                            - If subject is a name, use that name naturally
+                            - Be concise and directly answer their question
+                            - Use a friendly, personal tone
+                            - Don't mention "memories" or "I remember" - just state the facts naturally
                             """
                             
                             response = simple_prompt_request(natural_response_prompt, user_id)
                             send_response_with_context(user_id, text, response, 'search')
                             return ok
-                            
-                        except Exception as e:
-                            logger.error(f"Error generating natural memory response: {e}")
-                            # Fallback to simple format
-                            response = f"{name} is your {person_memories[0]['content'].lower().replace(name.lower(), '').replace('is my', '').strip()}"
-                            send_response_with_context(user_id, text, response, 'search')
-                            return ok
+                        else:
+                            logger.info(f"No relevant memories found for subject '{subject}' and intent '{intent}'")
+                
+            except Exception as e:
+                logger.error(f"Error in AI-powered memory retrieval: {e}")
+            
+            # If no personal memories found or not a personal query, proceed with web search
             
             # If no relevant memories found, proceed with web search
             response = google_search_pipeline(text)
