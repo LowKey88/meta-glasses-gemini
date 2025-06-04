@@ -219,7 +219,7 @@ class EnhancedRedisMigrator:
             return None
     
     def migrate_key(self, old_key: str) -> bool:
-        """Migrate a single key from old to new format."""
+        """Migrate a single key from old to new format, handling different Redis data types."""
         try:
             # Identify key type and components
             key_type, components = self.identify_key_type(old_key)
@@ -240,11 +240,15 @@ class EnhancedRedisMigrator:
                 logger.warning(f"New key already exists, skipping: {new_key}")
                 return False
             
-            # Get the data and TTL from old key
-            data = r.get(old_key)
-            if data is None:
-                logger.warning(f"No data found for key: {old_key}")
+            # Check if old key exists
+            if not r.exists(old_key):
+                logger.warning(f"Old key doesn't exist: {old_key}")
                 return False
+            
+            # Get the Redis data type for the old key
+            redis_type = r.type(old_key)
+            if isinstance(redis_type, bytes):
+                redis_type = redis_type.decode()
             
             ttl = r.ttl(old_key)
             has_ttl = ttl > 0
@@ -254,28 +258,88 @@ class EnhancedRedisMigrator:
             else:
                 self.migration_stats['keys_without_ttl'] += 1
             
-            # Perform migration
+            data_size = 0
+            
+            # Perform migration based on Redis data type
             if not self.dry_run:
                 if has_ttl:
-                    # Use DUMP/RESTORE to preserve exact TTL
+                    # Use DUMP/RESTORE to preserve exact TTL and data structure
                     dumped_data = r.dump(old_key)
                     r.restore(new_key, ttl * 1000, dumped_data)  # TTL in milliseconds
-                    logger.info(f"Migrated with TTL {ttl}s: {old_key} -> {new_key}")
+                    logger.info(f"Migrated {redis_type} with TTL {ttl}s: {old_key} -> {new_key}")
+                    data_size = len(dumped_data) if dumped_data else 0
                 else:
-                    # Simple copy for keys without TTL
-                    r.set(new_key, data)
-                    logger.info(f"Migrated: {old_key} -> {new_key}")
+                    # Migrate based on data type
+                    if redis_type == "string":
+                        data = r.get(old_key)
+                        r.set(new_key, data)
+                        data_size = len(data) if data else 0
+                        logger.info(f"Migrated string: {old_key} -> {new_key}")
+                    
+                    elif redis_type == "hash":
+                        # Migrate hash data
+                        hash_data = r.hgetall(old_key)
+                        if hash_data:
+                            r.hmset(new_key, hash_data)
+                            data_size = sum(len(k) + len(v) for k, v in hash_data.items())
+                            logger.info(f"Migrated hash with {len(hash_data)} fields: {old_key} -> {new_key}")
+                    
+                    elif redis_type == "set":
+                        # Migrate set data
+                        set_data = r.smembers(old_key)
+                        if set_data:
+                            r.sadd(new_key, *set_data)
+                            data_size = sum(len(item) for item in set_data)
+                            logger.info(f"Migrated set with {len(set_data)} members: {old_key} -> {new_key}")
+                    
+                    elif redis_type == "list":
+                        # Migrate list data
+                        list_data = r.lrange(old_key, 0, -1)
+                        if list_data:
+                            r.lpush(new_key, *reversed(list_data))  # Preserve order
+                            data_size = sum(len(item) for item in list_data)
+                            logger.info(f"Migrated list with {len(list_data)} items: {old_key} -> {new_key}")
+                    
+                    elif redis_type == "zset":
+                        # Migrate sorted set data
+                        zset_data = r.zrange(old_key, 0, -1, withscores=True)
+                        if zset_data:
+                            r.zadd(new_key, {member: score for member, score in zset_data})
+                            data_size = sum(len(str(member)) for member, _ in zset_data)
+                            logger.info(f"Migrated sorted set with {len(zset_data)} items: {old_key} -> {new_key}")
+                    
+                    else:
+                        logger.warning(f"Unsupported Redis type {redis_type} for key: {old_key}")
+                        return False
             else:
-                logger.info(f"[DRY RUN] Would migrate: {old_key} -> {new_key} (TTL: {ttl if has_ttl else 'none'})")
+                # Dry run - just estimate data size
+                if redis_type == "string":
+                    data = r.get(old_key)
+                    data_size = len(data) if data else 0
+                elif redis_type == "hash":
+                    hash_data = r.hgetall(old_key)
+                    data_size = sum(len(k) + len(v) for k, v in hash_data.items()) if hash_data else 0
+                elif redis_type == "set":
+                    set_data = r.smembers(old_key)
+                    data_size = sum(len(item) for item in set_data) if set_data else 0
+                elif redis_type == "list":
+                    list_data = r.lrange(old_key, 0, -1)
+                    data_size = sum(len(item) for item in list_data) if list_data else 0
+                elif redis_type == "zset":
+                    zset_data = r.zrange(old_key, 0, -1)
+                    data_size = sum(len(str(item)) for item in zset_data) if zset_data else 0
+                
+                logger.info(f"[DRY RUN] Would migrate {redis_type}: {old_key} -> {new_key} (TTL: {ttl if has_ttl else 'none'})")
             
             # Track migration
             self.migrated_keys.append({
                 "old_key": old_key,
                 "new_key": new_key,
                 "key_type": key_type,
+                "redis_type": redis_type,
                 "components": components,
                 "ttl": ttl if has_ttl else None,
-                "data_size": len(data) if isinstance(data, bytes) else len(str(data))
+                "data_size": data_size
             })
             
             # Update stats
