@@ -102,7 +102,7 @@ async def sync_recent_lifelogs(phone_number: str, hours: Optional[int] = 24) -> 
         lifelogs = await limitless_client.get_all_lifelogs(
             start_time=None,
             end_time=None,
-            max_entries=50,  # Limit to prevent infinite loops
+            max_entries=10,  # Reduced limit to avoid API quota issues
             include_markdown=True,  # Include full transcript for processing
             include_headings=True
         )
@@ -145,8 +145,8 @@ async def sync_recent_lifelogs(phone_number: str, hours: Optional[int] = 24) -> 
                     "1"
                 )
                 
-                # Small delay between processing
-                await asyncio.sleep(0.5)
+                # Delay between processing to respect API rate limits
+                await asyncio.sleep(2.0)  # Increased delay to avoid quota issues
                 
             except Exception as e:
                 logger.error(f"Error processing Lifelog {log.get('id')}: {str(e)}")
