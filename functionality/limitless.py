@@ -13,14 +13,10 @@ from utils.redis_utils import r as redis_client
 from utils.memory_manager import MemoryManager
 from utils.gemini import simple_prompt_request
 from utils.whatsapp import send_whatsapp_threaded
-from utils.google_api import (
-    create_event,
-    search_events,
-    create_task,
-    get_task_lists
-)
+from functionality.task import create_task, get_task_lists
+from functionality.calendar import create_google_calendar_event
 from utils.redis_key_builder import RedisKeyBuilder
-from functionality.calendar import generate_color_id
+from functionality.calendar import get_event_color
 
 logger = logging.getLogger(__name__)
 
@@ -266,7 +262,7 @@ Be specific and extract only clearly stated information."""
                     except:
                         pass
                         
-                success = await create_task_from_limitless(task_data, phone_number)
+                success = create_task_from_limitless(task_data, phone_number)
                 if success:
                     results['tasks_created'] += 1
                     
@@ -305,11 +301,11 @@ Be specific and extract only clearly stated information."""
     return results
 
 
-async def create_task_from_limitless(task_data: Dict, phone_number: str) -> bool:
+def create_task_from_limitless(task_data: Dict, phone_number: str) -> bool:
     """Create a Google Task from Limitless data."""
     try:
         # Get task lists
-        lists = await get_task_lists(phone_number)
+        lists = get_task_lists()
         if not lists:
             return False
             
@@ -317,7 +313,12 @@ async def create_task_from_limitless(task_data: Dict, phone_number: str) -> bool
         task_list_id = lists[0]['id']
         
         # Create the task
-        result = await create_task(phone_number, task_list_id, task_data)
+        result = create_task(
+            title=task_data.get('title', ''),
+            notes=task_data.get('notes', ''),
+            due_date=task_data.get('due'),
+            list_id=task_list_id
+        )
         return result is not None
         
     except Exception as e:
