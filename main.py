@@ -614,6 +614,8 @@ def process_text_message(text: str, message_data: dict):
                     "keywords": ["relevant", "search", "terms"]
                 }}
                 
+                Important: For queries with "my" (my partner, my wife, my kids, my job), set subject as "self"
+                
                 Intent categories:
                 - "preferences" (likes, dislikes, hobbies, interests)
                 - "work" (job, workplace, occupation)
@@ -629,13 +631,14 @@ def process_text_message(text: str, message_data: dict):
                 - "Where do I work?" → {{"is_personal_query": true, "subject": "self", "intent": "work", "keywords": ["work", "job", "workplace"]}}
                 - "When is my anniversary?" → {{"is_personal_query": true, "subject": "self", "intent": "dates", "keywords": ["anniversary", "date"]}}
                 - "Tell me about my wife" → {{"is_personal_query": true, "subject": "self", "intent": "relationships", "keywords": ["wife", "partner"]}}
+                - "What do you know about my partner?" → {{"is_personal_query": true, "subject": "self", "intent": "relationships", "keywords": ["partner", "know"]}}
+                - "Who is Fafa?" → {{"is_personal_query": true, "subject": "Fafa", "intent": "personal_info", "keywords": ["who", "Fafa"]}}
                 """
                 
                 intent_response = simple_prompt_request(intent_extraction_prompt, user_id)
                 logger.info(f"AI intent extraction response: {intent_response}")
                 
                 # Parse the JSON response
-                import json
                 try:
                     # Clean up the response - remove markdown code blocks if present
                     cleaned_response = intent_response.strip()
