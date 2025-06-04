@@ -11,7 +11,7 @@ import asyncio
 from utils.limitless_api import LimitlessAPIClient
 from utils.redis_utils import r as redis_client
 from utils.memory_manager import MemoryManager
-from utils.gemini import get_response
+from utils.gemini import simple_prompt_request
 from utils.whatsapp import send_message
 from utils.google_api import (
     create_event,
@@ -218,7 +218,7 @@ Return a JSON object with:
 
 Be specific and extract only clearly stated information."""
 
-        response = await get_response(extraction_prompt, phone_number)
+        response = simple_prompt_request(extraction_prompt, phone_number)
         
         # Parse the response
         try:
@@ -611,7 +611,7 @@ Provide:
 
 Keep it brief and well-structured."""
 
-        ai_summary = await get_response(summary_prompt, phone_number)
+        ai_summary = simple_prompt_request(summary_prompt, phone_number)
         
         # Format response
         date_str = target_date.strftime('%B %d, %Y')
