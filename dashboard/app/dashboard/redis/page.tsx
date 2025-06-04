@@ -39,6 +39,7 @@ export default function RedisPage() {
   const [redisInfo, setRedisInfo] = useState<any>(null);
   const [redisStats, setRedisStats] = useState<any>(null);
   const [statusLoading, setStatusLoading] = useState(true);
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
   // Generate latency data points for visualization
   const generateLatencyData = (avgLatency: string) => {
@@ -69,6 +70,7 @@ export default function RedisPage() {
       ]);
       setRedisInfo(info);
       setRedisStats(stats);
+      setLastRefresh(new Date());
     } catch (err) {
       console.error('Failed to fetch Redis info:', err);
       // Set fallback data if API fails
@@ -95,6 +97,13 @@ export default function RedisPage() {
   useEffect(() => {
     fetchKeys();
     fetchRedisInfo();
+    
+    // Auto-refresh every 5 seconds
+    const interval = setInterval(() => {
+      fetchRedisInfo();
+    }, 5000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -164,9 +173,14 @@ export default function RedisPage() {
             <div className="p-2 bg-red-500 rounded-lg">
               <Database className="w-6 h-6 text-white" />
             </div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              Redis Monitor
-            </h1>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                Redis Monitor
+              </h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Auto-refreshing every 5 seconds • Last update: {lastRefresh.toLocaleTimeString()}
+              </p>
+            </div>
           </div>
           <div className="flex gap-2">
             <button
@@ -219,11 +233,13 @@ export default function RedisPage() {
         <div className="mb-8 grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Redis Server Status Card */}
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-green-100 dark:bg-green-900/20 rounded-lg">
-                <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-green-100 dark:bg-green-900/20 rounded-lg">
+                  <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Redis Server Status</h3>
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Redis Server Status</h3>
             </div>
             
             {statusLoading || !redisInfo ? (
