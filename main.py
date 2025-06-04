@@ -9,6 +9,7 @@ __version__ = '1.1.2'
 import json
 import logging
 import os
+import re
 import threading
 import time
 import asyncio
@@ -166,32 +167,30 @@ def process_text_message(text: str, message_data: dict):
         
         # If no name in profile, check memories for personal information
         if not name:
-            personal_memories = MemoryManager.get_memories_by_type(user_id, 'personal_info')
-            for memory in personal_memories:
-                content_lower = memory['content'].lower()
+            all_memories = MemoryManager.get_all_memories(user_id)
+            for memory in all_memories:
+                content = memory['content']
+                content_lower = content.lower()
+                
+                # Look for explicit name patterns
                 if any(pattern in content_lower for pattern in ['my name is', 'i am', 'call me']):
-                    # Extract name from memory content
                     for pattern in ['my name is ', 'i am ', 'call me ']:
                         if pattern in content_lower:
-                            name_part = memory['content'][content_lower.index(pattern) + len(pattern):].strip()
+                            name_part = content[content_lower.index(pattern) + len(pattern):].strip()
                             name = name_part.split()[0] if name_part else None
                             break
                     if name:
                         break
-        
-        # Also check for relationship memories that might contain self-references
-        if not name:
-            relationship_memories = MemoryManager.get_memories_by_type(user_id, 'relationship')
-            for memory in relationship_memories:
-                content_lower = memory['content'].lower()
-                # Look for patterns like "my name is X" or "i am X"
-                if any(pattern in content_lower for pattern in ['my name is', 'i am']):
-                    for pattern in ['my name is ', 'i am ']:
-                        if pattern in content_lower:
-                            name_part = memory['content'][content_lower.index(pattern) + len(pattern):].strip()
-                            name = name_part.split()[0] if name_part else None
-                            break
-                    if name:
+                
+                # Look for names in relationship or personal contexts
+                # Check if content mentions a name that could be the user's name
+                # Look for patterns like "Hisyam work at", "Hisyam partner", "Hisyam and"
+                name_match = re.search(r'\b([A-Z][a-z]+)\s+(?:work|partner|and|lives|is)', content)
+                if name_match:
+                    potential_name = name_match.group(1)
+                    # Verify this isn't someone else's name by checking context
+                    if not any(word in content_lower for word in ['his ', 'her ', 'their ', "'s "]):
+                        name = potential_name
                         break
         
         if name:
@@ -229,11 +228,38 @@ def process_text_message(text: str, message_data: dict):
             # Check if we have any memories at all about the user
             all_memories = MemoryManager.get_all_memories(user_id)
             if all_memories:
-                memory_info = []
-                for memory in all_memories[:3]:  # Show relevant memories
-                    memory_info.append(f"{memory['type']}: {memory['content']}")
+                # Format memories in a natural way
+                memory_sentences = []
+                for memory in all_memories[:4]:  # Show top 4 memories
+                    content = memory['content']
+                    memory_type = memory['type']
+                    
+                    # Make the content more natural
+                    if memory_type == 'relationship':
+                        if 'partner' in content.lower():
+                            memory_sentences.append(content)
+                        elif 'and' in content and 'anniversary' not in content.lower():
+                            memory_sentences.append(content)
+                    elif memory_type == 'personal_info':
+                        if 'work' in content.lower():
+                            memory_sentences.append(content)
+                    elif memory_type == 'important_date':
+                        if 'anniversary' in content.lower():
+                            memory_sentences.append(content)
+                    elif memory_type in ['preference', 'fact', 'note']:
+                        memory_sentences.append(content)
                 
-                response = f"I don't know your name specifically, but I remember some things about you: {'; '.join(memory_info)}. You can tell me your name by saying 'I am [your name]' or 'My name is [your name]'."
+                if memory_sentences:
+                    # Try to extract the name from the first memory
+                    first_memory = memory_sentences[0]
+                    name_match = re.search(r'\b([A-Z][a-z]+)', first_memory)
+                    if name_match:
+                        extracted_name = name_match.group(1)
+                        response = f"Based on what I remember, you're {extracted_name}! I know that {'. I also remember that '.join(memory_sentences[:3])}."
+                    else:
+                        response = f"I remember several things about you: {'. '.join(memory_sentences[:3])}. Could you tell me your name?"
+                else:
+                    response = "I have some memories about you, but I'm not sure of your name. Could you tell me by saying 'I am [your name]'?"
             else:
                 response = "I don't know your name yet. You can tell me by saying 'I am [your name]' or 'My name is [your name]'."
             
