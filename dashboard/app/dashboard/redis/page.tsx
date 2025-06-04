@@ -213,7 +213,7 @@ export default function RedisPage() {
               </div>
               <input
                 type="text"
-                placeholder="Search pattern (e.g, user:*, reminder:*)"
+                placeholder="Search pattern (e.g. meta-glasses:user:memory:*, meta-glasses:reminder:*)"
                 className="w-full pl-11 pr-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white placeholder-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition-all duration-200"
                 value={searchPattern}
                 onChange={(e) => setSearchPattern(e.target.value)}
@@ -227,6 +227,33 @@ export default function RedisPage() {
               Search
             </button>
           </form>
+          
+          {/* Quick Search Patterns */}
+          <div className="mt-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Common patterns:</p>
+            <div className="flex flex-wrap gap-2">
+              {[
+                'meta-glasses:user:memory:*',
+                'meta-glasses:user:history:*', 
+                'meta-glasses:reminder:*',
+                'meta-glasses:cache:*',
+                'meta-glasses:metrics:*',
+                'meta-glasses:health:*'
+              ].map((pattern) => (
+                <button
+                  key={pattern}
+                  type="button"
+                  onClick={() => {
+                    setSearchPattern(pattern);
+                    fetchKeys(pattern);
+                  }}
+                  className="px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                >
+                  {pattern}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* Redis Server Status Section */}
@@ -663,7 +690,7 @@ export default function RedisPage() {
                           setShowDeleteConfirm(false);
                           setKeyToDelete('');
                         }}
-                        className="flex-1 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                        className="flex-1 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-gray-900 dark:text-white"
                       >
                         Cancel
                       </button>
