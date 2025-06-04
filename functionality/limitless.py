@@ -102,7 +102,9 @@ async def sync_recent_lifelogs(phone_number: str, hours: Optional[int] = 24) -> 
         lifelogs = await limitless_client.get_all_lifelogs(
             start_time=None,
             end_time=None,
-            max_entries=50  # Limit to prevent infinite loops
+            max_entries=50,  # Limit to prevent infinite loops
+            include_markdown=True,  # Include full transcript for processing
+            include_headings=True
         )
         
         logger.info(f"Fetched {len(lifelogs)} recordings from Limitless API")
@@ -468,13 +470,12 @@ Be conservative - only extract when you're confident it's a personal task/remind
 async def get_today_lifelogs(phone_number: str) -> str:
     """Get today's Lifelog recordings."""
     try:
-        # Get today's date range
-        today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-        tomorrow = today + timedelta(days=1)
+        # Get today's date in YYYY-MM-DD format
+        today_date = datetime.now(timezone.utc).strftime('%Y-%m-%d')
         
-        lifelogs = await limitless_client.get_all_lifelogs(
-            start_time=today,
-            end_time=tomorrow
+        lifelogs = await limitless_client.get_lifelogs_by_date(
+            date=today_date,
+            include_markdown=False  # Just summaries for listing
         )
         
         if not lifelogs:
@@ -514,13 +515,12 @@ async def get_today_lifelogs(phone_number: str) -> str:
 async def get_yesterday_lifelogs(phone_number: str) -> str:
     """Get yesterday's Lifelog recordings."""
     try:
-        # Get yesterday's date range
-        yesterday = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=1)
-        today = yesterday + timedelta(days=1)
+        # Get yesterday's date in YYYY-MM-DD format
+        yesterday_date = (datetime.now(timezone.utc) - timedelta(days=1)).strftime('%Y-%m-%d')
         
-        lifelogs = await limitless_client.get_all_lifelogs(
-            start_time=yesterday,
-            end_time=today
+        lifelogs = await limitless_client.get_lifelogs_by_date(
+            date=yesterday_date,
+            include_markdown=False  # Just summaries for listing
         )
         
         if not lifelogs:
@@ -709,14 +709,13 @@ async def get_daily_summary(date_str: Optional[str], phone_number: str) -> str:
         else:
             target_date = datetime.now()
             
-        # Set to UTC and get date range
-        target_date = target_date.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
-        next_day = target_date + timedelta(days=1)
+        # Get date in YYYY-MM-DD format
+        date_str = target_date.strftime('%Y-%m-%d')
         
         # Fetch Lifelogs for that day
-        lifelogs = await limitless_client.get_all_lifelogs(
-            start_time=target_date,
-            end_time=next_day
+        lifelogs = await limitless_client.get_lifelogs_by_date(
+            date=date_str,
+            include_markdown=False  # Just summaries for processing
         )
         
         if not lifelogs:

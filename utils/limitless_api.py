@@ -31,33 +31,55 @@ class LimitlessAPIClient:
         self,
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
+        date: Optional[str] = None,
         timezone_str: str = "Asia/Kuala_Lumpur",
         cursor: Optional[str] = None,
-        direction: str = "desc"
+        direction: str = "desc",
+        include_markdown: bool = True,
+        include_headings: bool = True,
+        limit: int = 10
     ) -> Dict[str, Any]:
         """
         List Lifelog entries from Limitless API.
         
         Args:
-            start_time: Start of time range (optional)
-            end_time: End of time range (optional)
-            timezone_str: Timezone for the query
+            start_time: Start datetime (YYYY-MM-DD or YYYY-MM-DD HH:mm:SS)
+            end_time: End datetime (YYYY-MM-DD or YYYY-MM-DD HH:mm:SS)
+            date: Date string (YYYY-MM-DD) - ignored if start/end provided
+            timezone_str: IANA timezone specifier
             cursor: Pagination cursor (optional)
             direction: Sort direction (asc/desc)
+            include_markdown: Include markdown content in response
+            include_headings: Include headings in response
+            limit: Maximum number of entries (max 10)
             
         Returns:
             API response with Lifelog entries
         """
         params = {
             "timezone": timezone_str,
-            "direction": direction
+            "direction": direction,
+            "includeMarkdown": str(include_markdown).lower(),
+            "includeHeadings": str(include_headings).lower(),
+            "limit": min(limit, 10)  # API max is 10
         }
         
-        # Add time filters if provided
+        # Add time filters - use 'start' and 'end' as per docs
         if start_time:
-            params["startTime"] = start_time.isoformat()
+            # Format as YYYY-MM-DD HH:mm:SS or YYYY-MM-DD
+            if hasattr(start_time, 'strftime'):
+                params["start"] = start_time.strftime('%Y-%m-%d %H:%M:%S')
+            else:
+                params["start"] = str(start_time)
         if end_time:
-            params["endTime"] = end_time.isoformat()
+            if hasattr(end_time, 'strftime'):
+                params["end"] = end_time.strftime('%Y-%m-%d %H:%M:%S')
+            else:
+                params["end"] = str(end_time)
+        
+        # Add date if provided and no start/end
+        if date and not (start_time or end_time):
+            params["date"] = date
             
         # Add cursor for pagination
         if cursor:
@@ -89,8 +111,11 @@ class LimitlessAPIClient:
         self,
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
+        date: Optional[str] = None,
         timezone_str: str = "Asia/Kuala_Lumpur",
-        max_entries: Optional[int] = None
+        max_entries: Optional[int] = None,
+        include_markdown: bool = True,
+        include_headings: bool = True
     ) -> List[Dict[str, Any]]:
         """
         Retrieve all Lifelog entries with cursor-based pagination.
@@ -98,8 +123,11 @@ class LimitlessAPIClient:
         Args:
             start_time: Start of time range
             end_time: End of time range
+            date: Date string (YYYY-MM-DD)
             timezone_str: Timezone for the query
             max_entries: Maximum total entries to retrieve
+            include_markdown: Include markdown content
+            include_headings: Include headings
             
         Returns:
             List of all Lifelog entries
@@ -114,8 +142,12 @@ class LimitlessAPIClient:
                 response = await self.list_lifelogs(
                     start_time=start_time,
                     end_time=end_time,
+                    date=date,
                     timezone_str=timezone_str,
-                    cursor=cursor
+                    cursor=cursor,
+                    include_markdown=include_markdown,
+                    include_headings=include_headings,
+                    limit=10  # Always use max limit for efficiency
                 )
                 
                 items = response.get("items", [])
@@ -155,6 +187,32 @@ class LimitlessAPIClient:
                 
         logger.info(f"Retrieved total of {len(all_entries)} Lifelog entries after {page_count} pages")
         return all_entries
+    
+    async def get_lifelogs_by_date(
+        self,
+        date: str,
+        timezone_str: str = "Asia/Kuala_Lumpur",
+        include_markdown: bool = True,
+        include_headings: bool = True
+    ) -> List[Dict[str, Any]]:
+        """
+        Get all Lifelog entries for a specific date.
+        
+        Args:
+            date: Date string in YYYY-MM-DD format
+            timezone_str: IANA timezone specifier
+            include_markdown: Include markdown content
+            include_headings: Include headings
+            
+        Returns:
+            List of Lifelog entries for the date
+        """
+        return await self.get_all_lifelogs(
+            date=date,
+            timezone_str=timezone_str,
+            include_markdown=include_markdown,
+            include_headings=include_headings
+        )
         
     async def get_lifelog_by_id(self, lifelog_id: str) -> Optional[Dict[str, Any]]:
         """
