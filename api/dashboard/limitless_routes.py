@@ -1,7 +1,7 @@
 """
 Limitless dashboard API routes.
 """
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException, Header, Query
 from datetime import datetime, timedelta, timezone
 import json
 import logging
@@ -275,11 +275,12 @@ async def search_lifelogs(
 
 @router.post("/sync")
 async def sync_limitless(
-    force: bool = False,
+    force: bool = Query(False, description="Force re-sync by clearing all processed flags"),
     user: str = Depends(verify_dashboard_token)
 ) -> Dict[str, Any]:
     """Manually trigger Limitless sync."""
     try:
+        logger.info(f"Sync endpoint called with force={force}")
         # Use a default phone number for dashboard sync
         phone_number = "dashboard_user"
         
