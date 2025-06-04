@@ -313,6 +313,7 @@ Be specific and extract only clearly stated information."""
             'processed_at': datetime.now().isoformat()
         }
         
+        logger.info(f"Caching Lifelog {log_id} with start_time: {start_time} to key: {cache_key}")
         redis_client.setex(
             cache_key,
             86400 * 7,  # Cache for 7 days

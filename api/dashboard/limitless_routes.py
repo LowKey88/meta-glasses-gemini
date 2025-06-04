@@ -137,7 +137,10 @@ async def get_lifelogs(
         pattern = RedisKeyBuilder.build_limitless_lifelog_key("*")
         lifelogs = []
         
+        logger.info(f"Dashboard searching for Lifelogs with pattern: {pattern} for date: {target_date}")
+        key_count = 0
         for key in redis_client.scan_iter(match=pattern):
+            key_count += 1
             data = redis_client.get(key)
             if not data:
                 continue
@@ -147,33 +150,39 @@ async def get_lifelogs(
                 
                 # Check if log is from target date
                 start_time = log_data.get('start_time')
+                logger.info(f"Found cached log {log_data.get('id')} with start_time: {start_time}")
                 if start_time:
-                    log_date = datetime.fromisoformat(start_time.replace('Z', '+00:00')).date()
-                    if log_date == target_date:
-                        # Format for frontend
-                        formatted_log = {
-                            'id': log_data.get('id'),
-                            'title': log_data.get('title', 'Untitled'),
-                            'summary': log_data.get('summary', ''),
-                            'start_time': log_data.get('start_time'),
-                            'end_time': log_data.get('end_time'),
-                            'duration_minutes': 0,
-                            'has_transcript': True,
-                            'processed': True,
-                            'extracted_data': log_data.get('extracted', {})
-                        }
-                        
-                        # Calculate duration
-                        if log_data.get('start_time') and log_data.get('end_time'):
-                            try:
-                                start = datetime.fromisoformat(log_data['start_time'].replace('Z', '+00:00'))
-                                end = datetime.fromisoformat(log_data['end_time'].replace('Z', '+00:00'))
-                                duration = (end - start).total_seconds() / 60
-                                formatted_log['duration_minutes'] = int(duration)
-                            except:
-                                pass
-                        
-                        lifelogs.append(formatted_log)
+                    try:
+                        log_date = datetime.fromisoformat(start_time.replace('Z', '+00:00')).date()
+                        logger.info(f"Parsed log date: {log_date}, target date: {target_date}")
+                        if log_date == target_date:
+                            # Format for frontend
+                            formatted_log = {
+                                'id': log_data.get('id'),
+                                'title': log_data.get('title', 'Untitled'),
+                                'summary': log_data.get('summary', ''),
+                                'start_time': log_data.get('start_time'),
+                                'end_time': log_data.get('end_time'),
+                                'duration_minutes': 0,
+                                'has_transcript': True,
+                                'processed': True,
+                                'extracted_data': log_data.get('extracted', {})
+                            }
+                            
+                            # Calculate duration
+                            if log_data.get('start_time') and log_data.get('end_time'):
+                                try:
+                                    start = datetime.fromisoformat(log_data['start_time'].replace('Z', '+00:00'))
+                                    end = datetime.fromisoformat(log_data['end_time'].replace('Z', '+00:00'))
+                                    duration = (end - start).total_seconds() / 60
+                                    formatted_log['duration_minutes'] = int(duration)
+                                except:
+                                    pass
+                            
+                            lifelogs.append(formatted_log)
+                    except Exception as e:
+                        logger.error(f"Error parsing date for log {log_data.get('id')}: {e}")
+                        continue
                         
             except json.JSONDecodeError:
                 continue
@@ -181,6 +190,7 @@ async def get_lifelogs(
         # Sort by start time
         lifelogs.sort(key=lambda x: x['start_time'] or '', reverse=True)
         
+        logger.info(f"Dashboard found {key_count} cached keys, returning {len(lifelogs)} lifelogs for date {target_date}")
         return lifelogs
         
     except Exception as e:
