@@ -722,6 +722,13 @@ def process_text_message(text: str, message_data: dict):
                         # Search for memories about the specific person
                         memories = MemoryManager.search_memories(user_id, subject, limit=10)
                         logger.info(f"Found {len(memories)} memories for {subject}")
+                        
+                        # Debug: Show which memories were found
+                        if memories:
+                            memory_contents = [f"'{m['content']}'" for m in memories]
+                            logger.info(f"Memory contents found for '{subject}': {memory_contents}")
+                        else:
+                            logger.info(f"No memories contain the term '{subject}'")
                     
                     if memories:
                         logger.info(f"Processing {len(memories)} memories for subject '{subject}'")
@@ -786,10 +793,17 @@ def process_text_message(text: str, message_data: dict):
                             Subject: {subject}
                             Intent: {intent}
                             
-                            Generate a natural, conversational response to their question using the memory information.
+                            CRITICAL RULES:
+                            1. ONLY use information that is EXPLICITLY in the provided memories
+                            2. If the memories don't contain information about the subject "{subject}", say "I don't have information about {subject}"
+                            3. DO NOT make assumptions, connections, or inferences not in the memories
+                            4. DO NOT mention people or facts not explicitly stated in the memories
+                            5. If memories are about different people than the subject, they are irrelevant
+                            
+                            Generate a natural, conversational response using ONLY the provided memory information.
                             Guidelines:
                             - If subject is "self", use "you" when referring to the person
-                            - If subject is a name, use that name naturally
+                            - If subject is a name, use that name naturally  
                             - Be concise and directly answer their question
                             - Use a friendly, personal tone
                             - Don't mention "memories" or "I remember" - just state the facts naturally
