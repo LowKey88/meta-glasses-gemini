@@ -332,9 +332,38 @@ def process_text_message(text: str, message_data: dict):
         send_response_with_context(user_id, text, response, 'other')
         return ok
     
-    # Handle contextual shortcuts (but skip for personal memory queries)
-    personal_query_indicators = ['who', 'what', 'when', 'where', 'tell me about', 'my wife', 'my partner', 'my husband', 'anniversary', 'birthday', 'born', 'do you know', 'know about']
-    is_likely_personal_query = any(indicator in text.lower() for indicator in personal_query_indicators)
+    # Use AI to detect if this is a personal query (more flexible than hardcoded indicators)
+    try:
+        personal_detection_prompt = f"""
+        Is this query asking about personal information, people, relationships, or memories?
+        
+        Query: "{text}"
+        
+        Personal queries include:
+        - Questions about specific people ("Who is X?", "Do you know Y?", "Tell me about Z")
+        - Questions about personal relationships ("my wife", "my partner", "my family")
+        - Questions about personal facts ("when is my birthday", "where was I born", "what do I like")
+        - Questions about dates/events ("my anniversary", "when is X's birthday")
+        - Questions asking for personal information recall
+        
+        Non-personal queries include:
+        - General greetings ("hi", "hello")
+        - Task requests ("schedule meeting", "set reminder")
+        - General information questions ("what's the weather", "latest news")
+        - System commands
+        
+        Answer: yes/no
+        """
+        
+        personal_detection = simple_prompt_request(personal_detection_prompt, user_id)
+        is_likely_personal_query = personal_detection.lower().strip().startswith('yes')
+        logger.info(f"AI personal query detection for '{text}': {personal_detection.strip()} -> {is_likely_personal_query}")
+        
+    except Exception as e:
+        logger.error(f"Error in AI personal query detection: {e}")
+        # Fallback to a simple check for very common patterns
+        basic_patterns = ['who', 'what', 'when', 'where', 'my ', 'do you know']
+        is_likely_personal_query = any(pattern in text.lower() for pattern in basic_patterns)
     
     if not is_likely_personal_query:
         context_ref = ContextManager.understand_context_reference(text, user_id)
