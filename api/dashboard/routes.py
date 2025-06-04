@@ -103,7 +103,7 @@ async def get_dashboard_stats(user_id: str = "60122873632"):
         # Count Redis keys with monitoring
         from utils.redis_monitor import redis_monitor
         all_keys = redis_monitor.execute_with_monitoring("KEYS", "*", r.keys, "*")
-        redis_keys = len(all_keys)
+        total_redis_keys = len(all_keys)
         
         # Count active reminders with monitoring
         reminder_pattern = redis_keys.get_all_reminder_keys_pattern()
@@ -142,7 +142,7 @@ async def get_dashboard_stats(user_id: str = "60122873632"):
         return DashboardStats(
             total_memories=len(memories),
             memory_by_type=memory_by_type,
-            redis_keys=redis_keys,
+            redis_keys=total_redis_keys,
             active_reminders=active_reminders,
             recent_messages=recent_messages,
             uptime=uptime,
