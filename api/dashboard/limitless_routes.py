@@ -274,18 +274,20 @@ async def search_lifelogs(
 
 
 @router.post("/sync")
-async def sync_limitless(user: str = Depends(verify_dashboard_token)) -> Dict[str, str]:
+async def sync_limitless(user: str = Depends(verify_dashboard_token)) -> Dict[str, Any]:
     """Manually trigger Limitless sync."""
     try:
         # Use a default phone number for dashboard sync
         phone_number = "dashboard_user"
         
-        # Start sync in background
-        import asyncio
-        asyncio.create_task(sync_recent_lifelogs(phone_number, hours=24))
+        # Run sync synchronously to provide immediate feedback
+        result = await sync_recent_lifelogs(phone_number, hours=None)  # No hour limit for initial sync
         
-        return {"message": "Sync initiated successfully"}
+        return {
+            "message": "Sync completed successfully", 
+            "result": result
+        }
         
     except Exception as e:
-        logger.error(f"Error initiating Limitless sync: {str(e)}")
+        logger.error(f"Error running Limitless sync: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

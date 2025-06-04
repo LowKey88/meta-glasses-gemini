@@ -81,20 +81,24 @@ async def get_limitless_help() -> str:
 _Example: "limitless search project deadline"_"""
 
 
-async def sync_recent_lifelogs(phone_number: str, hours: int = 24) -> str:
+async def sync_recent_lifelogs(phone_number: str, hours: Optional[int] = 24) -> str:
     """
     Sync recent Lifelog entries from Limitless.
     
     Args:
         phone_number: User's phone number
-        hours: Number of hours to sync (default 24)
+        hours: Number of hours to sync (default 24, None for all recordings)
     """
     try:
         # For initial sync, get all recordings without date filtering
         # to ensure we capture all available recordings
-        logger.info("Starting Limitless sync - fetching all recordings without date filtering")
+        logger.info(f"Starting Limitless sync for user {phone_number}")
+        if hours is None:
+            logger.info("Fetching ALL recordings without date filtering for initial sync")
+        else:
+            logger.info(f"Fetching recordings from last {hours} hours")
         
-        # Fetch Lifelogs without date restrictions for first sync
+        # Fetch Lifelogs without date restrictions for initial sync
         lifelogs = await limitless_client.get_all_lifelogs(
             start_time=None,
             end_time=None,
@@ -102,6 +106,8 @@ async def sync_recent_lifelogs(phone_number: str, hours: int = 24) -> str:
             include_summary=True,
             max_entries=50  # Limit to prevent infinite loops
         )
+        
+        logger.info(f"Fetched {len(lifelogs)} recordings from Limitless API")
         
         if not lifelogs:
             return "No new recordings found in the specified time range."
@@ -111,11 +117,16 @@ async def sync_recent_lifelogs(phone_number: str, hours: int = 24) -> str:
         memories_created = 0
         tasks_created = 0
         
-        for log in lifelogs:
+        for i, log in enumerate(lifelogs, 1):
             try:
+                log_id = log.get('id', 'unknown')
+                log_title = log.get('title', 'Untitled')
+                logger.info(f"Processing recording {i}/{len(lifelogs)}: {log_title} (ID: {log_id})")
+                
                 # Check if already processed
-                processed_key = RedisKeyBuilder.build_limitless_processed_key(log['id'])
+                processed_key = RedisKeyBuilder.build_limitless_processed_key(log_id)
                 if redis_client.exists(processed_key):
+                    logger.info(f"Recording {log_id} already processed, skipping")
                     continue
                     
                 # Process the Lifelog
@@ -124,6 +135,8 @@ async def sync_recent_lifelogs(phone_number: str, hours: int = 24) -> str:
                 memories_created += results['memories_created']
                 tasks_created += results['tasks_created']
                 processed_count += 1
+                
+                logger.info(f"Recording {log_id} processed: {results['memories_created']} memories, {results['tasks_created']} tasks created")
                 
                 # Mark as processed
                 redis_client.setex(
