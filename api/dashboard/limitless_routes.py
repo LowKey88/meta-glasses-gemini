@@ -288,15 +288,19 @@ async def sync_limitless(
             logger.info("Force sync requested - clearing all processed flags")
             cleared_count = 0
             
-            # Clear processed flags
-            processed_pattern = RedisKeyBuilder.build_limitless_processed_key("*")
+            # Clear processed flags - use proper pattern matching
+            processed_pattern = "meta-glasses:limitless:processed:*"
+            logger.info(f"Scanning for processed keys with pattern: {processed_pattern}")
             for key in redis_client.scan_iter(match=processed_pattern):
+                logger.info(f"Deleting processed key: {key}")
                 redis_client.delete(key)
                 cleared_count += 1
             
-            # Clear task creation flags
-            task_pattern = RedisKeyBuilder.build_limitless_task_created_key("*")
+            # Clear task creation flags - use proper pattern matching
+            task_pattern = "meta-glasses:limitless:tasks:created:*"
+            logger.info(f"Scanning for task keys with pattern: {task_pattern}")
             for key in redis_client.scan_iter(match=task_pattern):
+                logger.info(f"Deleting task key: {key}")
                 redis_client.delete(key)
                 cleared_count += 1
                 
