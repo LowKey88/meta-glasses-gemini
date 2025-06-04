@@ -9,7 +9,7 @@ import jwt
 from typing import List, Dict, Optional, Any
 
 from api.dashboard.config import JWT_SECRET
-from utils.redis_utils import redis_client
+from utils.redis_utils import r as redis_client
 from utils.redis_key_builder import RedisKeyBuilder
 from functionality.limitless import sync_recent_lifelogs, limitless_client
 

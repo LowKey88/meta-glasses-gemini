@@ -9,7 +9,7 @@ from typing import List, Dict, Optional, Tuple
 import asyncio
 
 from utils.limitless_api import LimitlessAPIClient
-from utils.redis_utils import redis_client
+from utils.redis_utils import r as redis_client
 from utils.memory_manager import MemoryManager
 from utils.gemini import get_response
 from utils.whatsapp import send_message
