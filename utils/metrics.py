@@ -132,7 +132,7 @@ class MetricsTracker:
     
     @staticmethod
     def get_messages_today() -> int:
-        """Get total message count for today (since midnight) with fallback to old keys"""
+        """Get total message count for today (since midnight)"""
         try:
             total = 0
             now = datetime.now()
@@ -144,27 +144,13 @@ class MetricsTracker:
             # Sum messages from midnight to now
             for i in range(hours_since_midnight):
                 hour_time = today_start + timedelta(hours=i)
-                
-                # Try new key pattern first
                 hour_key = redis_keys.get_messages_key(hour_time.strftime('%Y-%m-%d'), hour_time.strftime('%H'))
                 
-                found_data = False
                 if monitored_exists(hour_key):
                     for msg_type in monitored_hkeys(hour_key):
                         count = monitored_hget(hour_key, msg_type)
                         if count:
                             total += int(count)
-                            found_data = True
-                
-                # If no data found with new pattern, try old pattern as fallback
-                if not found_data:
-                    old_hour_key = f"metrics:messages:{hour_time.strftime('%Y-%m-%d-%H')}"
-                    if monitored_exists(old_hour_key):
-                        for msg_type in monitored_hkeys(old_hour_key):
-                            count = monitored_hget(old_hour_key, msg_type)
-                            if count:
-                                total += int(count)
-                                logger.debug(f"Fallback: Found metrics using old key {old_hour_key}")
             
             return total
         except Exception as e:
