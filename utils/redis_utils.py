@@ -4,6 +4,7 @@ import base64
 import redis
 import zoneinfo
 from datetime import datetime, timedelta, timezone
+from .redis_key_builder import redis_keys
 
 r = redis.Redis(
     host=os.getenv('REDIS_DB_HOST', 'localhost'),
@@ -27,47 +28,43 @@ def try_catch_decorator(func):
     return wrapper
 
 
-# ------------ Place ID Caching ------------
+# ------------ Generic Caching ------------
 @try_catch_decorator
 def get_generic_cache(path: str):
-    key = base64.b64encode(f'{path}'.encode('utf-8'))
-    key = key.decode('utf-8')
-
-    data = r.get(f'josancamon:rayban-meta-glasses-api:{key}')
+    key = redis_keys.get_generic_cache_key(path)
+    data = r.get(key)
     return json.loads(data) if data else None
 
 
 @try_catch_decorator
 def set_generic_cache(path: str, data: dict, ttl: int = 3600):  # Default 1 hour TTL
-    key = base64.b64encode(f'{path}'.encode('utf-8'))
-    key = key.decode('utf-8')
-
-    r.set(f'josancamon:rayban-meta-glasses-api:{key}', json.dumps(data, default=str))
-    r.expire(f'josancamon:rayban-meta-glasses-api:{key}', ttl)
+    key = redis_keys.get_generic_cache_key(path)
+    r.set(key, json.dumps(data, default=str))
+    r.expire(key, ttl)
 
 
 @try_catch_decorator
 def delete_generic_cache(path: str):
-    key = base64.b64encode(f'{path}'.encode('utf-8'))
-    key = key.decode('utf-8')
-    r.delete(f'josancamon:rayban-meta-glasses-api:{key}')
+    key = redis_keys.get_generic_cache_key(path)
+    r.delete(key)
 
 # ------------ Reminder Management ------------
 @try_catch_decorator
 def get_reminder_keys():
     """Get all reminder keys."""
-    return r.keys('josancamon:rayban-meta-glasses-api:reminder:*')
+    pattern = redis_keys.get_all_reminder_keys_pattern()
+    return r.keys(pattern)
 
 @try_catch_decorator
 def delete_reminder(event_id: str):
     """Delete a reminder by event ID."""
-    key = f'josancamon:rayban-meta-glasses-api:reminder:{event_id}'
+    key = redis_keys.get_reminder_event_key(event_id)
     r.delete(key)
 
 @try_catch_decorator
 def cleanup_expired_reminders():
     """Clean up expired reminders and old data."""
-    pattern = 'josancamon:rayban-meta-glasses-api:reminder:*'
+    pattern = redis_keys.get_all_reminder_keys_pattern()
     for key in r.scan_iter(pattern):
         try:
             data = r.get(key)
@@ -90,20 +87,20 @@ def cleanup_expired_reminders():
 @try_catch_decorator
 def set_cancellation_state(user_id: str):
     """Set cancellation state with 30-second expiry."""
-    key = f'josancamon:rayban-meta-glasses-api:cancellation:wa:{user_id}'
+    key = redis_keys.get_cancellation_state_key(user_id, "wa")
     r.set(key, 'active')
     r.expire(key, 30)  # 30 second timeout
 
 @try_catch_decorator
 def get_cancellation_state(user_id: str) -> bool:
     """Check if user is in cancellation state."""
-    key = f'josancamon:rayban-meta-glasses-api:cancellation:wa:{user_id}'
+    key = redis_keys.get_cancellation_state_key(user_id, "wa")
     return bool(r.get(key))
 
 @try_catch_decorator
 def clear_cancellation_state(user_id: str):
     """Clear cancellation state."""
-    key = f'josancamon:rayban-meta-glasses-api:cancellation:wa:{user_id}'
+    key = redis_keys.get_cancellation_state_key(user_id, "wa")
     r.delete(key)
 
 # Code to connect to Redis from local machine from GCP

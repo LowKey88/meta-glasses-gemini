@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 from utils.redis_utils import r, try_catch_decorator
 from utils.redis_monitor import monitored_get, monitored_set
+from utils.redis_key_builder import redis_keys
 
 logger = logging.getLogger("uvicorn")
 
@@ -19,15 +20,9 @@ class ContextManager:
     
     @staticmethod
     @try_catch_decorator
-    def get_user_key(user_id: str, key_type: str) -> str:
-        """Generate Redis key for user data."""
-        return f"josancamon:rayban-meta-glasses-api:{key_type}:{user_id}"
-    
-    @staticmethod
-    @try_catch_decorator
     def add_to_conversation_history(user_id: str, message: str, response: str, message_type: str = "other"):
         """Add a message-response pair to conversation history."""
-        key = ContextManager.get_user_key(user_id, CONVERSATION_HISTORY_KEY)
+        key = redis_keys.get_user_history_key(user_id)
         
         # Create conversation entry
         entry = {
@@ -57,7 +52,7 @@ class ContextManager:
     @try_catch_decorator
     def get_conversation_history(user_id: str, limit: int = 5) -> List[Dict]:
         """Get recent conversation history for a user."""
-        key = ContextManager.get_user_key(user_id, CONVERSATION_HISTORY_KEY)
+        key = redis_keys.get_user_history_key(user_id)
         
         history_data = monitored_get(key)
         if not history_data:
@@ -70,7 +65,7 @@ class ContextManager:
     @try_catch_decorator
     def update_user_profile(user_id: str, profile_data: Dict):
         """Update user profile with preferences and learned information."""
-        key = ContextManager.get_user_key(user_id, USER_PROFILE_KEY)
+        key = redis_keys.get_user_profile_key(user_id)
         
         # Get existing profile
         existing_data = monitored_get(key)
@@ -100,14 +95,15 @@ class ContextManager:
         profile["stats"]["total_messages"] = profile["stats"].get("total_messages", 0) + 1
         
         # Save profile (no expiry for user profiles)
-        monitored_set(ContextManager.get_user_key(user_id, USER_PROFILE_KEY), json.dumps(profile))
+        key = redis_keys.get_user_profile_key(user_id)
+        monitored_set(key, json.dumps(profile))
         logger.debug(f"Updated user profile for {user_id}")
     
     @staticmethod
     @try_catch_decorator
     def get_user_profile(user_id: str) -> Optional[Dict]:
         """Get user profile data."""
-        key = ContextManager.get_user_key(user_id, USER_PROFILE_KEY)
+        key = redis_keys.get_user_profile_key(user_id)
         
         profile_data = monitored_get(key)
         if not profile_data:
