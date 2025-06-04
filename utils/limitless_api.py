@@ -86,8 +86,8 @@ class LimitlessAPIClient:
             params["cursor"] = cursor
             
         url = f"{self.BASE_URL}/lifelogs?{urlencode(params)}"
-        logger.info(f"Limitless API request: {url}")
-        logger.info(f"Limitless API params: {params}")
+        logger.debug(f"Limitless API request: {url}")
+        logger.debug(f"Limitless API params: {params}")
         
         async with aiohttp.ClientSession() as session:
             try:
@@ -95,7 +95,6 @@ class LimitlessAPIClient:
                     logger.info(f"Limitless API response status: {response.status}")
                     response.raise_for_status()
                     data = await response.json()
-                    logger.info(f"Limitless API response data: {data}")
                     
                     # Extract lifelogs from the correct response structure
                     lifelogs = data.get('data', {}).get('lifelogs', [])
