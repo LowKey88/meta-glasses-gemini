@@ -81,8 +81,13 @@ class LimitlessAPIClient:
                     response.raise_for_status()
                     data = await response.json()
                     logger.info(f"Limitless API response data: {data}")
-                    logger.info(f"Retrieved {len(data.get('items', []))} Lifelog entries")
-                    return data
+                    
+                    # Extract lifelogs from the correct response structure
+                    lifelogs = data.get('data', {}).get('lifelogs', [])
+                    logger.info(f"Retrieved {len(lifelogs)} Lifelog entries")
+                    
+                    # Return in expected format for compatibility
+                    return {"items": lifelogs, "meta": data.get('meta', {})}
             except aiohttp.ClientError as e:
                 logger.error(f"Error fetching Lifelogs: {str(e)}")
                 raise
