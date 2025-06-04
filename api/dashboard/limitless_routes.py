@@ -1,16 +1,29 @@
 """
 Limitless dashboard API routes.
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
 from datetime import datetime, timedelta, timezone
 import json
 import logging
+import jwt
 from typing import List, Dict, Optional, Any
 
-from api.dashboard.auth import verify_dashboard_token
+from api.dashboard.config import JWT_SECRET
 from utils.redis_utils import redis_client
 from utils.redis_key_builder import RedisKeyBuilder
 from functionality.limitless import sync_recent_lifelogs, limitless_client
+
+def verify_dashboard_token(authorization: Optional[str] = Header(None)):
+    """Verify JWT token for dashboard access"""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = authorization.split(" ")[1]
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+        return payload.get("user", "admin")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
 
 logger = logging.getLogger(__name__)
 
