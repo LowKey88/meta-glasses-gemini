@@ -584,9 +584,18 @@ def process_text_message(text: str, message_data: dict):
             send_whatsapp_threaded('Notion page created successfully!')
             return ok
         elif operation_type == 'search':
-            # Use AI-first approach for memory retrieval
+            # For search operation type, proceed directly with web search
+            response = google_search_pipeline(text)
+            send_whatsapp_threaded(response)
+            return ok
+        elif operation_type == 'automation':
+            response = automation_command(text)
+            send_whatsapp_threaded(response)
+            return ok
+        else:
+            # Use AI-first approach for memory retrieval in 'other' operation type
             try:
-                logger.info(f"Processing search query with AI intent extraction: {text}")
+                logger.info(f"Processing 'other' query with AI intent extraction: {text}")
                 
                 # Use Gemini to extract intent and subject from the query
                 intent_extraction_prompt = f"""
@@ -614,7 +623,8 @@ def process_text_message(text: str, message_data: dict):
                 Examples:
                 - "What does Hisyam like?" → {{"is_personal_query": true, "subject": "Hisyam", "intent": "preferences", "keywords": ["like", "enjoy", "hobbies"]}}
                 - "Where do I work?" → {{"is_personal_query": true, "subject": "self", "intent": "work", "keywords": ["work", "job", "workplace"]}}
-                - "Where was I born?" → {{"is_personal_query": true, "subject": "self", "intent": "birthplace", "keywords": ["born", "birthplace"]}}
+                - "When is my anniversary?" → {{"is_personal_query": true, "subject": "self", "intent": "dates", "keywords": ["anniversary", "date"]}}
+                - "Tell me about my wife" → {{"is_personal_query": true, "subject": "self", "intent": "relationships", "keywords": ["wife", "partner"]}}
                 """
                 
                 intent_response = simple_prompt_request(intent_extraction_prompt, user_id)
@@ -642,6 +652,23 @@ def process_text_message(text: str, message_data: dict):
                         # Get all user's memories
                         memories = MemoryManager.get_all_memories(user_id)
                         logger.info(f"Found {len(memories)} memories for self")
+                        
+                        # For self queries about relationships, also search for partner info
+                        if intent == "relationships" and any(word in text.lower() for word in ['wife', 'partner', 'husband']):
+                            # Find partner name from memories
+                            for memory in memories:
+                                if 'partner' in memory['content'].lower():
+                                    # Extract partner name
+                                    content = memory['content']
+                                    if 'partner is' in content.lower():
+                                        partner_name = content.split('partner is')[1].strip().split()[0]
+                                        logger.info(f"Found partner name: {partner_name}")
+                                        # Search for memories about the partner
+                                        partner_memories = MemoryManager.search_memories(user_id, partner_name, limit=5)
+                                        memories.extend(partner_memories)
+                                        logger.info(f"Added {len(partner_memories)} partner memories")
+                                        break
+                                        
                     elif subject != "unknown":
                         # Search for memories about the specific person
                         memories = MemoryManager.search_memories(user_id, subject, limit=10)
@@ -682,7 +709,8 @@ def process_text_message(text: str, message_data: dict):
                                 'work': ['work', 'job', 'company', 'office', 'employ', 'career'],
                                 'birthplace': ['born', 'birth', 'origin', 'from'],
                                 'food': ['eat', 'food', 'dish', 'meal', 'cook', 'restaurant'],
-                                'relationships': ['partner', 'wife', 'husband', 'family', 'friend']
+                                'relationships': ['partner', 'wife', 'husband', 'family', 'friend', 'anniversary'],
+                                'dates': ['anniversary', 'birthday', 'date', 'born']
                             }
                             
                             for intent_keyword in intent_keywords.get(intent, []):
@@ -718,7 +746,7 @@ def process_text_message(text: str, message_data: dict):
                             """
                             
                             response = simple_prompt_request(natural_response_prompt, user_id)
-                            send_response_with_context(user_id, text, response, 'search')
+                            send_response_with_context(user_id, text, response, 'other')
                             return ok
                         else:
                             logger.info(f"No relevant memories found for subject '{subject}' and intent '{intent}'")
@@ -726,17 +754,7 @@ def process_text_message(text: str, message_data: dict):
             except Exception as e:
                 logger.error(f"Error in AI-powered memory retrieval: {e}")
             
-            # If no personal memories found or not a personal query, proceed with web search
-            
-            # If no relevant memories found, proceed with web search
-            response = google_search_pipeline(text)
-            send_whatsapp_threaded(response)
-            return ok
-        elif operation_type == 'automation':
-            response = automation_command(text)
-            send_whatsapp_threaded(response)
-            return ok
-        else:
+            # Fallback to regular response generation
             # For very short messages like "Hi", use minimal context (name only) to avoid over-mentioning family
             if len(text.split()) <= 2 and len(text) <= 10:
                 response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.', user_id, minimal_context=True)
