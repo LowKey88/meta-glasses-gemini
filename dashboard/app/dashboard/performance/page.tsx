@@ -14,7 +14,8 @@ import {
   Bar,
   PieChart,
   Pie,
-  Cell
+  Cell,
+  Legend
 } from 'recharts';
 import { 
   Clock, 
@@ -161,7 +162,7 @@ export default function PerformancePage() {
           <select
             value={timeRange}
             onChange={(e) => setTimeRange(e.target.value)}
-            className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="1h">Last Hour</option>
             <option value="24h">Last 24 Hours</option>
@@ -324,13 +325,13 @@ export default function PerformancePage() {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Request Distribution</h3>
           {metrics?.categoryBreakdown && metrics.categoryBreakdown.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={350}>
               <PieChart>
                 <Pie
                   data={metrics.categoryBreakdown}
                   cx="50%"
-                  cy="50%"
-                  outerRadius={80}
+                  cy="45%"
+                  outerRadius={70}
                   dataKey="count"
                   nameKey="category"
                 >
@@ -342,11 +343,25 @@ export default function PerformancePage() {
                   ))}
                 </Pie>
                 <Tooltip 
+                  formatter={(value: any, name: string) => [value, name]}
+                  labelFormatter={(label: string) => `Category: ${label}`}
                   contentStyle={{
-                    backgroundColor: '#1F2937',
+                    backgroundColor: 'rgb(31 41 55)',
                     border: 'none',
                     borderRadius: '8px',
-                    color: '#F9FAFB'
+                    color: 'rgb(249 250 251)',
+                    fontSize: '14px'
+                  }}
+                  itemStyle={{
+                    color: 'rgb(249 250 251)'
+                  }}
+                />
+                <Legend 
+                  verticalAlign="bottom" 
+                  height={36}
+                  wrapperStyle={{
+                    paddingTop: '20px',
+                    fontSize: '12px'
                   }}
                 />
               </PieChart>
