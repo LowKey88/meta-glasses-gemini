@@ -333,7 +333,7 @@ def process_text_message(text: str, message_data: dict):
         return ok
     
     # Handle contextual shortcuts (but skip for personal memory queries)
-    personal_query_indicators = ['who', 'what', 'when', 'where', 'tell me about', 'my wife', 'my partner', 'my husband', 'anniversary', 'birthday', 'born']
+    personal_query_indicators = ['who', 'what', 'when', 'where', 'tell me about', 'my wife', 'my partner', 'my husband', 'anniversary', 'birthday', 'born', 'do you know', 'know about']
     is_likely_personal_query = any(indicator in text.lower() for indicator in personal_query_indicators)
     
     if not is_likely_personal_query:
