@@ -632,13 +632,19 @@ def process_text_message(text: str, message_data: dict):
                 
                 # Use Gemini to extract intent and subject from the query
                 intent_extraction_prompt = f"""
-                Analyze this query and extract the intent and subject:
+                Analyze this query and extract the intent and subject EXACTLY as mentioned:
                 Query: "{text}"
+                
+                IMPORTANT RULES:
+                1. Extract the EXACT name/subject mentioned in the query - DO NOT substitute or interpret
+                2. If someone asks "Do you know John?", the subject is "John" - not someone else
+                3. If someone asks "my wife/partner", the subject is "self"
+                4. Do NOT make assumptions or connections - be literal
                 
                 Respond in JSON format:
                 {{
                     "is_personal_query": true/false,
-                    "subject": "person_name" or "self" or "unknown",
+                    "subject": "exact_person_name_mentioned" or "self" or "unknown",
                     "intent": "specific_intent_category",
                     "keywords": ["relevant", "search", "terms"]
                 }}
@@ -718,6 +724,7 @@ def process_text_message(text: str, message_data: dict):
                         logger.info(f"Found {len(memories)} memories for {subject}")
                     
                     if memories:
+                        logger.info(f"Processing {len(memories)} memories for subject '{subject}'")
                         # Filter and rank memories by intent and keywords
                         relevant_memories = []
                         
@@ -793,6 +800,19 @@ def process_text_message(text: str, message_data: dict):
                             return ok
                         else:
                             logger.info(f"No relevant memories found for subject '{subject}' and intent '{intent}'")
+                            
+                            # Generate appropriate response for unknown person
+                            if subject != "self" and subject != "unknown":
+                                response = f"I don't have any information about {subject}."
+                                send_response_with_context(user_id, text, response, 'other')
+                                return ok
+                    else:
+                        # No memories found at all for this subject
+                        logger.info(f"No memories found for subject '{subject}'")
+                        if subject != "self" and subject != "unknown":
+                            response = f"I don't have any information about {subject}."
+                            send_response_with_context(user_id, text, response, 'other')
+                            return ok
                 
             except Exception as e:
                 logger.error(f"Error in AI-powered memory retrieval: {e}")
