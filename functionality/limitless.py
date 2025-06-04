@@ -263,11 +263,10 @@ Be specific and extract only clearly stated information."""
             for fact in extracted.get('facts', []):
                 if fact and len(fact) > 10:  # Skip very short facts
                     memory_text = f"From {title}: {fact}"
-                    success = await memory_manager.create_memory(
+                    success = memory_manager.create_memory(
                         user_id=phone_number,
-                        text=memory_text,
-                        memory_type='fact',
-                        metadata={'source': 'limitless', 'log_id': log_id}
+                        content=memory_text,
+                        memory_type='fact'
                     )
                     if success:
                         results['memories_created'] += 1
@@ -296,11 +295,10 @@ Be specific and extract only clearly stated information."""
             for person in extracted.get('people', []):
                 if person.get('name') and person.get('context'):
                     memory_text = f"{person['name']}: {person['context']}"
-                    await memory_manager.create_memory(
+                    memory_manager.create_memory(
                         user_id=phone_number,
-                        text=memory_text,
-                        memory_type='relationship',
-                        metadata={'source': 'limitless', 'log_id': log_id}
+                        content=memory_text,
+                        memory_type='relationship'
                     )
                 
         # Cache the processed Lifelog
@@ -406,16 +404,32 @@ Be conservative - only extract when you're confident it's a personal task/remind
         
         # Parse the response
         try:
-            # Clean up the response - remove markdown code blocks if present
+            # Handle mixed responses with explanation and JSON
             cleaned_response = response.strip()
-            if cleaned_response.startswith('```json'):
-                cleaned_response = cleaned_response.replace('```json', '').replace('```', '').strip()
-            elif cleaned_response.startswith('```'):
-                cleaned_response = cleaned_response.replace('```', '').strip()
+            
+            # Extract JSON from response if it contains ```json blocks
+            if '```json' in cleaned_response:
+                json_match = re.search(r'```json\s*(.*?)\s*```', cleaned_response, re.DOTALL)
+                if json_match:
+                    cleaned_response = json_match.group(1).strip()
+            elif '```' in cleaned_response:
+                json_match = re.search(r'```\s*(.*?)\s*```', cleaned_response, re.DOTALL)
+                if json_match:
+                    cleaned_response = json_match.group(1).strip()
+            
+            # Try to find JSON object in the response
+            if not cleaned_response.startswith('{'):
+                json_match = re.search(r'\{.*\}', cleaned_response, re.DOTALL)
+                if json_match:
+                    cleaned_response = json_match.group(0)
+                else:
+                    # No JSON found, return 0 tasks (this is normal for recordings without tasks)
+                    logger.debug(f"No JSON structure found in task response for log {log_id}, no tasks extracted")
+                    return 0
                 
             task_data = json.loads(cleaned_response)
         except json.JSONDecodeError:
-            logger.error(f"Failed to parse natural language task response for log {log_id}: {response}")
+            logger.debug(f"Failed to parse natural language task response for log {log_id}, no tasks extracted")
             return 0
         
         tasks_created = 0
