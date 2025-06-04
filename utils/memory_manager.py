@@ -167,9 +167,18 @@ class MemoryManager:
     @staticmethod
     @try_catch_decorator
     def get_memory(user_id: str, memory_id: str) -> Optional[Dict]:
-        """Retrieve a specific memory."""
+        """Retrieve a specific memory with fallback to old key pattern."""
+        # Try new key pattern first
         key = MemoryManager.get_memory_key(user_id, memory_id)
         data = monitored_get(key)
+        
+        # If not found, try old key pattern as fallback
+        if not data:
+            old_key = f"memory:{user_id}:{memory_id}"
+            data = monitored_get(old_key)
+            if data:
+                logger.info(f"Fallback: Found memory using old key {old_key}")
+                key = old_key  # Use old key for updates
         
         if data:
             memory = json.loads(data)
@@ -231,9 +240,16 @@ class MemoryManager:
     @staticmethod
     @try_catch_decorator
     def get_all_memories(user_id: str) -> List[Dict]:
-        """Get all memories for a user."""
+        """Get all memories for a user with fallback to old key patterns."""
+        # Try new key pattern first
         index_key = MemoryManager.get_index_key(user_id)
         memory_ids = monitored_smembers(index_key)
+        
+        # If no memories found with new pattern, try old pattern as fallback
+        if not memory_ids:
+            old_index_key = f"memory_index:{user_id}"
+            memory_ids = monitored_smembers(old_index_key)
+            logger.info(f"Fallback: Using old memory index key {old_index_key}, found {len(memory_ids)} memory IDs")
         
         memories = []
         for memory_id in memory_ids:
