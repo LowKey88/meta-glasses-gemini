@@ -5,6 +5,7 @@ import json
 from typing import Dict, Optional
 
 from utils.redis_utils import r, try_catch_decorator, delete_reminder, cleanup_expired_reminders
+from utils.redis_monitor import monitored_scan_iter, monitored_get, monitored_set, monitored_expireat
 from utils.whatsapp import send_whatsapp_message
 from utils.google_api import get_calendar_service
 
@@ -70,9 +71,9 @@ class ReminderManager:
         # Get all existing reminders from Redis
         existing_reminders = {}
         try:
-            for key in r.scan_iter(f"{REMINDER_KEY_PREFIX}*"):
+            for key in monitored_scan_iter(f"{REMINDER_KEY_PREFIX}*"):
                 event_id = key.decode().replace(REMINDER_KEY_PREFIX, "")
-                data = r.get(key)
+                data = monitored_get(key)
                 if data:
                     try:
                         existing_reminders[event_id] = json.loads(data)
@@ -170,11 +171,11 @@ class ReminderManager:
         
         # Store reminder data in Redis with expiration
         key = f"{REMINDER_KEY_PREFIX}{event_id}"
-        r.set(key, json.dumps(reminder_data))
+        monitored_set(key, json.dumps(reminder_data))
         
         # Set expiration for 1 hour after the meeting
         expiration = start_time + timedelta(hours=1)
-        r.expireat(key, int(expiration.timestamp()))
+        monitored_expireat(key, int(expiration.timestamp()))
         
         logger.info(f"Scheduled reminders for '{title}' at {start_time.strftime('%I:%M %p')}.")
         return True
@@ -208,7 +209,7 @@ class ReminderManager:
         elif reminder_type == "start":
             reminder_data["start_reminder_sent"] = True
             
-        r.set(key, json.dumps(reminder_data))
+        monitored_set(key, json.dumps(reminder_data))
         return True
 
     @staticmethod
@@ -220,8 +221,8 @@ class ReminderManager:
     def _collect_todays_events(now: datetime):
         """Collect all events scheduled for today."""
         todays_events = []
-        for key in r.scan_iter(f"{REMINDER_KEY_PREFIX}*"):
-            data = r.get(key)
+        for key in monitored_scan_iter(f"{REMINDER_KEY_PREFIX}*"):
+            data = monitored_get(key)
             if not data:
                 continue
                 
@@ -288,8 +289,8 @@ class ReminderManager:
                         ReminderManager.mark_reminder_sent(event["event_id"], "morning")
         
         # Handle individual reminders (hour before and start time)
-        for key in r.scan_iter(f"{REMINDER_KEY_PREFIX}*"):
-            data = r.get(key)
+        for key in monitored_scan_iter(f"{REMINDER_KEY_PREFIX}*"):
+            data = monitored_get(key)
             if not data:
                 continue
                 

@@ -3,6 +3,10 @@ import json
 from datetime import datetime, timedelta
 from typing import Dict, List
 from utils.redis_utils import r
+from utils.redis_monitor import (
+    monitored_hincrby, monitored_expire, monitored_hget, monitored_hset,
+    monitored_hkeys, monitored_exists
+)
 import logging
 
 logger = logging.getLogger("uvicorn")
@@ -14,20 +18,20 @@ class MetricsTracker:
         try:
             # Track daily count
             today_key = f"metrics:ai_requests:{datetime.now().strftime('%Y-%m-%d')}"
-            r.hincrby(today_key, model_type, 1)
-            r.expire(today_key, 86400 * 7)  # Keep for 7 days
+            monitored_hincrby(today_key, model_type, 1)
+            monitored_expire(today_key, 86400 * 7)  # Keep for 7 days
             
             # Track response time
             if response_time > 0:
                 rt_key = f"metrics:response_times:{datetime.now().strftime('%Y-%m-%d')}"
-                existing = r.hget(rt_key, model_type)
+                existing = monitored_hget(rt_key, model_type)
                 if existing:
                     times = json.loads(existing)
                     times.append(response_time)
                 else:
                     times = [response_time]
-                r.hset(rt_key, model_type, json.dumps(times[-100:]))  # Keep last 100
-                r.expire(rt_key, 86400 * 7)
+                monitored_hset(rt_key, model_type, json.dumps(times[-100:]))  # Keep last 100
+                monitored_expire(rt_key, 86400 * 7)
         except Exception as e:
             logger.error(f"Error tracking AI request: {e}")
     
@@ -37,13 +41,13 @@ class MetricsTracker:
         try:
             # Track hourly count
             hour_key = f"metrics:messages:{datetime.now().strftime('%Y-%m-%d-%H')}"
-            r.hincrby(hour_key, message_type, 1)
-            r.expire(hour_key, 86400 * 2)  # Keep for 2 days
+            monitored_hincrby(hour_key, message_type, 1)
+            monitored_expire(hour_key, 86400 * 2)  # Keep for 2 days
             
             # Track user activity
             user_key = f"metrics:user_activity:{datetime.now().strftime('%Y-%m-%d')}"
-            r.hincrby(user_key, user_id, 1)
-            r.expire(user_key, 86400 * 7)
+            monitored_hincrby(user_key, user_id, 1)
+            monitored_expire(user_key, 86400 * 7)
         except Exception as e:
             logger.error(f"Error tracking message: {e}")
     
@@ -53,8 +57,8 @@ class MetricsTracker:
         try:
             today_key = f"metrics:ai_requests:{datetime.now().strftime('%Y-%m-%d')}"
             total = 0
-            for model_type in r.hkeys(today_key):
-                count = r.hget(today_key, model_type)
+            for model_type in monitored_hkeys(today_key):
+                count = monitored_hget(today_key, model_type)
                 if count:
                     total += int(count)
             return total
@@ -87,9 +91,9 @@ class MetricsTracker:
                 
                 hour_total = 0
                 # Check if the key exists and sum all message types
-                if r.exists(hour_key):
-                    for msg_type in r.hkeys(hour_key):
-                        count = r.hget(hour_key, msg_type)
+                if monitored_exists(hour_key):
+                    for msg_type in monitored_hkeys(hour_key):
+                        count = monitored_hget(hour_key, msg_type)
                         if count:
                             hour_total += int(count)
                 
@@ -113,9 +117,9 @@ class MetricsTracker:
                 hour_time = now - timedelta(hours=i)
                 hour_key = f"metrics:messages:{hour_time.strftime('%Y-%m-%d-%H')}"
                 
-                if r.exists(hour_key):
-                    for msg_type in r.hkeys(hour_key):
-                        count = r.hget(hour_key, msg_type)
+                if monitored_exists(hour_key):
+                    for msg_type in monitored_hkeys(hour_key):
+                        count = monitored_hget(hour_key, msg_type)
                         if count:
                             total += int(count)
             
@@ -140,9 +144,9 @@ class MetricsTracker:
                 hour_time = today_start + timedelta(hours=i)
                 hour_key = f"metrics:messages:{hour_time.strftime('%Y-%m-%d-%H')}"
                 
-                if r.exists(hour_key):
-                    for msg_type in r.hkeys(hour_key):
-                        count = r.hget(hour_key, msg_type)
+                if monitored_exists(hour_key):
+                    for msg_type in monitored_hkeys(hour_key):
+                        count = monitored_hget(hour_key, msg_type)
                         if count:
                             total += int(count)
             
@@ -172,9 +176,9 @@ class MetricsTracker:
                     hour_time = day.replace(hour=hour, minute=0, second=0, microsecond=0)
                     hour_key = f"metrics:messages:{hour_time.strftime('%Y-%m-%d-%H')}"
                     
-                    if r.exists(hour_key):
-                        for msg_type in r.hkeys(hour_key):
-                            count = r.hget(hour_key, msg_type)
+                    if monitored_exists(hour_key):
+                        for msg_type in monitored_hkeys(hour_key):
+                            count = monitored_hget(hour_key, msg_type)
                             if count:
                                 day_total += int(count)
                 
@@ -211,9 +215,9 @@ class MetricsTracker:
                 if hour <= today.hour:
                     today_key = f"metrics:messages:{today.strftime('%Y-%m-%d')}-{hour:02d}"
                     today_total = 0
-                    if r.exists(today_key):
-                        for msg_type in r.hkeys(today_key):
-                            count = r.hget(today_key, msg_type)
+                    if monitored_exists(today_key):
+                        for msg_type in monitored_hkeys(today_key):
+                            count = monitored_hget(today_key, msg_type)
                             if count:
                                 today_total += int(count)
                     today_data[hour_label] = today_total
@@ -223,9 +227,9 @@ class MetricsTracker:
                 # Yesterday's data (all 24 hours)
                 yesterday_key = f"metrics:messages:{yesterday.strftime('%Y-%m-%d')}-{hour:02d}"
                 yesterday_total = 0
-                if r.exists(yesterday_key):
-                    for msg_type in r.hkeys(yesterday_key):
-                        count = r.hget(yesterday_key, msg_type)
+                if monitored_exists(yesterday_key):
+                    for msg_type in monitored_hkeys(yesterday_key):
+                        count = monitored_hget(yesterday_key, msg_type)
                         if count:
                             yesterday_total += int(count)
                 yesterday_data[hour_label] = yesterday_total

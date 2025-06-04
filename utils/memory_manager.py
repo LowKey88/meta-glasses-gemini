@@ -5,6 +5,7 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 from utils.redis_utils import r, try_catch_decorator
+from utils.redis_monitor import monitored_set, monitored_sadd, monitored_smembers, monitored_get
 
 logger = logging.getLogger("uvicorn")
 
@@ -152,11 +153,11 @@ class MemoryManager:
         
         # Store memory
         key = MemoryManager.get_memory_key(user_id, memory_id)
-        r.set(key, json.dumps(memory))
+        monitored_set(key, json.dumps(memory))
         
         # Update index
         index_key = MemoryManager.get_index_key(user_id)
-        r.sadd(index_key, memory_id)
+        monitored_sadd(index_key, memory_id)
         
         logger.info(f"Created memory {memory_id} for user {user_id}: {content[:50]}...")
         return memory_id
@@ -166,14 +167,14 @@ class MemoryManager:
     def get_memory(user_id: str, memory_id: str) -> Optional[Dict]:
         """Retrieve a specific memory."""
         key = MemoryManager.get_memory_key(user_id, memory_id)
-        data = r.get(key)
+        data = monitored_get(key)
         
         if data:
             memory = json.loads(data)
             # Update access stats
             memory['last_accessed'] = datetime.now().isoformat()
             memory['access_count'] += 1
-            r.set(key, json.dumps(memory))
+            monitored_set(key, json.dumps(memory))
             return memory
         
         return None
@@ -230,7 +231,7 @@ class MemoryManager:
     def get_all_memories(user_id: str) -> List[Dict]:
         """Get all memories for a user."""
         index_key = MemoryManager.get_index_key(user_id)
-        memory_ids = r.smembers(index_key)
+        memory_ids = monitored_smembers(index_key)
         
         memories = []
         for memory_id in memory_ids:
@@ -258,7 +259,7 @@ class MemoryManager:
         
         # Save updated memory
         key = MemoryManager.get_memory_key(user_id, memory_id)
-        r.set(key, json.dumps(memory))
+        monitored_set(key, json.dumps(memory))
         
         logger.info(f"Updated memory {memory_id} for user {user_id}")
         return True

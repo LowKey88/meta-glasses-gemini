@@ -3,6 +3,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 from utils.redis_utils import r, try_catch_decorator
+from utils.redis_monitor import monitored_get, monitored_set
 
 logger = logging.getLogger("uvicorn")
 
@@ -37,7 +38,7 @@ class ContextManager:
         }
         
         # Get existing history
-        history_data = r.get(key)
+        history_data = monitored_get(key)
         if history_data:
             history = json.loads(history_data)
         else:
@@ -49,7 +50,7 @@ class ContextManager:
             history = history[-HISTORY_LIMIT:]
         
         # Save back to Redis with TTL
-        r.set(key, json.dumps(history), ex=HISTORY_TTL)
+        monitored_set(key, json.dumps(history), ex=HISTORY_TTL)
         logger.debug(f"Added conversation history for user {user_id}")
     
     @staticmethod
@@ -58,7 +59,7 @@ class ContextManager:
         """Get recent conversation history for a user."""
         key = ContextManager.get_user_key(user_id, CONVERSATION_HISTORY_KEY)
         
-        history_data = r.get(key)
+        history_data = monitored_get(key)
         if not history_data:
             return []
         
@@ -72,7 +73,7 @@ class ContextManager:
         key = ContextManager.get_user_key(user_id, USER_PROFILE_KEY)
         
         # Get existing profile
-        existing_data = r.get(key)
+        existing_data = monitored_get(key)
         if existing_data:
             profile = json.loads(existing_data)
         else:
@@ -99,7 +100,7 @@ class ContextManager:
         profile["stats"]["total_messages"] = profile["stats"].get("total_messages", 0) + 1
         
         # Save profile (no expiry for user profiles)
-        r.set(ContextManager.get_user_key(user_id, USER_PROFILE_KEY), json.dumps(profile))
+        monitored_set(ContextManager.get_user_key(user_id, USER_PROFILE_KEY), json.dumps(profile))
         logger.debug(f"Updated user profile for {user_id}")
     
     @staticmethod
@@ -108,7 +109,7 @@ class ContextManager:
         """Get user profile data."""
         key = ContextManager.get_user_key(user_id, USER_PROFILE_KEY)
         
-        profile_data = r.get(key)
+        profile_data = monitored_get(key)
         if not profile_data:
             return None
         

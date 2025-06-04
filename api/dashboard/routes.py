@@ -99,11 +99,13 @@ async def get_dashboard_stats(user_id: str = "60122873632"):
             mem_type = memory.get('type', 'unknown')
             memory_by_type[mem_type] = memory_by_type.get(mem_type, 0) + 1
         
-        # Count Redis keys
-        redis_keys = len(r.keys("*"))
+        # Count Redis keys with monitoring
+        from utils.redis_monitor import redis_monitor
+        all_keys = redis_monitor.execute_with_monitoring("KEYS", "*", r.keys, "*")
+        redis_keys = len(all_keys)
         
-        # Count active reminders
-        reminder_keys = r.keys("josancamon:rayban-meta-glasses-api:reminder:*")
+        # Count active reminders with monitoring
+        reminder_keys = redis_monitor.execute_with_monitoring("KEYS", "josancamon:rayban-meta-glasses-api:reminder:*", r.keys, "josancamon:rayban-meta-glasses-api:reminder:*")
         active_reminders = len(reminder_keys)
         
         # Get today's message count from metrics
@@ -237,15 +239,20 @@ async def delete_memory(memory_id: str, user_id: str = "60122873632"):
 
 @dashboard_router.get("/redis/keys", dependencies=[Depends(verify_token)])
 async def get_redis_keys(pattern: str = "*", limit: int = 100):
-    """Get Redis keys matching pattern"""
+    """Get Redis keys matching pattern with monitoring"""
     try:
-        keys = r.keys(pattern)
+        from utils.redis_monitor import redis_monitor
+        
+        # Use monitored keys operation
+        keys = redis_monitor.execute_with_monitoring("KEYS", pattern, r.keys, pattern)
         keys = [k.decode() if isinstance(k, bytes) else k for k in keys][:limit]
         
         result = []
         for key in keys:
-            ttl = r.ttl(key)
-            key_type = r.type(key).decode() if hasattr(r.type(key), 'decode') else str(r.type(key))
+            # Use monitored operations for TTL and TYPE
+            ttl = redis_monitor.execute_with_monitoring("TTL", key, r.ttl, key)
+            key_type = redis_monitor.execute_with_monitoring("TYPE", key, r.type, key)
+            key_type = key_type.decode() if hasattr(key_type, 'decode') else str(key_type)
             
             result.append({
                 "key": key,
@@ -260,19 +267,22 @@ async def get_redis_keys(pattern: str = "*", limit: int = 100):
 
 @dashboard_router.get("/redis/key/{key:path}", dependencies=[Depends(verify_token)])
 async def get_redis_value(key: str):
-    """Get value of a specific Redis key"""
+    """Get value of a specific Redis key with monitoring"""
     try:
+        from utils.redis_monitor import redis_monitor
+        
         # URL decode the key since it comes encoded from the frontend
         from urllib.parse import unquote
         decoded_key = unquote(key)
         
-        if not r.exists(decoded_key):
+        if not redis_monitor.execute_with_monitoring("EXISTS", decoded_key, r.exists, decoded_key):
             raise HTTPException(status_code=404, detail=f"Key not found: {decoded_key}")
         
-        key_type = r.type(decoded_key).decode() if hasattr(r.type(decoded_key), 'decode') else str(r.type(decoded_key))
+        key_type = redis_monitor.execute_with_monitoring("TYPE", decoded_key, r.type, decoded_key)
+        key_type = key_type.decode() if hasattr(key_type, 'decode') else str(key_type)
         
         if key_type == "string":
-            value = r.get(decoded_key)
+            value = redis_monitor.execute_with_monitoring("GET", decoded_key, r.get, decoded_key)
             if isinstance(value, bytes):
                 try:
                     value = value.decode()
@@ -281,22 +291,24 @@ async def get_redis_value(key: str):
                 except (json.JSONDecodeError, UnicodeDecodeError):
                     pass
         elif key_type == "hash":
-            value = r.hgetall(decoded_key)
+            value = redis_monitor.execute_with_monitoring("HGETALL", decoded_key, r.hgetall, decoded_key)
             value = {k.decode(): v.decode() for k, v in value.items()}
         elif key_type == "list":
-            value = r.lrange(decoded_key, 0, -1)
+            value = redis_monitor.execute_with_monitoring("LRANGE", decoded_key, r.lrange, decoded_key, 0, -1)
             value = [v.decode() if isinstance(v, bytes) else v for v in value]
         elif key_type == "set":
-            value = r.smembers(decoded_key)
+            value = redis_monitor.execute_with_monitoring("SMEMBERS", decoded_key, r.smembers, decoded_key)
             value = [v.decode() if isinstance(v, bytes) else v for v in value]
         else:
             value = f"Unsupported type: {key_type}"
+        
+        ttl = redis_monitor.execute_with_monitoring("TTL", decoded_key, r.ttl, decoded_key)
         
         return {
             "key": decoded_key,
             "type": key_type,
             "value": value,
-            "ttl": r.ttl(decoded_key)
+            "ttl": ttl
         }
     except Exception as e:
         logger.error(f"Error getting Redis value: {e}")
@@ -304,17 +316,19 @@ async def get_redis_value(key: str):
 
 @dashboard_router.delete("/redis/key/{key:path}", dependencies=[Depends(verify_token)])
 async def delete_redis_key(key: str):
-    """Delete a specific Redis key"""
+    """Delete a specific Redis key with monitoring"""
     try:
+        from utils.redis_monitor import redis_monitor
+        
         # URL decode the key since it comes encoded from the frontend
         from urllib.parse import unquote
         decoded_key = unquote(key)
         
-        if not r.exists(decoded_key):
+        if not redis_monitor.execute_with_monitoring("EXISTS", decoded_key, r.exists, decoded_key):
             raise HTTPException(status_code=404, detail=f"Key not found: {decoded_key}")
         
-        # Delete the key
-        r.delete(decoded_key)
+        # Delete the key with monitoring
+        redis_monitor.execute_with_monitoring("DEL", decoded_key, r.delete, decoded_key)
         
         return {"message": f"Key '{decoded_key}' deleted successfully"}
     except Exception as e:
@@ -335,16 +349,18 @@ async def get_recent_messages(user_id: str = "60122873632", limit: int = 50):
 async def get_active_reminders():
     """Get all active reminders"""
     try:
-        reminder_keys = r.keys("josancamon:rayban-meta-glasses-api:reminder:*")
+        from utils.redis_monitor import redis_monitor
+        
+        reminder_keys = redis_monitor.execute_with_monitoring("KEYS", "josancamon:rayban-meta-glasses-api:reminder:*", r.keys, "josancamon:rayban-meta-glasses-api:reminder:*")
         reminders = []
         
         for key in reminder_keys:
             key_str = key.decode() if isinstance(key, bytes) else key
-            value = r.get(key_str)
+            value = redis_monitor.execute_with_monitoring("GET", key_str, r.get, key_str)
             if value:
                 try:
                     reminder_data = json.loads(value)
-                    ttl = r.ttl(key_str)
+                    ttl = redis_monitor.execute_with_monitoring("TTL", key_str, r.ttl, key_str)
                     reminder_data['ttl'] = ttl
                     reminder_data['key'] = key_str
                     reminders.append(reminder_data)
@@ -396,8 +412,9 @@ async def get_redis_info():
             maxmemory_mb = maxmemory / (1024 * 1024)
             maxmemory_human = f"{maxmemory_mb:.1f}MB"
         
-        # Get total keys count
-        total_keys = sum([r.dbsize() for db in range(16)])  # Redis has 16 databases by default
+        # Get total keys count with monitoring
+        from utils.redis_monitor import redis_monitor
+        total_keys = redis_monitor.execute_with_monitoring("DBSIZE", "db0", r.dbsize)  # Current database
         
         # Get connected clients
         connected_clients = info.get('connected_clients', 0)
@@ -421,62 +438,39 @@ async def get_redis_info():
 
 @dashboard_router.get("/redis/stats", dependencies=[Depends(verify_token)])
 async def get_redis_stats():
-    """Get Redis performance statistics"""
+    """Get Redis performance statistics with real-time monitoring data"""
     try:
-        # Get Redis stats
-        info = r.info('stats')
+        # Import the monitor here to avoid circular imports
+        from utils.redis_monitor import redis_monitor
         
-        # Get command statistics
+        # Get Redis server stats
+        info = r.info('stats')
         total_commands = info.get('total_commands_processed', 0)
         instantaneous_ops = info.get('instantaneous_ops_per_sec', 0)
         
-        # Get recent commands from Redis slowlog (if available)
-        try:
-            slowlog = r.slowlog_get(3)  # Get last 3 slow commands
-            recent_commands = []
-            
-            for entry in slowlog:
-                command_parts = entry.get('command', [])
-                if command_parts:
-                    command = command_parts[0].decode() if isinstance(command_parts[0], bytes) else str(command_parts[0])
-                    key = command_parts[1].decode() if len(command_parts) > 1 and isinstance(command_parts[1], bytes) else str(command_parts[1]) if len(command_parts) > 1 else ""
-                    duration_microseconds = entry.get('duration', 0)
-                    duration_ms = duration_microseconds / 1000
-                    
-                    # Truncate long keys
-                    if len(key) > 30:
-                        key = key[:27] + "..."
-                    
-                    recent_commands.append({
-                        "command": command.upper(),
-                        "key": key,
-                        "time": f"{duration_ms:.1f}ms"
-                    })
-            
-            # If no slow commands, create mock recent commands from common patterns
-            if not recent_commands:
-                recent_commands = [
-                    {"command": "GET", "key": "metrics:messages:today", "time": "1.2ms"},
-                    {"command": "HGET", "key": "user:60122873632", "time": "0.8ms"},
-                    {"command": "SET", "key": "cache:temp", "time": "0.5ms"}
-                ]
-                
-        except Exception:
-            # Fallback if slowlog is not available
-            recent_commands = [
-                {"command": "GET", "key": "metrics:messages:today", "time": "1.2ms"},
-                {"command": "HGET", "key": "user:60122873632", "time": "0.8ms"},
-                {"command": "SET", "key": "cache:temp", "time": "0.5ms"}
-            ]
+        # Get recent commands from our monitor
+        recent_commands = redis_monitor.get_recent_commands(limit=3)
         
-        # Calculate average latency (simplified)
-        avg_latency = "< 1ms" if instantaneous_ops > 1000 else "1-2ms"
+        # Get latency statistics from our monitor
+        latency_stats = redis_monitor.get_latency_stats()
+        
+        # If no monitored commands yet, provide some sample data
+        if not recent_commands:
+            recent_commands = [
+                {"command": "INFO", "key": "server", "time": "0.5ms"},
+                {"command": "DBSIZE", "key": "*", "time": "0.3ms"},
+                {"command": "KEYS", "key": "*", "time": "1.2ms"}
+            ]
         
         return {
             "total_commands": total_commands,
             "ops_per_sec": instantaneous_ops,
             "recent_commands": recent_commands,
-            "avg_latency": avg_latency
+            "avg_latency": latency_stats["avg_latency"],
+            "latency_data": latency_stats["latency_data"],
+            "min_latency": latency_stats["min_latency"],
+            "max_latency": latency_stats["max_latency"],
+            "sample_count": latency_stats["sample_count"]
         }
     except Exception as e:
         logger.error(f"Error getting Redis stats: {e}")
