@@ -98,10 +98,10 @@ export default function RedisPage() {
     fetchKeys();
     fetchRedisInfo();
     
-    // Auto-refresh every 5 seconds
+    // Auto-refresh every 60 seconds (1 minute)
     const interval = setInterval(() => {
       fetchRedisInfo();
-    }, 5000);
+    }, 60000);
     
     return () => clearInterval(interval);
   }, []);
@@ -178,7 +178,7 @@ export default function RedisPage() {
                 Redis Monitor
               </h1>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                Auto-refreshing every 5 seconds • Last update: {lastRefresh.toLocaleTimeString()}
+                Auto-refreshing every minute • Last update: {lastRefresh.toLocaleTimeString()}
               </p>
             </div>
           </div>
