@@ -274,18 +274,41 @@ async def search_lifelogs(
 
 
 @router.post("/sync")
-async def sync_limitless(user: str = Depends(verify_dashboard_token)) -> Dict[str, Any]:
+async def sync_limitless(
+    force: bool = False,
+    user: str = Depends(verify_dashboard_token)
+) -> Dict[str, Any]:
     """Manually trigger Limitless sync."""
     try:
         # Use a default phone number for dashboard sync
         phone_number = "dashboard_user"
+        
+        # If force sync, clear all processed flags first
+        if force:
+            logger.info("Force sync requested - clearing all processed flags")
+            cleared_count = 0
+            
+            # Clear processed flags
+            processed_pattern = RedisKeyBuilder.build_limitless_processed_key("*")
+            for key in redis_client.scan_iter(match=processed_pattern):
+                redis_client.delete(key)
+                cleared_count += 1
+            
+            # Clear task creation flags
+            task_pattern = RedisKeyBuilder.build_limitless_task_created_key("*")
+            for key in redis_client.scan_iter(match=task_pattern):
+                redis_client.delete(key)
+                cleared_count += 1
+                
+            logger.info(f"Cleared {cleared_count} processed/task flags for force re-sync")
         
         # Run sync synchronously to provide immediate feedback
         result = await sync_recent_lifelogs(phone_number, hours=None)  # No hour limit for initial sync
         
         return {
             "message": "Sync completed successfully", 
-            "result": result
+            "result": result,
+            "force_sync": force
         }
         
     except Exception as e:

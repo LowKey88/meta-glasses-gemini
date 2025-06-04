@@ -249,8 +249,9 @@ class ApiClient {
     return this.request(`/api/dashboard/limitless/search?q=${encodeURIComponent(query)}`);
   }
 
-  async syncLimitless(): Promise<{ message: string }> {
-    return this.request('/api/dashboard/limitless/sync', {
+  async syncLimitless(force: boolean = false): Promise<{ message: string; force_sync?: boolean }> {
+    const params = force ? '?force=true' : '';
+    return this.request(`/api/dashboard/limitless/sync${params}`, {
       method: 'POST'
     });
   }

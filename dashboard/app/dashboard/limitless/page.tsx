@@ -48,7 +48,7 @@ export default function LimitlessPage() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState('2025-06-05'); // Use June 5th as default since recordings exist on this date
 
   // Load stats and lifelogs
   const loadData = async () => {
@@ -74,17 +74,17 @@ export default function LimitlessPage() {
   };
 
   // Manual sync
-  const handleSync = async () => {
+  const handleSync = async (force = false) => {
     setSyncing(true);
     try {
-      await api.syncLimitless();
+      const result = await api.syncLimitless(force);
       toast({
         title: 'Success',
-        description: 'Limitless sync initiated'
+        description: force ? 'Force sync completed - all recordings re-processed' : 'Limitless sync initiated'
       });
       
       // Reload data after sync
-      setTimeout(loadData, 2000);
+      setTimeout(loadData, 3000);
     } catch (error) {
       console.error('Error syncing:', error);
       toast({
@@ -225,14 +225,25 @@ export default function LimitlessPage() {
               </div>
             )}
           </div>
-          <button
-            onClick={handleSync}
-            disabled={syncing || stats.sync_status === 'syncing'}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
-            Sync Now
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleSync(false)}
+              disabled={syncing || stats.sync_status === 'syncing'}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+              Sync Now
+            </button>
+            <button
+              onClick={() => handleSync(true)}
+              disabled={syncing || stats.sync_status === 'syncing'}
+              className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              title="Clear all processed flags and re-process all recordings"
+            >
+              <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+              Force Sync
+            </button>
+          </div>
         </div>
       </div>
 
