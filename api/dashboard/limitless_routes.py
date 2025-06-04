@@ -95,8 +95,6 @@ async def get_limitless_stats(user: str = Depends(verify_dashboard_token)) -> Di
                 lifelogs = await limitless_client.get_all_lifelogs(
                     start_time=None,
                     end_time=None,
-                    include_transcript=False,
-                    include_summary=False,
                     max_entries=10
                 )
                 
