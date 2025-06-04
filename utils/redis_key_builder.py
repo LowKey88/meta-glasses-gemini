@@ -239,6 +239,11 @@ class RedisKeyBuilder:
         return cls._build_key(cls.LIMITLESS, "processed", log_id)
     
     @classmethod
+    def build_limitless_task_created_key(cls, log_id: str) -> str:
+        """Generate key for tracking natural language tasks created from Lifelog."""
+        return cls._build_key(cls.LIMITLESS, "tasks", "created", log_id)
+    
+    @classmethod
     def get_all_limitless_keys_pattern(cls) -> str:
         """Get pattern to match all Limitless keys."""
         return cls._build_key(cls.LIMITLESS, "*")

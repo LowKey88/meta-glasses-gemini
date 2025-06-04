@@ -192,6 +192,10 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
         if not transcript:
             return results
             
+        # First, extract natural language tasks and reminders
+        natural_tasks_created = extract_natural_language_tasks(transcript, log_id, phone_number)
+        results['tasks_created'] += natural_tasks_created
+        
         # Use Gemini to extract structured information
         extraction_prompt = f"""Analyze this meeting transcript and extract:
 
@@ -324,6 +328,121 @@ def create_task_from_limitless(task_data: Dict, phone_number: str) -> bool:
     except Exception as e:
         logger.error(f"Error creating task: {str(e)}")
         return False
+
+
+def extract_natural_language_tasks(transcript: str, log_id: str, phone_number: str) -> int:
+    """
+    Extract natural language tasks and reminders from transcript.
+    
+    Detects spoken statements like:
+    - "remind me to..."
+    - "I need to..."  
+    - "my wife told me to buy..."
+    - "don't forget to..."
+    
+    Returns the number of tasks created.
+    """
+    try:
+        # Check if we've already processed this transcript for tasks
+        task_key = RedisKeyBuilder.build_limitless_task_created_key(log_id)
+        if redis_client.exists(task_key):
+            logger.info(f"Natural language tasks already extracted for log {log_id}")
+            return 0
+        
+        # Use Gemini to detect natural language task instructions
+        task_detection_prompt = f"""Analyze this conversation transcript and identify any natural language task or reminder instructions.
+
+Look for phrases like:
+- "remind me to..."
+- "I need to..."
+- "don't forget to..."
+- "my wife/husband told me to..."
+- "I should..."
+- "I have to..."
+- "make sure to..."
+- "remember to..."
+
+Transcript:
+{transcript[:4000]}
+
+Return a JSON object with detected tasks:
+{{
+    "tasks_found": true/false,
+    "natural_tasks": [
+        {{
+            "task_text": "exact task description",
+            "urgency": "high/medium/low",
+            "context": "who mentioned it or context"
+        }}
+    ]
+}}
+
+Only extract clear, actionable tasks. Ignore vague statements or general discussions.
+Be conservative - only extract when you're confident it's a personal task/reminder."""
+
+        response = simple_prompt_request(task_detection_prompt, phone_number)
+        
+        # Parse the response
+        try:
+            # Clean up the response - remove markdown code blocks if present
+            cleaned_response = response.strip()
+            if cleaned_response.startswith('```json'):
+                cleaned_response = cleaned_response.replace('```json', '').replace('```', '').strip()
+            elif cleaned_response.startswith('```'):
+                cleaned_response = cleaned_response.replace('```', '').strip()
+                
+            task_data = json.loads(cleaned_response)
+        except json.JSONDecodeError:
+            logger.error(f"Failed to parse natural language task response for log {log_id}: {response}")
+            return 0
+        
+        tasks_created = 0
+        
+        if task_data.get("tasks_found", False):
+            natural_tasks = task_data.get("natural_tasks", [])
+            
+            for task in natural_tasks:
+                task_text = task.get("task_text", "").strip()
+                urgency = task.get("urgency", "medium")
+                context = task.get("context", "")
+                
+                if task_text and len(task_text) > 5:  # Ensure meaningful task
+                    # Create the task
+                    task_title = f"{task_text}"
+                    task_notes = f"From Limitless recording - {context}" if context else "From Limitless recording"
+                    
+                    success = create_task_from_limitless({
+                        'title': task_title,
+                        'notes': task_notes
+                    }, phone_number)
+                    
+                    if success:
+                        tasks_created += 1
+                        logger.info(f"Created natural language task: {task_title}")
+                        
+                        # Send WhatsApp notification
+                        notification_msg = f"📝 *Task Created from Recording*\n\n✅ {task_title}\n\n_From your Limitless Pendant recording_"
+                        send_whatsapp_threaded(notification_msg)
+        
+        # Mark this transcript as processed for natural language tasks
+        redis_client.setex(
+            task_key,
+            86400 * 7,  # Keep for 7 days
+            json.dumps({
+                "processed_at": datetime.now().isoformat(),
+                "tasks_created": tasks_created,
+                "log_id": log_id
+            })
+        )
+        
+        if tasks_created > 0:
+            logger.info(f"Extracted {tasks_created} natural language tasks from log {log_id}")
+        
+        return tasks_created
+        
+    except Exception as e:
+        logger.error(f"Error extracting natural language tasks from log {log_id}: {str(e)}")
+        return 0
 
 
 async def get_today_lifelogs(phone_number: str) -> str:
