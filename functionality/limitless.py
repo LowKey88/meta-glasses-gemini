@@ -12,7 +12,7 @@ from utils.limitless_api import LimitlessAPIClient
 from utils.redis_utils import r as redis_client
 from utils.memory_manager import MemoryManager
 from utils.gemini import simple_prompt_request
-from utils.whatsapp import send_message
+from utils.whatsapp import send_whatsapp_threaded
 from utils.google_api import (
     create_event,
     search_events,
@@ -100,14 +100,14 @@ async def sync_recent_lifelogs(phone_number: str, hours: int = 24) -> str:
         
         # Get last sync timestamp
         last_sync_key = RedisKeyBuilder.build_limitless_sync_key(phone_number)
-        last_sync = await redis_client.get(last_sync_key)
+        last_sync = redis_client.get(last_sync_key)
         
         if last_sync:
-            last_sync_time = datetime.fromisoformat(last_sync)
+            last_sync_time = datetime.fromisoformat(last_sync.decode() if isinstance(last_sync, bytes) else last_sync)
             start_time = max(start_time, last_sync_time)
             
         # Fetch Lifelogs
-        await send_message(phone_number, "🔄 Syncing your Limitless recordings...")
+        send_whatsapp_threaded("🔄 Syncing your Limitless recordings...")
         
         lifelogs = await limitless_client.get_all_lifelogs(
             start_time=start_time,
@@ -128,7 +128,7 @@ async def sync_recent_lifelogs(phone_number: str, hours: int = 24) -> str:
             try:
                 # Check if already processed
                 processed_key = RedisKeyBuilder.build_limitless_processed_key(log['id'])
-                if await redis_client.exists(processed_key):
+                if redis_client.exists(processed_key):
                     continue
                     
                 # Process the Lifelog
@@ -139,7 +139,7 @@ async def sync_recent_lifelogs(phone_number: str, hours: int = 24) -> str:
                 processed_count += 1
                 
                 # Mark as processed
-                await redis_client.setex(
+                redis_client.setex(
                     processed_key,
                     86400 * 30,  # Keep for 30 days
                     "1"
@@ -153,7 +153,7 @@ async def sync_recent_lifelogs(phone_number: str, hours: int = 24) -> str:
                 continue
                 
         # Update last sync timestamp
-        await redis_client.set(last_sync_key, end_time.isoformat())
+        redis_client.set(last_sync_key, end_time.isoformat())
         
         # Build response
         response = f"""✅ *Limitless Sync Complete*
@@ -293,7 +293,7 @@ Be specific and extract only clearly stated information."""
             'processed_at': datetime.now().isoformat()
         }
         
-        await redis_client.setex(
+        redis_client.setex(
             cache_key,
             86400 * 7,  # Cache for 7 days
             json.dumps(cache_data)
@@ -424,7 +424,7 @@ async def search_lifelogs(query: str, phone_number: str) -> str:
         # Get all cached Lifelogs
         pattern = RedisKeyBuilder.build_limitless_lifelog_key("*")
         keys = []
-        async for key in redis_client.scan_iter(match=pattern):
+        for key in redis_client.scan_iter(match=pattern):
             keys.append(key)
             
         if not keys:
@@ -435,12 +435,12 @@ async def search_lifelogs(query: str, phone_number: str) -> str:
         
         # Search through cached data
         for key in keys:
-            data = await redis_client.get(key)
+            data = redis_client.get(key)
             if not data:
                 continue
                 
             try:
-                log_data = json.loads(data)
+                log_data = json.loads(data.decode() if isinstance(data, bytes) else data)
                 
                 # Search in title, summary, and extracted data
                 title = log_data.get('title', '').lower()
@@ -498,7 +498,7 @@ async def find_person_discussions(person_name: str, phone_number: str) -> str:
         # Search for the person in cached Lifelogs
         pattern = RedisKeyBuilder.build_limitless_lifelog_key("*")
         keys = []
-        async for key in redis_client.scan_iter(match=pattern):
+        for key in redis_client.scan_iter(match=pattern):
             keys.append(key)
             
         if not keys:
@@ -508,12 +508,12 @@ async def find_person_discussions(person_name: str, phone_number: str) -> str:
         person_lower = person_name.lower()
         
         for key in keys:
-            data = await redis_client.get(key)
+            data = redis_client.get(key)
             if not data:
                 continue
                 
             try:
-                log_data = json.loads(data)
+                log_data = json.loads(data.decode() if isinstance(data, bytes) else data)
                 extracted = log_data.get('extracted', {})
                 
                 # Check people mentioned

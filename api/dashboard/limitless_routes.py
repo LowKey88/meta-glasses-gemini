@@ -40,13 +40,13 @@ async def get_limitless_stats(user: str = Depends(verify_dashboard_token)) -> Di
         synced_today = 0
         today = datetime.now(timezone.utc).date()
         
-        async for key in redis_client.scan_iter(match=pattern):
+        for key in redis_client.scan_iter(match=pattern):
             total_lifelogs += 1
             # Check if synced today
-            data = await redis_client.get(key)
+            data = redis_client.get(key)
             if data:
                 try:
-                    log_data = json.loads(data)
+                    log_data = json.loads(data.decode() if isinstance(data, bytes) else data)
                     processed_at = log_data.get('processed_at')
                     if processed_at:
                         processed_date = datetime.fromisoformat(processed_at).date()
@@ -57,7 +57,7 @@ async def get_limitless_stats(user: str = Depends(verify_dashboard_token)) -> Di
         
         # Get last sync time
         sync_key = RedisKeyBuilder.build_limitless_sync_key("default")  # Using default user for now
-        last_sync = await redis_client.get(sync_key)
+        last_sync = redis_client.get(sync_key)
         
         # Get sync status (simplified for now)
         sync_status = 'idle'
@@ -68,11 +68,11 @@ async def get_limitless_stats(user: str = Depends(verify_dashboard_token)) -> Di
         
         # Count memories with limitless source
         memory_pattern = RedisKeyBuilder.get_user_memory_key("*", "*")
-        async for key in redis_client.scan_iter(match=memory_pattern):
-            data = await redis_client.get(key)
+        for key in redis_client.scan_iter(match=memory_pattern):
+            data = redis_client.get(key)
             if data:
                 try:
-                    memory_data = json.loads(data)
+                    memory_data = json.loads(data.decode() if isinstance(data, bytes) else data)
                     metadata = memory_data.get('metadata', {})
                     if metadata.get('source') == 'limitless':
                         memories_created += 1
@@ -98,7 +98,7 @@ async def get_limitless_stats(user: str = Depends(verify_dashboard_token)) -> Di
                 
                 for log in lifelogs:
                     processed_key = RedisKeyBuilder.build_limitless_processed_key(log['id'])
-                    if not await redis_client.exists(processed_key):
+                    if not redis_client.exists(processed_key):
                         pending_sync += 1
             except Exception as e:
                 logger.error(f"Error checking pending sync: {str(e)}")
@@ -135,13 +135,13 @@ async def get_lifelogs(
         pattern = RedisKeyBuilder.build_limitless_lifelog_key("*")
         lifelogs = []
         
-        async for key in redis_client.scan_iter(match=pattern):
-            data = await redis_client.get(key)
+        for key in redis_client.scan_iter(match=pattern):
+            data = redis_client.get(key)
             if not data:
                 continue
                 
             try:
-                log_data = json.loads(data)
+                log_data = json.loads(data.decode() if isinstance(data, bytes) else data)
                 
                 # Check if log is from target date
                 start_time = log_data.get('start_time')
@@ -201,13 +201,13 @@ async def search_lifelogs(
         matches = []
         query_lower = q.lower()
         
-        async for key in redis_client.scan_iter(match=pattern):
-            data = await redis_client.get(key)
+        for key in redis_client.scan_iter(match=pattern):
+            data = redis_client.get(key)
             if not data:
                 continue
                 
             try:
-                log_data = json.loads(data)
+                log_data = json.loads(data.decode() if isinstance(data, bytes) else data)
                 
                 # Search in title, summary, and extracted data
                 title = log_data.get('title', '').lower()
