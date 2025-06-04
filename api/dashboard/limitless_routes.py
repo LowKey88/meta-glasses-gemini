@@ -27,7 +27,7 @@ def verify_dashboard_token(authorization: Optional[str] = Header(None)):
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/dashboard/limitless", tags=["limitless"])
+router = APIRouter(prefix="/limitless", tags=["limitless"])
 
 
 @router.get("/stats")
