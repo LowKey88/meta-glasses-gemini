@@ -187,20 +187,37 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
         # Extract basic info
         log_id = log.get('id')
         title = log.get('title', 'Untitled Recording')
-        transcript = log.get('transcript', '')
-        summary = log.get('summary', '')
-        start_time = log.get('startTime')
-        end_time = log.get('endTime')
         
-        if not transcript:
-            return results
+        # Extract transcript from contents array
+        transcript = ''
+        contents = log.get('contents', [])
+        if contents and len(contents) > 0:
+            transcript = contents[0].get('content', '')
             
-        # First, extract natural language tasks and reminders
-        natural_tasks_created = extract_natural_language_tasks(transcript, log_id, phone_number)
-        results['tasks_created'] += natural_tasks_created
+        summary = log.get('summary', '')
+        start_time = log.get('start_time')  # API uses start_time not startTime
+        end_time = log.get('end_time')      # API uses end_time not endTime
         
-        # Use Gemini to extract structured information
-        extraction_prompt = f"""Analyze this meeting transcript and extract:
+        # Always cache the recording, even if no transcript
+        # Process transcript only if available
+        has_transcript = bool(transcript and transcript.strip())
+        
+        # Initialize extracted data structure
+        extracted = {
+            'facts': [],
+            'tasks': [],
+            'events': [],
+            'people': []
+        }
+        
+        # Only process transcript if available
+        if has_transcript:
+            # First, extract natural language tasks and reminders
+            natural_tasks_created = extract_natural_language_tasks(transcript, log_id, phone_number)
+            results['tasks_created'] += natural_tasks_created
+            
+            # Use Gemini to extract structured information
+            extraction_prompt = f"""Analyze this meeting transcript and extract:
 
 1. Key facts and decisions (for memory storage)
 2. Action items and tasks with deadlines
@@ -221,68 +238,68 @@ Return a JSON object with:
 
 Be specific and extract only clearly stated information."""
 
-        response = simple_prompt_request(extraction_prompt, phone_number)
-        
-        # Parse the response
-        try:
-            # Handle markdown-wrapped JSON
-            if "```json" in response:
-                json_match = re.search(r'```json\s*(.*?)\s*```', response, re.DOTALL)
-                if json_match:
-                    response = json_match.group(1)
-            elif "```" in response:
-                json_match = re.search(r'```\s*(.*?)\s*```', response, re.DOTALL)
-                if json_match:
-                    response = json_match.group(1)
-                    
-            extracted = json.loads(response)
-        except json.JSONDecodeError:
-            logger.error(f"Failed to parse Gemini response for Lifelog {log_id}")
-            return results
+            response = simple_prompt_request(extraction_prompt, phone_number)
             
-        # Store facts as memories
-        for fact in extracted.get('facts', []):
-            if fact and len(fact) > 10:  # Skip very short facts
-                memory_text = f"From {title}: {fact}"
-                success = await memory_manager.create_memory(
-                    user_id=phone_number,
-                    text=memory_text,
-                    memory_type='fact',
-                    metadata={'source': 'limitless', 'log_id': log_id}
-                )
-                if success:
-                    results['memories_created'] += 1
-                    
-        # Create tasks
-        for task in extracted.get('tasks', []):
-            if task.get('description'):
-                # Create Google Task
-                task_data = {
-                    'title': task['description'],
-                    'notes': f"From Limitless recording: {title}"
-                }
-                
-                if task.get('due_date'):
-                    try:
-                        due = datetime.strptime(task['due_date'], '%Y-%m-%d')
-                        task_data['due'] = due.isoformat() + 'Z'
-                    except:
-                        pass
+            # Parse the response
+            try:
+                # Handle markdown-wrapped JSON
+                if "```json" in response:
+                    json_match = re.search(r'```json\s*(.*?)\s*```', response, re.DOTALL)
+                    if json_match:
+                        response = json_match.group(1)
+                elif "```" in response:
+                    json_match = re.search(r'```\s*(.*?)\s*```', response, re.DOTALL)
+                    if json_match:
+                        response = json_match.group(1)
                         
-                success = create_task_from_limitless(task_data, phone_number)
-                if success:
-                    results['tasks_created'] += 1
+                extracted = json.loads(response)
+            except json.JSONDecodeError:
+                logger.error(f"Failed to parse Gemini response for Lifelog {log_id}")
+                # Continue with empty extracted data rather than returning
+                
+            # Store facts as memories
+            for fact in extracted.get('facts', []):
+                if fact and len(fact) > 10:  # Skip very short facts
+                    memory_text = f"From {title}: {fact}"
+                    success = await memory_manager.create_memory(
+                        user_id=phone_number,
+                        text=memory_text,
+                        memory_type='fact',
+                        metadata={'source': 'limitless', 'log_id': log_id}
+                    )
+                    if success:
+                        results['memories_created'] += 1
+                        
+            # Create tasks
+            for task in extracted.get('tasks', []):
+                if task.get('description'):
+                    # Create Google Task
+                    task_data = {
+                        'title': task['description'],
+                        'notes': f"From Limitless recording: {title}"
+                    }
                     
-        # Store people as relationship memories
-        for person in extracted.get('people', []):
-            if person.get('name') and person.get('context'):
-                memory_text = f"{person['name']}: {person['context']}"
-                await memory_manager.create_memory(
-                    user_id=phone_number,
-                    text=memory_text,
-                    memory_type='relationship',
-                    metadata={'source': 'limitless', 'log_id': log_id}
-                )
+                    if task.get('due_date'):
+                        try:
+                            due = datetime.strptime(task['due_date'], '%Y-%m-%d')
+                            task_data['due'] = due.isoformat() + 'Z'
+                        except:
+                            pass
+                            
+                    success = create_task_from_limitless(task_data, phone_number)
+                    if success:
+                        results['tasks_created'] += 1
+                        
+            # Store people as relationship memories
+            for person in extracted.get('people', []):
+                if person.get('name') and person.get('context'):
+                    memory_text = f"{person['name']}: {person['context']}"
+                    await memory_manager.create_memory(
+                        user_id=phone_number,
+                        text=memory_text,
+                        memory_type='relationship',
+                        metadata={'source': 'limitless', 'log_id': log_id}
+                    )
                 
         # Cache the processed Lifelog
         cache_key = RedisKeyBuilder.build_limitless_lifelog_key(log_id)
