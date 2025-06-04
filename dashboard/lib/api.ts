@@ -226,6 +226,34 @@ class ApiClient {
   }> {
     return this.request(`/api/dashboard/performance?range=${range}`);
   }
+
+  // Limitless endpoints
+  async getLimitlessStats(): Promise<{
+    total_lifelogs: number;
+    synced_today: number;
+    last_sync: string | null;
+    sync_status: 'idle' | 'syncing' | 'error';
+    memories_created: number;
+    tasks_created: number;
+    pending_sync: number;
+  }> {
+    return this.request('/api/dashboard/limitless/stats');
+  }
+
+  async getLimitlessLifelogs(date?: string): Promise<any[]> {
+    const params = date ? `?date=${date}` : '';
+    return this.request(`/api/dashboard/limitless/lifelogs${params}`);
+  }
+
+  async searchLimitlessLifelogs(query: string): Promise<any[]> {
+    return this.request(`/api/dashboard/limitless/search?q=${encodeURIComponent(query)}`);
+  }
+
+  async syncLimitless(): Promise<{ message: string }> {
+    return this.request('/api/dashboard/limitless/sync', {
+      method: 'POST'
+    });
+  }
 }
 
 export const api = new ApiClient();

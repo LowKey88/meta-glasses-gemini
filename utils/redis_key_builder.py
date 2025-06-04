@@ -27,6 +27,7 @@ class RedisKeyBuilder:
     STATE = "state"
     METRICS = "metrics"
     MONITOR = "monitor"
+    LIMITLESS = "limitless"
     
     @classmethod
     def _build_key(cls, *parts: str) -> str:
@@ -217,6 +218,30 @@ class RedisKeyBuilder:
     def get_all_monitoring_keys_pattern(cls) -> str:
         """Get pattern to match all monitoring keys."""
         return cls._build_key(cls.MONITOR, "*")
+    
+    # ====================
+    # LIMITLESS KEYS
+    # ====================
+    
+    @classmethod
+    def build_limitless_lifelog_key(cls, log_id: str) -> str:
+        """Generate key for cached Limitless Lifelog entry."""
+        return cls._build_key(cls.LIMITLESS, "lifelog", log_id)
+    
+    @classmethod
+    def build_limitless_sync_key(cls, user_id: str) -> str:
+        """Generate key for Limitless sync timestamp."""
+        return cls._build_key(cls.LIMITLESS, "sync", user_id)
+    
+    @classmethod
+    def build_limitless_processed_key(cls, log_id: str) -> str:
+        """Generate key for marking Lifelog as processed."""
+        return cls._build_key(cls.LIMITLESS, "processed", log_id)
+    
+    @classmethod
+    def get_all_limitless_keys_pattern(cls) -> str:
+        """Get pattern to match all Limitless keys."""
+        return cls._build_key(cls.LIMITLESS, "*")
     
     # ====================
     # LEGACY KEY SUPPORT (for migration)

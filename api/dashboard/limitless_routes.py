@@ -1,0 +1,274 @@
+"""
+Limitless dashboard API routes.
+"""
+from fastapi import APIRouter, Depends, HTTPException
+from datetime import datetime, timedelta, timezone
+import json
+import logging
+from typing import List, Dict, Optional, Any
+
+from api.dashboard.auth import verify_dashboard_token
+from utils.redis_utils import redis_client
+from utils.redis_key_builder import RedisKeyBuilder
+from functionality.limitless import sync_recent_lifelogs, limitless_client
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/dashboard/limitless", tags=["limitless"])
+
+
+@router.get("/stats")
+async def get_limitless_stats(user: str = Depends(verify_dashboard_token)) -> Dict[str, Any]:
+    """Get Limitless integration statistics."""
+    try:
+        # Get total cached Lifelogs
+        pattern = RedisKeyBuilder.build_limitless_lifelog_key("*")
+        total_lifelogs = 0
+        synced_today = 0
+        today = datetime.now(timezone.utc).date()
+        
+        async for key in redis_client.scan_iter(match=pattern):
+            total_lifelogs += 1
+            # Check if synced today
+            data = await redis_client.get(key)
+            if data:
+                try:
+                    log_data = json.loads(data)
+                    processed_at = log_data.get('processed_at')
+                    if processed_at:
+                        processed_date = datetime.fromisoformat(processed_at).date()
+                        if processed_date == today:
+                            synced_today += 1
+                except:
+                    pass
+        
+        # Get last sync time
+        sync_key = RedisKeyBuilder.build_limitless_sync_key("default")  # Using default user for now
+        last_sync = await redis_client.get(sync_key)
+        
+        # Get sync status (simplified for now)
+        sync_status = 'idle'
+        
+        # Count memories and tasks created from Limitless
+        memories_created = 0
+        tasks_created = 0
+        
+        # Count memories with limitless source
+        memory_pattern = RedisKeyBuilder.get_user_memory_key("*", "*")
+        async for key in redis_client.scan_iter(match=memory_pattern):
+            data = await redis_client.get(key)
+            if data:
+                try:
+                    memory_data = json.loads(data)
+                    metadata = memory_data.get('metadata', {})
+                    if metadata.get('source') == 'limitless':
+                        memories_created += 1
+                except:
+                    pass
+        
+        # Calculate pending sync (simplified - check last 24 hours)
+        pending_sync = 0
+        if limitless_client.api_key:
+            try:
+                # Get lifelogs from last 24 hours
+                end_time = datetime.now(timezone.utc)
+                start_time = end_time - timedelta(hours=24)
+                
+                # Check how many are not processed
+                lifelogs = await limitless_client.get_all_lifelogs(
+                    start_time=start_time,
+                    end_time=end_time,
+                    include_transcript=False,
+                    include_summary=False,
+                    max_entries=50
+                )
+                
+                for log in lifelogs:
+                    processed_key = RedisKeyBuilder.build_limitless_processed_key(log['id'])
+                    if not await redis_client.exists(processed_key):
+                        pending_sync += 1
+            except Exception as e:
+                logger.error(f"Error checking pending sync: {str(e)}")
+        
+        return {
+            "total_lifelogs": total_lifelogs,
+            "synced_today": synced_today,
+            "last_sync": last_sync,
+            "sync_status": sync_status,
+            "memories_created": memories_created,
+            "tasks_created": tasks_created,
+            "pending_sync": pending_sync
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting Limitless stats: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/lifelogs")
+async def get_lifelogs(
+    date: Optional[str] = None,
+    user: str = Depends(verify_dashboard_token)
+) -> List[Dict[str, Any]]:
+    """Get Lifelogs for a specific date."""
+    try:
+        # Parse date or use today
+        if date:
+            target_date = datetime.strptime(date, '%Y-%m-%d').date()
+        else:
+            target_date = datetime.now(timezone.utc).date()
+        
+        # Get cached Lifelogs
+        pattern = RedisKeyBuilder.build_limitless_lifelog_key("*")
+        lifelogs = []
+        
+        async for key in redis_client.scan_iter(match=pattern):
+            data = await redis_client.get(key)
+            if not data:
+                continue
+                
+            try:
+                log_data = json.loads(data)
+                
+                # Check if log is from target date
+                start_time = log_data.get('start_time')
+                if start_time:
+                    log_date = datetime.fromisoformat(start_time.replace('Z', '+00:00')).date()
+                    if log_date == target_date:
+                        # Format for frontend
+                        formatted_log = {
+                            'id': log_data.get('id'),
+                            'title': log_data.get('title', 'Untitled'),
+                            'summary': log_data.get('summary', ''),
+                            'start_time': log_data.get('start_time'),
+                            'end_time': log_data.get('end_time'),
+                            'duration_minutes': 0,
+                            'has_transcript': True,
+                            'processed': True,
+                            'extracted_data': log_data.get('extracted', {})
+                        }
+                        
+                        # Calculate duration
+                        if log_data.get('start_time') and log_data.get('end_time'):
+                            try:
+                                start = datetime.fromisoformat(log_data['start_time'].replace('Z', '+00:00'))
+                                end = datetime.fromisoformat(log_data['end_time'].replace('Z', '+00:00'))
+                                duration = (end - start).total_seconds() / 60
+                                formatted_log['duration_minutes'] = int(duration)
+                            except:
+                                pass
+                        
+                        lifelogs.append(formatted_log)
+                        
+            except json.JSONDecodeError:
+                continue
+        
+        # Sort by start time
+        lifelogs.sort(key=lambda x: x['start_time'] or '', reverse=True)
+        
+        return lifelogs
+        
+    except Exception as e:
+        logger.error(f"Error getting Lifelogs: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/search")
+async def search_lifelogs(
+    q: str,
+    user: str = Depends(verify_dashboard_token)
+) -> List[Dict[str, Any]]:
+    """Search Lifelogs by query."""
+    try:
+        if not q:
+            return []
+            
+        # Get all cached Lifelogs
+        pattern = RedisKeyBuilder.build_limitless_lifelog_key("*")
+        matches = []
+        query_lower = q.lower()
+        
+        async for key in redis_client.scan_iter(match=pattern):
+            data = await redis_client.get(key)
+            if not data:
+                continue
+                
+            try:
+                log_data = json.loads(data)
+                
+                # Search in title, summary, and extracted data
+                title = log_data.get('title', '').lower()
+                summary = log_data.get('summary', '').lower()
+                extracted = log_data.get('extracted', {})
+                
+                # Check if query matches
+                if (query_lower in title or 
+                    query_lower in summary or
+                    any(query_lower in fact.lower() for fact in extracted.get('facts', [])) or
+                    any(query_lower in task.get('description', '').lower() for task in extracted.get('tasks', [])) or
+                    any(query_lower in person.get('name', '').lower() or 
+                        query_lower in person.get('context', '').lower() 
+                        for person in extracted.get('people', []))):
+                    
+                    # Format for frontend
+                    formatted_log = {
+                        'id': log_data.get('id'),
+                        'title': log_data.get('title', 'Untitled'),
+                        'summary': log_data.get('summary', ''),
+                        'start_time': log_data.get('start_time'),
+                        'end_time': log_data.get('end_time'),
+                        'duration_minutes': 0,
+                        'has_transcript': True,
+                        'processed': True,
+                        'extracted_data': extracted
+                    }
+                    
+                    # Calculate duration
+                    if log_data.get('start_time') and log_data.get('end_time'):
+                        try:
+                            start = datetime.fromisoformat(log_data['start_time'].replace('Z', '+00:00'))
+                            end = datetime.fromisoformat(log_data['end_time'].replace('Z', '+00:00'))
+                            duration = (end - start).total_seconds() / 60
+                            formatted_log['duration_minutes'] = int(duration)
+                        except:
+                            pass
+                    
+                    matches.append(formatted_log)
+                    
+            except json.JSONDecodeError:
+                continue
+        
+        # Sort by relevance (simple approach - title matches first)
+        def relevance_score(log):
+            score = 0
+            if query_lower in log['title'].lower():
+                score += 10
+            if query_lower in log['summary'].lower():
+                score += 5
+            return score
+        
+        matches.sort(key=relevance_score, reverse=True)
+        
+        return matches[:20]  # Limit to 20 results
+        
+    except Exception as e:
+        logger.error(f"Error searching Lifelogs: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/sync")
+async def sync_limitless(user: str = Depends(verify_dashboard_token)) -> Dict[str, str]:
+    """Manually trigger Limitless sync."""
+    try:
+        # Use a default phone number for dashboard sync
+        phone_number = "dashboard_user"
+        
+        # Start sync in background
+        import asyncio
+        asyncio.create_task(sync_recent_lifelogs(phone_number, hours=24))
+        
+        return {"message": "Sync initiated successfully"}
+        
+    except Exception as e:
+        logger.error(f"Error initiating Limitless sync: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))

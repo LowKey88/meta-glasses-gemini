@@ -29,6 +29,10 @@ app_start_time = datetime.now()
 # Dashboard API Router
 dashboard_router = APIRouter(prefix=API_PREFIX, tags=["dashboard"])
 
+# Import Limitless router
+from .limitless_routes import router as limitless_router
+dashboard_router.include_router(limitless_router)
+
 class LoginRequest(BaseModel):
     password: str
 

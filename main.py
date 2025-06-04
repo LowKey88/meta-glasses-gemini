@@ -457,6 +457,22 @@ def process_text_message(text: str, message_data: dict):
         send_response_with_context(user_id, text, response, 'other')
         return ok
     
+    # Handle Limitless commands
+    if text_lower.startswith('sync limitless') or text_lower.startswith('limitless'):
+        from functionality.limitless import process_limitless_command
+        limitless_start = time.time()
+        try:
+            response = asyncio.run(process_limitless_command(text, user_id))
+            send_whatsapp_threaded(response)
+            limitless_time = time.time() - limitless_start
+            PerformanceTracker.track_response_performance("Limitless", limitless_time, True)
+        except Exception as e:
+            logger.error(f"Error in Limitless command: {str(e)}")
+            send_whatsapp_threaded("❌ Error processing Limitless command. Please check your API key.")
+            limitless_time = time.time() - limitless_start
+            PerformanceTracker.track_response_performance("Limitless", limitless_time, False)
+        return ok
+    
     # Handle cleanup command
     if text_lower == 'cleanup memories':
         cleaned_count = MemoryManager.cleanup_question_memories(user_id)
@@ -1051,6 +1067,36 @@ async def check_reminders_task():
             logger.error(f"Error checking reminders: {str(e)}")
         await asyncio.sleep(60)  # Check every minute
 
+async def check_limitless_sync_task():
+    """Background task to periodically sync Limitless recordings."""
+    import os
+    from functionality.limitless import sync_recent_lifelogs
+    
+    # Check if Limitless is configured
+    if not os.getenv("LIMITLESS_API_KEY"):
+        logger.info("Limitless API key not configured, skipping sync task")
+        return
+        
+    sync_interval = int(os.getenv("LIMITLESS_SYNC_INTERVAL", "3600"))  # Default 1 hour
+    
+    logger.info(f"Starting Limitless sync task with interval: {sync_interval} seconds")
+    
+    while True:
+        try:
+            # Wait for the sync interval
+            await asyncio.sleep(sync_interval)
+            
+            # Perform sync for default user
+            logger.info("Running scheduled Limitless sync...")
+            await sync_recent_lifelogs("scheduled_sync", hours=24)
+            logger.info("Scheduled Limitless sync completed")
+            
+        except Exception as e:
+            logger.error(f"Error in Limitless sync task: {str(e)}")
+            # Continue running even if there's an error
+            await asyncio.sleep(60)  # Wait a minute before retrying
+
+
 @app.on_event("startup")
 async def startup_event():
     """Start background tasks when the application starts."""
@@ -1071,9 +1117,14 @@ async def startup_event():
         except Exception as e:
             logger.error(f"Failed to initialize Google Tasks API: {e}")
         
-        # Start background task
+        # Start background tasks
         asyncio.create_task(check_reminders_task())
         logger.info("Started reminder checker background task.")
+        
+        # Start Limitless sync task if configured
+        if os.getenv("LIMITLESS_API_KEY"):
+            asyncio.create_task(check_limitless_sync_task())
+            logger.info("Started Limitless sync background task.")
         
         # Ensure all initializations are complete before marking startup as complete
         await asyncio.sleep(0)  # Allow other async tasks to complete
