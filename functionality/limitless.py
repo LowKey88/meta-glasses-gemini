@@ -263,11 +263,25 @@ Be specific and extract only clearly stated information."""
             for fact in extracted.get('facts', []):
                 if fact and len(fact) > 10:  # Skip very short facts
                     memory_text = f"From {title}: {fact}"
-                    success = memory_manager.create_memory(
+                    # Create memory and manually add metadata for tracking
+                    memory_id = memory_manager.create_memory(
                         user_id=phone_number,
                         content=memory_text,
                         memory_type='fact'
                     )
+                    
+                    # Add Limitless source metadata for dashboard stats
+                    if memory_id:
+                        memory_key = RedisKeyBuilder.get_user_memory_key(phone_number, memory_id)
+                        memory_data = redis_client.get(memory_key)
+                        if memory_data:
+                            memory_obj = json.loads(memory_data.decode() if isinstance(memory_data, bytes) else memory_data)
+                            memory_obj['metadata'] = memory_obj.get('metadata', {})
+                            memory_obj['metadata']['source'] = 'limitless'
+                            memory_obj['metadata']['log_id'] = log_id
+                            redis_client.set(memory_key, json.dumps(memory_obj))
+                        
+                        success = True
                     if success:
                         results['memories_created'] += 1
                         
@@ -295,11 +309,23 @@ Be specific and extract only clearly stated information."""
             for person in extracted.get('people', []):
                 if person.get('name') and person.get('context'):
                     memory_text = f"{person['name']}: {person['context']}"
-                    memory_manager.create_memory(
+                    memory_id = memory_manager.create_memory(
                         user_id=phone_number,
                         content=memory_text,
                         memory_type='relationship'
                     )
+                    
+                    # Add Limitless source metadata for dashboard stats
+                    if memory_id:
+                        memory_key = RedisKeyBuilder.get_user_memory_key(phone_number, memory_id)
+                        memory_data = redis_client.get(memory_key)
+                        if memory_data:
+                            memory_obj = json.loads(memory_data.decode() if isinstance(memory_data, bytes) else memory_data)
+                            memory_obj['metadata'] = memory_obj.get('metadata', {})
+                            memory_obj['metadata']['source'] = 'limitless'
+                            memory_obj['metadata']['log_id'] = log_id
+                            redis_client.set(memory_key, json.dumps(memory_obj))
+                            results['memories_created'] += 1
                 
         # Cache the processed Lifelog
         cache_key = RedisKeyBuilder.build_limitless_lifelog_key(log_id)
