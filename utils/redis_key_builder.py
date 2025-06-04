@@ -160,6 +160,16 @@ class RedisKeyBuilder:
         """Generate key for daily user activity."""
         return cls._build_key(cls.METRICS, "user_activity", date)
     
+    @classmethod
+    def get_performance_latency_key(cls, date: str, operation_type: str) -> str:
+        """Generate key for performance latency tracking by operation type."""
+        return cls._build_key(cls.METRICS, "performance", "latency", date, operation_type.replace(" ", "_").lower())
+    
+    @classmethod
+    def get_performance_count_key(cls, date: str, operation_type: str) -> str:
+        """Generate key for performance count tracking by operation type."""
+        return cls._build_key(cls.METRICS, "performance", "count", date, operation_type.replace(" ", "_").lower())
+    
     # ====================
     # MONITORING KEYS
     # ====================

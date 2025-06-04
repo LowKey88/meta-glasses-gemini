@@ -8,12 +8,14 @@ import {
   Brain, 
   Database, 
   LogOut,
-  Glasses
+  Glasses,
+  Activity
 } from 'lucide-react';
 
 const navigation = [
   { name: 'Overview', href: '/dashboard', icon: Home },
   { name: 'Memories', href: '/dashboard/memories', icon: Brain },
+  { name: 'Performance', href: '/dashboard/performance', icon: Activity },
   { name: 'Redis Monitor', href: '/dashboard/redis', icon: Database },
 ];
 

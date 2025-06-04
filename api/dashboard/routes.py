@@ -13,6 +13,7 @@ from utils.context_manager import ContextManager
 from utils.reminder import ReminderManager
 from utils.gemini import GEMINI_VISION_MODEL, GEMINI_CHAT_MODEL
 from utils.metrics import MetricsTracker
+from utils.performance_tracker import PerformanceTracker
 from utils.whatsapp_status import check_whatsapp_token_status
 from .config import (
     JWT_SECRET, DASHBOARD_PASSWORD, TOKEN_EXPIRY_HOURS,
@@ -477,4 +478,24 @@ async def get_redis_stats():
         }
     except Exception as e:
         logger.error(f"Error getting Redis stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@dashboard_router.get("/performance", dependencies=[Depends(verify_token)])
+async def get_performance_metrics(range: str = "24h"):
+    """Get response performance metrics"""
+    try:
+        # Parse time range
+        if range == "1h":
+            hours = 1
+        elif range == "24h":
+            hours = 24
+        elif range == "7d":
+            hours = 24 * 7
+        else:
+            hours = 24  # Default to 24 hours
+        
+        metrics = PerformanceTracker.get_performance_metrics(hours)
+        return metrics
+    except Exception as e:
+        logger.error(f"Error getting performance metrics: {e}")
         raise HTTPException(status_code=500, detail=str(e))

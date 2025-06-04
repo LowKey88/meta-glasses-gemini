@@ -38,6 +38,7 @@ from utils.whatsapp import send_whatsapp_threaded, send_whatsapp_image, download
 from utils.context_manager import ContextManager
 from utils.memory_manager import MemoryManager
 from utils.metrics import MetricsTracker
+from utils.performance_tracker import PerformanceTracker
 from api.dashboard import dashboard_router
 
 logging.basicConfig(level=logging.INFO)
@@ -510,124 +511,170 @@ def process_text_message(text: str, message_data: dict):
             send_whatsapp_threaded(analysis)
             return ok
         elif operation_type == 'task':
-            # Process task operations
-            task_input = determine_task_inputs(text.lower())
-            
-            if task_input['intent'] == 'check_tasks':
-                tasks = get_tasks(include_completed=task_input['include_completed'])
-                if not tasks:
-                    send_whatsapp_threaded("You don't have any tasks.")
-                else:
-                    # Reverse tasks to maintain creation order
-                    formatted_tasks = [format_task_for_display(task, i+1) for i, task in enumerate(reversed(tasks))]
-                    send_whatsapp_threaded("Here are your tasks:\n" + "\n".join(formatted_tasks))
-            
-            elif task_input['intent'] == 'create_task':
-                title = task_input.get('title', '').strip()
-                # Check for empty title or just "add task"
-                if not title or title.lower() == 'add task':
-                    send_whatsapp_threaded("Please add what to do. For example: add task buy groceries.")
-                    return ok
+            task_start = time.time()
+            try:
+                # Process task operations
+                task_input = determine_task_inputs(text.lower())
                 
-                # Create task with validated title
-                task = create_task(
-                    title=title,
-                    notes=task_input.get('notes', ''),
-                    due_date=task_input.get('due_date')
-                )
-                if task:
-                    tasks = get_tasks()  # Get all tasks to determine the new task's index
-                    # New task will be the last in the list
-                    send_whatsapp_threaded(f"Created task: {format_task_for_display(task, len(tasks))}")
-                else:
-                    send_whatsapp_threaded("Sorry, I couldn't create the task. Please try again.")
-            
-            elif task_input['intent'] == 'update_task':
-                tasks = get_tasks(include_completed=False)  # Get incomplete tasks
-                task_index = int(task_input['task_id'])  # This is actually the index number
-                tasks = list(reversed(tasks))  # Reverse to match display order
-                logger.info(f"Attempting to complete task {task_index} out of {len(tasks)} tasks")
-                if 1 <= task_index <= len(tasks):
-                    task = tasks[task_index - 1]  # Convert to 0-based index
-                    task_id = task.get('id')
-                    logger.info(f"Updating task {task_index} (ID: {task_id}): {task.get('title', '')}")
-                    if update_task_status(task['id'], task_input['completed']):
-                        send_whatsapp_threaded(f"Task {task_index} ({task.get('title', '')}) completed.")
+                if task_input['intent'] == 'check_tasks':
+                    tasks = get_tasks(include_completed=task_input['include_completed'])
+                    if not tasks:
+                        send_whatsapp_threaded("You don't have any tasks.")
                     else:
-                        send_whatsapp_threaded("Sorry, I couldn't update the task. Please try again.")
-                else:
-                    send_whatsapp_threaded(f"Task {task_index} not found. Please check the task number and try again.")
-            
-            elif task_input['intent'] == 'delete_task':
-                tasks = get_tasks(include_completed=False)  # Get incomplete tasks
-                task_index = int(task_input['task_id'])  # This is actually the index number
-                tasks = list(reversed(tasks))  # Reverse to match display order
-                logger.info(f"Attempting to delete task {task_index} out of {len(tasks)} tasks")
-                if 1 <= task_index <= len(tasks):
-                    task = tasks[task_index - 1]  # Convert to 0-based index
-                    task_id = task.get('id')
-                    logger.info(f"Deleting task {task_index} (ID: {task_id}): {task.get('title', '')}")
-                    if delete_task(task['id']):
-                        send_whatsapp_threaded(f"Task {task_index} ({task.get('title', '')}) deleted.")
+                        # Reverse tasks to maintain creation order
+                        formatted_tasks = [format_task_for_display(task, i+1) for i, task in enumerate(reversed(tasks))]
+                        send_whatsapp_threaded("Here are your tasks:\n" + "\n".join(formatted_tasks))
+                
+                elif task_input['intent'] == 'create_task':
+                    title = task_input.get('title', '').strip()
+                    # Check for empty title or just "add task"
+                    if not title or title.lower() == 'add task':
+                        send_whatsapp_threaded("Please add what to do. For example: add task buy groceries.")
+                        task_time = time.time() - task_start
+                        PerformanceTracker.track_response_performance("Task", task_time, True)
+                        return ok
+                    
+                    # Create task with validated title
+                    task = create_task(
+                        title=title,
+                        notes=task_input.get('notes', ''),
+                        due_date=task_input.get('due_date')
+                    )
+                    if task:
+                        tasks = get_tasks()  # Get all tasks to determine the new task's index
+                        # New task will be the last in the list
+                        send_whatsapp_threaded(f"Created task: {format_task_for_display(task, len(tasks))}")
                     else:
-                        send_whatsapp_threaded("Sorry, I couldn't delete the task. Please try again.")
+                        send_whatsapp_threaded("Sorry, I couldn't create the task. Please try again.")
+                
+                elif task_input['intent'] == 'update_task':
+                    tasks = get_tasks(include_completed=False)  # Get incomplete tasks
+                    task_index = int(task_input['task_id'])  # This is actually the index number
+                    tasks = list(reversed(tasks))  # Reverse to match display order
+                    logger.info(f"Attempting to complete task {task_index} out of {len(tasks)} tasks")
+                    if 1 <= task_index <= len(tasks):
+                        task = tasks[task_index - 1]  # Convert to 0-based index
+                        task_id = task.get('id')
+                        logger.info(f"Updating task {task_index} (ID: {task_id}): {task.get('title', '')}")
+                        if update_task_status(task['id'], task_input['completed']):
+                            send_whatsapp_threaded(f"Task {task_index} ({task.get('title', '')}) completed.")
+                        else:
+                            send_whatsapp_threaded("Sorry, I couldn't update the task. Please try again.")
+                    else:
+                        send_whatsapp_threaded(f"Task {task_index} not found. Please check the task number and try again.")
+                
+                elif task_input['intent'] == 'delete_task':
+                    tasks = get_tasks(include_completed=False)  # Get incomplete tasks
+                    task_index = int(task_input['task_id'])  # This is actually the index number
+                    tasks = list(reversed(tasks))  # Reverse to match display order
+                    logger.info(f"Attempting to delete task {task_index} out of {len(tasks)} tasks")
+                    if 1 <= task_index <= len(tasks):
+                        task = tasks[task_index - 1]  # Convert to 0-based index
+                        task_id = task.get('id')
+                        logger.info(f"Deleting task {task_index} (ID: {task_id}): {task.get('title', '')}")
+                        if delete_task(task['id']):
+                            send_whatsapp_threaded(f"Task {task_index} ({task.get('title', '')}) deleted.")
+                        else:
+                            send_whatsapp_threaded("Sorry, I couldn't delete the task. Please try again.")
+                    else:
+                        send_whatsapp_threaded(f"Task {task_index} not found. Please check the task number and try again.")
+                
                 else:
-                    send_whatsapp_threaded(f"Task {task_index} not found. Please check the task number and try again.")
-            
-            else:
-                send_whatsapp_threaded("I couldn't understand what you want to do with the task. Please try again.")
+                    send_whatsapp_threaded("I couldn't understand what you want to do with the task. Please try again.")
+                
+                task_time = time.time() - task_start
+                PerformanceTracker.track_response_performance("Task", task_time, True)
+            except Exception as e:
+                task_time = time.time() - task_start
+                PerformanceTracker.track_response_performance("Task", task_time, False)
+                raise e
             return ok
             
         elif operation_type == 'calendar':
-            # Get user's WhatsApp ID from the message data
-            phone_number = message_data.get('from') if isinstance(message_data, dict) else 'default'
-            calendar_input = determine_calendar_event_inputs(text, phone_number)
+            calendar_start = time.time()
+            try:
+                # Get user's WhatsApp ID from the message data
+                phone_number = message_data.get('from') if isinstance(message_data, dict) else 'default'
+                calendar_input = determine_calendar_event_inputs(text, phone_number)
 
-            # Handle calendar operations including cancellation
-            if calendar_input and calendar_input.get('intent') == 'cancel_event':
-                send_whatsapp_threaded(calendar_input['response'])
-                return ok
+                # Handle calendar operations including cancellation
+                if calendar_input and calendar_input.get('intent') == 'cancel_event':
+                    send_whatsapp_threaded(calendar_input['response'])
+                    calendar_time = time.time() - calendar_start
+                    PerformanceTracker.track_response_performance("Calendar", calendar_time, True)
+                    return ok
 
-            if calendar_input is None:
-                # If calendar processing returns None, fall through to default processing
-                response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.')
-                send_whatsapp_threaded(response)
-            elif calendar_input.get('response'):
-                # Handle helpful messages for basic commands
-                send_whatsapp_threaded(calendar_input['response'])
-            elif calendar_input['intent'] in ['check_schedule', 'cancel_event']:
-                send_whatsapp_threaded(calendar_input['response'])
-            else:  # intent == 'create_event'
-                # Use title as both title and description to ensure keywords are checked in both
-                title = calendar_input['title']
-                create_args = {
-                    'title': title,
-                    'description': title,  # Use title as description to ensure color keywords are checked
-                    'date': calendar_input['date'],
-                    'time': calendar_input['time'],
-                    'duration': calendar_input.get('duration', 1),  # Default to 1 hour if not specified
-                    'user_id': phone_number  # Pass user ID for context-aware duplicate detection
-                }
-                _, response_message = create_google_calendar_event(**create_args)
-                send_whatsapp_threaded(response_message)
+                if calendar_input is None:
+                    # If calendar processing returns None, fall through to default processing
+                    response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.')
+                    send_whatsapp_threaded(response)
+                elif calendar_input.get('response'):
+                    # Handle helpful messages for basic commands
+                    send_whatsapp_threaded(calendar_input['response'])
+                elif calendar_input['intent'] in ['check_schedule', 'cancel_event']:
+                    send_whatsapp_threaded(calendar_input['response'])
+                else:  # intent == 'create_event'
+                    # Use title as both title and description to ensure keywords are checked in both
+                    title = calendar_input['title']
+                    create_args = {
+                        'title': title,
+                        'description': title,  # Use title as description to ensure color keywords are checked
+                        'date': calendar_input['date'],
+                        'time': calendar_input['time'],
+                        'duration': calendar_input.get('duration', 1),  # Default to 1 hour if not specified
+                        'user_id': phone_number  # Pass user ID for context-aware duplicate detection
+                    }
+                    _, response_message = create_google_calendar_event(**create_args)
+                    send_whatsapp_threaded(response_message)
+                calendar_time = time.time() - calendar_start
+                PerformanceTracker.track_response_performance("Calendar", calendar_time, True)
+            except Exception as e:
+                calendar_time = time.time() - calendar_start
+                PerformanceTracker.track_response_performance("Calendar", calendar_time, False)
+                raise e
             return ok
         elif operation_type == 'notion':
-            arguments = determine_notion_page_inputs(text)
-            add_new_page(**arguments)
-            send_whatsapp_threaded('Notion page created successfully!')
+            notion_start = time.time()
+            try:
+                arguments = determine_notion_page_inputs(text)
+                add_new_page(**arguments)
+                send_whatsapp_threaded('Notion page created successfully!')
+                notion_time = time.time() - notion_start
+                PerformanceTracker.track_response_performance("Notion", notion_time, True)
+            except Exception as e:
+                notion_time = time.time() - notion_start
+                PerformanceTracker.track_response_performance("Notion", notion_time, False)
+                raise e
             return ok
         elif operation_type == 'search':
-            # For search operation type, proceed directly with web search
-            response = google_search_pipeline(text)
-            send_whatsapp_threaded(response)
+            search_start = time.time()
+            try:
+                # For search operation type, proceed directly with web search
+                response = google_search_pipeline(text)
+                send_whatsapp_threaded(response)
+                search_time = time.time() - search_start
+                PerformanceTracker.track_response_performance("Search", search_time, True)
+            except Exception as e:
+                search_time = time.time() - search_start
+                PerformanceTracker.track_response_performance("Search", search_time, False)
+                raise e
             return ok
         elif operation_type == 'automation':
-            response = automation_command(text)
-            send_whatsapp_threaded(response)
+            automation_start = time.time()
+            try:
+                response = automation_command(text)
+                send_whatsapp_threaded(response)
+                automation_time = time.time() - automation_start
+                PerformanceTracker.track_response_performance("Automation", automation_time, True)
+            except Exception as e:
+                automation_time = time.time() - automation_start
+                PerformanceTracker.track_response_performance("Automation", automation_time, False)
+                raise e
             return ok
         else:
-            # Use AI-first approach for memory retrieval in 'other' operation type
+            ai_start = time.time()
             try:
+                # Use AI-first approach for memory retrieval in 'other' operation type
                 logger.info(f"Processing 'other' query with AI intent extraction: {text}")
                 
                 # Use Gemini to extract intent and subject from the query
@@ -821,6 +868,8 @@ def process_text_message(text: str, message_data: dict):
                             
                             response = simple_prompt_request(natural_response_prompt, user_id)
                             send_response_with_context(user_id, text, response, 'other')
+                            ai_time = time.time() - ai_start
+                            PerformanceTracker.track_response_performance("AI Response", ai_time, True)
                             return ok
                         else:
                             logger.info(f"No relevant memories found for subject '{subject}' and intent '{intent}'")
@@ -829,6 +878,8 @@ def process_text_message(text: str, message_data: dict):
                             if subject != "self" and subject != "unknown":
                                 response = f"I don't have any information about {subject}."
                                 send_response_with_context(user_id, text, response, 'other')
+                                ai_time = time.time() - ai_start
+                                PerformanceTracker.track_response_performance("AI Response", ai_time, True)
                                 return ok
                     else:
                         # No memories found at all for this subject
@@ -836,22 +887,34 @@ def process_text_message(text: str, message_data: dict):
                         if subject != "self" and subject != "unknown":
                             response = f"I don't have any information about {subject}."
                             send_response_with_context(user_id, text, response, 'other')
+                            ai_time = time.time() - ai_start
+                            PerformanceTracker.track_response_performance("AI Response", ai_time, True)
                             return ok
                 
             except Exception as e:
                 logger.error(f"Error in AI-powered memory retrieval: {e}")
+                ai_time = time.time() - ai_start
+                PerformanceTracker.track_response_performance("AI Response", ai_time, False)
             
             # Fallback to regular response generation
-            # For very short messages like "Hi", use minimal context (name only) to avoid over-mentioning family
-            if len(text.split()) <= 2 and len(text) <= 10:
-                response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.', user_id, minimal_context=True)
-            else:
-                # For other messages, use full context
-                response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.', user_id)
-            send_response_with_context(user_id, text, response, 'other')
+            try:
+                # For very short messages like "Hi", use minimal context (name only) to avoid over-mentioning family
+                if len(text.split()) <= 2 and len(text) <= 10:
+                    response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.', user_id, minimal_context=True)
+                else:
+                    # For other messages, use full context
+                    response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.', user_id)
+                send_response_with_context(user_id, text, response, 'other')
+                ai_time = time.time() - ai_start
+                PerformanceTracker.track_response_performance("AI Response", ai_time, True)
+            except Exception as e:
+                ai_time = time.time() - ai_start
+                PerformanceTracker.track_response_performance("AI Response", ai_time, False)
+                raise e
             return ok
 
     except AssertionError:
+        ai_fallback_start = time.time()
         try:
             # For very short messages like "Hi", use minimal context (name only) to avoid over-mentioning family
             if len(text.split()) <= 2 and len(text) <= 10:
@@ -859,8 +922,12 @@ def process_text_message(text: str, message_data: dict):
             else:
                 response = simple_prompt_request(text + '. Respond like a friendly AI assistant in 10 to 15 words.', user_id)
             send_response_with_context(user_id, text, response, 'other')
+            ai_fallback_time = time.time() - ai_fallback_start
+            PerformanceTracker.track_response_performance("AI Response", ai_fallback_time, True)
             return ok
         except:
+            ai_fallback_time = time.time() - ai_fallback_start
+            PerformanceTracker.track_response_performance("AI Response", ai_fallback_time, False)
             error_messages = {
                 'image': ["image", "picture", "photo", "see"],
                 'calendar': ["schedule", "event", "remind", "calendar"],
@@ -890,22 +957,41 @@ def logic(message: dict):
             logger.info("Processing image message")
             user_id = message.get('from', 'unknown')
             MetricsTracker.track_message(user_id, "image")
-            logic_for_prompt_before_image(message)
-            image_path = download_file(message['image'])
-            if image_path:
-                try:
-                    ImageContext.last_image_path = image_path
-                    analysis = analyze_image(image_path)
-                    send_whatsapp_threaded(analysis)
-                except Exception as e:
-                    logger.error(f"Image analysis error: {e}")
-                    send_whatsapp_threaded("Sorry, I couldn't analyze that image.")
+            
+            image_start = time.time()
+            try:
+                logic_for_prompt_before_image(message)
+                image_path = download_file(message['image'])
+                if image_path:
+                    try:
+                        ImageContext.last_image_path = image_path
+                        analysis = analyze_image(image_path)
+                        send_whatsapp_threaded(analysis)
+                    except Exception as e:
+                        logger.error(f"Image analysis error: {e}")
+                        send_whatsapp_threaded("Sorry, I couldn't analyze that image.")
+                        raise e
+                image_time = time.time() - image_start
+                PerformanceTracker.track_response_performance("Image", image_time, True)
+            except Exception as e:
+                image_time = time.time() - image_start
+                PerformanceTracker.track_response_performance("Image", image_time, False)
+                raise e
             return ok
         elif message['type'] == 'audio':
             logger.info("Processing audio message")
             user_id = message.get('from', 'unknown')
             MetricsTracker.track_message(user_id, "audio")
-            result = retrieve_transcript_from_audio(message)
+            
+            audio_start = time.time()
+            try:
+                result = retrieve_transcript_from_audio(message)
+                audio_time = time.time() - audio_start
+                PerformanceTracker.track_response_performance("Other", audio_time, True)
+            except Exception as e:
+                audio_time = time.time() - audio_start
+                PerformanceTracker.track_response_performance("Other", audio_time, False)
+                raise e
         else:
             text = message['text']['body']
             logger.info(f"Processing text message: {text}")
