@@ -72,8 +72,9 @@ class ReminderManager:
         existing_reminders = {}
         try:
             for key in monitored_scan_iter(f"{REMINDER_KEY_PREFIX}*"):
-                event_id = key.decode().replace(REMINDER_KEY_PREFIX, "")
-                data = monitored_get(key)
+                key_str = key.decode() if isinstance(key, bytes) else key
+                event_id = key_str.replace(REMINDER_KEY_PREFIX, "")
+                data = monitored_get(key_str)
                 if data:
                     try:
                         existing_reminders[event_id] = json.loads(data)
@@ -222,12 +223,13 @@ class ReminderManager:
         """Collect all events scheduled for today."""
         todays_events = []
         for key in monitored_scan_iter(f"{REMINDER_KEY_PREFIX}*"):
-            data = monitored_get(key)
+            key_str = key.decode() if isinstance(key, bytes) else key
+            data = monitored_get(key_str)
             if not data:
                 continue
                 
             reminder_data = json.loads(data)
-            event_id = key.decode().replace(REMINDER_KEY_PREFIX, "")
+            event_id = key_str.replace(REMINDER_KEY_PREFIX, "")
             
             # Skip birthday events
             if "birthday" in reminder_data.get("title", "").lower():
@@ -290,12 +292,13 @@ class ReminderManager:
         
         # Handle individual reminders (hour before and start time)
         for key in monitored_scan_iter(f"{REMINDER_KEY_PREFIX}*"):
-            data = monitored_get(key)
+            key_str = key.decode() if isinstance(key, bytes) else key
+            data = monitored_get(key_str)
             if not data:
                 continue
                 
             reminder_data = json.loads(data)
-            event_id = key.decode().replace(REMINDER_KEY_PREFIX, "")
+            event_id = key_str.replace(REMINDER_KEY_PREFIX, "")
             
             # Skip birthday events
             if "birthday" in reminder_data.get("title", "").lower():

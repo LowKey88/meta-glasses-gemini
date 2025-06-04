@@ -24,6 +24,12 @@ class RedisMonitor:
     def _log_command(self, command: str, key: str, duration_ms: float, success: bool = True):
         """Log a Redis command with its execution time."""
         try:
+            # Ensure key is a string (handle bytes objects)
+            if isinstance(key, bytes):
+                key = key.decode('utf-8', errors='ignore')
+            elif not isinstance(key, str):
+                key = str(key)
+            
             # Truncate long keys for display
             display_key = key
             if len(key) > 30:
@@ -221,4 +227,16 @@ def monitored_smembers(key: str):
 
 def monitored_scan_iter(pattern: str = "*"):
     """Monitored Redis SCAN_ITER operation."""
-    return redis_monitor.execute_with_monitoring("SCAN", pattern, r.scan_iter, match=pattern)
+    # For scan_iter, we need to handle it differently since it returns an iterator
+    start_time = time.perf_counter()
+    try:
+        result = r.scan_iter(match=pattern)
+        end_time = time.perf_counter()
+        duration_ms = (end_time - start_time) * 1000
+        redis_monitor._log_command("SCAN", pattern, duration_ms, True)
+        return result
+    except Exception as e:
+        end_time = time.perf_counter()
+        duration_ms = (end_time - start_time) * 1000
+        redis_monitor._log_command("SCAN", pattern, duration_ms, False)
+        raise
