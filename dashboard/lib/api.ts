@@ -174,6 +174,32 @@ class ApiClient {
   async getSystemStats(): Promise<SystemStats> {
     return this.request<SystemStats>('/api/dashboard/stats');
   }
+
+  async getRedisInfo(): Promise<{
+    status: string;
+    uptime: string;
+    memory_used: string;
+    memory_total: string;
+    total_keys: number;
+    connected_clients: number;
+    redis_version: string;
+    uptime_seconds: number;
+  }> {
+    return this.request('/api/dashboard/redis/info');
+  }
+
+  async getRedisStats(): Promise<{
+    total_commands: number;
+    ops_per_sec: number;
+    recent_commands: Array<{
+      command: string;
+      key: string;
+      time: string;
+    }>;
+    avg_latency: string;
+  }> {
+    return this.request('/api/dashboard/redis/stats');
+  }
 }
 
 export const api = new ApiClient();

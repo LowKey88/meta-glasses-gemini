@@ -92,6 +92,11 @@ All notable changes to this project will be documented in this file.
   * Standardized memory types across frontend and backend
   * Added proper form validation and error handling
   * Fixed memory type badge contrast in dark mode
+  * Fixed WhatsApp bot memory retrieval for personal queries:
+    - Enhanced pattern detection for work, job, and personal questions
+    - Improved name extraction for queries like "where X work" and "do you know X"
+    - Ensured personal queries check memories before web search
+    - Fixed message type routing to prevent personal info web searches
 - Fixed Redis Monitor URL encoding issues with special characters
 - Corrected dashboard stats message count calculation
 - Fixed dark mode input field visibility
