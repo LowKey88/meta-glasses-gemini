@@ -30,12 +30,14 @@ All notable changes to this project will be documented in this file.
     - Token status indicators
     - Error reporting and diagnostics
   * Memory Management:
-    - CRUD operations for stored memories
+    - Full CRUD operations for stored memories (Create, Read, Update, Delete)
+    - Standardized memory types: fact, preference, relationship, routine, important_date, personal_info, allergy, note
     - Visual knowledge graph view with force-directed layout
     - Interactive entity relationship mapping
-    - Search and filter functionality
+    - Search and filter functionality by content and user
     - Enhanced memory editing with proper validation
     - Mobile-friendly interface with grid/graph view toggle
+    - Complete removal of unused tags functionality
   * Redis Monitor:
     - Browse and search Redis keys
     - View key values, types, and TTL
@@ -81,8 +83,15 @@ All notable changes to this project will be documented in this file.
 - **Memory Management**:
   * Fixed 422 Unprocessable Entity errors when editing memories
   * Resolved backend schema mismatch (memory_type vs type)
-  * Removed non-functional tags editing (backend limitation)
+  * Fixed 405 Method Not Allowed error for creating memories - added missing POST endpoint
+  * Completely removed tags functionality (not used in system):
+    - Removed tags field from create/edit forms
+    - Removed tags display from memory cards
+    - Removed tags from search filtering
+    - Cleaned up all tag-related code and imports
+  * Standardized memory types across frontend and backend
   * Added proper form validation and error handling
+  * Fixed memory type badge contrast in dark mode
 - Fixed Redis Monitor URL encoding issues with special characters
 - Corrected dashboard stats message count calculation
 - Fixed dark mode input field visibility

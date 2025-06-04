@@ -47,7 +47,8 @@ Based on the message type, execute some different requests to APIs or other tool
   * All follow-up questions about previously shown images
 
 - notion: anything related to storing a note, save an idea, notion, etc. 
-- search: types are related to anything with searching, finding, looking for, and it's about a recent event, or news etc. Also includes questions about dates/birthdays/anniversaries from memory.
+- search: types are related to web searching, finding online information, looking for news or recent events. Do NOT use for personal questions about people the user knows.
+- other: general conversation, personal questions about people (who is X, where X works, tell me about X), greetings, or anything that doesn't fit the above categories.
 - automation: types are related to querying states, checking status, or sending commands to home automation devices like gates, lights, doors, alarm, solar, tesla, etc.
 - task: types are related to:
    * Checking tasks or to-dos (e.g. "show my tasks", "what tasks do I have", "list todos")
@@ -163,10 +164,10 @@ def simple_prompt_request(message: str, user_id: str = None, minimal_context: bo
                         context_summary = f"User context: {context_summary}. "
                     
                     # For questions about people, search memories first
-                    if any(phrase in message.lower() for phrase in ['who is', 'what about', 'tell me about', 'how old', 'age of', 'birthday', 'when', 'born']):
+                    if any(phrase in message.lower() for phrase in ['who is', 'what about', 'tell me about', 'how old', 'age of', 'birthday', 'when', 'born', 'where', 'work', 'works', 'job', 'do you know', 'know about']):
                         # Extract names from the question (including lowercase names)
                         # Look for names after "who is", "what about", etc.
-                        name_pattern = r'(?:who is|what about|tell me about|when is|how old is|age of)\s+(\w+)'
+                        name_pattern = r'(?:who is|what about|tell me about|when is|how old is|age of|where.*?|do you know|know about)\s+(\w+)(?:\s+work)?'
                         names = re.findall(name_pattern, message.lower())
                         if not names:
                             # Fallback to general name pattern (capitalized words)
@@ -452,7 +453,8 @@ def retrieve_message_type_from_message(message: str, user_id: str = None) -> str
     question_patterns = [
         'who is', 'what about', 'tell me about', 'how old', 'age of', 
         'birthday', 'when', 'born', "when's", 'what date', 'what day',
-        'anniversary', 'how many years'
+        'anniversary', 'how many years', 'where', 'work', 'works', 'job',
+        'do you know', 'know about'
     ]
     
     # Check if message is a question about dates/birthdays/people
@@ -478,7 +480,7 @@ def retrieve_message_type_from_message(message: str, user_id: str = None) -> str
             
             # Extract names from the question (including lowercase names)
             # Look for names after "who is", "what about", etc.
-            name_pattern = r'(?:who is|what about|tell me about|how old is|age of|when.*?)\s+(\w+)'
+            name_pattern = r'(?:who is|what about|tell me about|how old is|age of|when.*?|where.*?|do you know|know about)\s+(\w+)(?:\s+work)?'
             names = re.findall(name_pattern, message.lower())
             if not names:
                 # Fallback to general name pattern (capitalized words)

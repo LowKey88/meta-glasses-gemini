@@ -507,10 +507,10 @@ def process_text_message(text: str, message_data: dict):
             import re
             
             # For personal questions, check memories first (NEVER web search for personal info)
-            if any(phrase in text.lower() for phrase in ['who is', 'what about', 'tell me about', 'when', 'birthday', 'born', 'how old', 'age']):
+            if any(phrase in text.lower() for phrase in ['who is', 'what about', 'tell me about', 'when', 'birthday', 'born', 'how old', 'age', 'where', 'work', 'works', 'job', 'do you know', 'know about']):
                 # Extract names from the question (including lowercase names)
                 # Look for names after "who is", "what about", etc.
-                name_pattern = r'(?:who is|what about|tell me about|when is|how old is|age of)\s+(\w+)'
+                name_pattern = r'(?:who is|what about|tell me about|when is|how old is|age of|where.*?|do you know|know about)\s+(\w+)(?:\s+work)?'
                 names = re.findall(name_pattern, text.lower())
                 if not names:
                     # Fallback to general name pattern (capitalized words)
