@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 from utils.redis_utils import r, try_catch_decorator
 from utils.redis_monitor import monitored_set, monitored_sadd, monitored_smembers, monitored_get
+from utils.redis_key_builder import redis_keys
 
 logger = logging.getLogger("uvicorn")
 
@@ -69,14 +70,14 @@ class MemoryManager:
     def get_memory_key(user_id: str, memory_id: str = None) -> str:
         """Generate Redis key for memory storage."""
         if memory_id:
-            return f"{MEMORY_KEY_PREFIX}{user_id}:{memory_id}"
-        return f"{MEMORY_KEY_PREFIX}{user_id}:*"
+            return redis_keys.get_user_memory_key(user_id, memory_id)
+        return redis_keys.get_all_user_keys_pattern(user_id).replace("*", "memory:*")
     
     @staticmethod
     @try_catch_decorator
     def get_index_key(user_id: str) -> str:
         """Generate Redis key for memory index."""
-        return f"{MEMORY_INDEX_KEY}{user_id}"
+        return redis_keys.get_user_memory_index_key(user_id)
     
     @staticmethod
     @try_catch_decorator

@@ -6,6 +6,7 @@ from typing import Dict, Optional
 
 from utils.redis_utils import r, try_catch_decorator, delete_reminder, cleanup_expired_reminders
 from utils.redis_monitor import monitored_scan_iter, monitored_get, monitored_set, monitored_expireat
+from utils.redis_key_builder import redis_keys
 from utils.whatsapp import send_whatsapp_message
 from utils.google_api import get_calendar_service
 
@@ -71,9 +72,11 @@ class ReminderManager:
         # Get all existing reminders from Redis
         existing_reminders = {}
         try:
-            for key in monitored_scan_iter(f"{REMINDER_KEY_PREFIX}*"):
+            pattern = redis_keys.get_all_reminder_keys_pattern()
+            for key in monitored_scan_iter(pattern):
                 key_str = key.decode() if isinstance(key, bytes) else key
-                event_id = key_str.replace(REMINDER_KEY_PREFIX, "")
+                # Extract event_id from new key format: meta-glasses:reminder:event:{event_id}
+                event_id = key_str.split(":")[-1]
                 data = monitored_get(key_str)
                 if data:
                     try:
@@ -171,7 +174,7 @@ class ReminderManager:
         }
         
         # Store reminder data in Redis with expiration
-        key = f"{REMINDER_KEY_PREFIX}{event_id}"
+        key = redis_keys.get_reminder_event_key(event_id)
         monitored_set(key, json.dumps(reminder_data))
         
         # Set expiration for 1 hour after the meeting
@@ -185,7 +188,7 @@ class ReminderManager:
     @try_catch_decorator
     def get_reminder(event_id: str) -> Optional[Dict]:
         """Get reminder data for an event."""
-        key = f"{REMINDER_KEY_PREFIX}{event_id}"
+        key = redis_keys.get_reminder_event_key(event_id)
         data = r.get(key)
         return json.loads(data) if data else None
 
@@ -193,7 +196,7 @@ class ReminderManager:
     @try_catch_decorator
     def mark_reminder_sent(event_id: str, reminder_type: str) -> bool:
         """Mark a specific reminder as sent."""
-        key = f"{REMINDER_KEY_PREFIX}{event_id}"
+        key = redis_keys.get_reminder_event_key(event_id)
         data = r.get(key)
         if not data:
             return False
@@ -222,14 +225,16 @@ class ReminderManager:
     def _collect_todays_events(now: datetime):
         """Collect all events scheduled for today."""
         todays_events = []
-        for key in monitored_scan_iter(f"{REMINDER_KEY_PREFIX}*"):
+        pattern = redis_keys.get_all_reminder_keys_pattern()
+        for key in monitored_scan_iter(pattern):
             key_str = key.decode() if isinstance(key, bytes) else key
             data = monitored_get(key_str)
             if not data:
                 continue
                 
             reminder_data = json.loads(data)
-            event_id = key_str.replace(REMINDER_KEY_PREFIX, "")
+            # Extract event_id from new key format: meta-glasses:reminder:event:{event_id}
+            event_id = key_str.split(":")[-1]
             
             # Skip birthday events
             if "birthday" in reminder_data.get("title", "").lower():
@@ -291,14 +296,16 @@ class ReminderManager:
                         ReminderManager.mark_reminder_sent(event["event_id"], "morning")
         
         # Handle individual reminders (hour before and start time)
-        for key in monitored_scan_iter(f"{REMINDER_KEY_PREFIX}*"):
+        pattern = redis_keys.get_all_reminder_keys_pattern()
+        for key in monitored_scan_iter(pattern):
             key_str = key.decode() if isinstance(key, bytes) else key
             data = monitored_get(key_str)
             if not data:
                 continue
                 
             reminder_data = json.loads(data)
-            event_id = key_str.replace(REMINDER_KEY_PREFIX, "")
+            # Extract event_id from new key format: meta-glasses:reminder:event:{event_id}
+            event_id = key_str.split(":")[-1]
             
             # Skip birthday events
             if "birthday" in reminder_data.get("title", "").lower():

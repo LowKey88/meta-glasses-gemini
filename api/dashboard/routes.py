@@ -18,6 +18,7 @@ from .config import (
     JWT_SECRET, DASHBOARD_PASSWORD, TOKEN_EXPIRY_HOURS,
     API_PREFIX, DEFAULT_USER_ID, DEFAULT_LIMIT, MAX_LIMIT
 )
+from utils.redis_key_builder import redis_keys
 
 logger = logging.getLogger("uvicorn")
 
@@ -105,7 +106,8 @@ async def get_dashboard_stats(user_id: str = "60122873632"):
         redis_keys = len(all_keys)
         
         # Count active reminders with monitoring
-        reminder_keys = redis_monitor.execute_with_monitoring("KEYS", "josancamon:rayban-meta-glasses-api:reminder:*", r.keys, "josancamon:rayban-meta-glasses-api:reminder:*")
+        reminder_pattern = redis_keys.get_all_reminder_keys_pattern()
+        reminder_keys = redis_monitor.execute_with_monitoring("KEYS", reminder_pattern, r.keys, reminder_pattern)
         active_reminders = len(reminder_keys)
         
         # Get today's message count from metrics
@@ -351,7 +353,8 @@ async def get_active_reminders():
     try:
         from utils.redis_monitor import redis_monitor
         
-        reminder_keys = redis_monitor.execute_with_monitoring("KEYS", "josancamon:rayban-meta-glasses-api:reminder:*", r.keys, "josancamon:rayban-meta-glasses-api:reminder:*")
+        pattern = redis_keys.get_all_reminder_keys_pattern()
+        reminder_keys = redis_monitor.execute_with_monitoring("KEYS", pattern, r.keys, pattern)
         reminders = []
         
         for key in reminder_keys:

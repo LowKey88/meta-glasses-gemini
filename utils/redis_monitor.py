@@ -13,6 +13,9 @@ from utils.redis_utils import r
 
 logger = logging.getLogger("uvicorn")
 
+# Import redis_keys after logger to avoid circular imports
+from .redis_key_builder import redis_keys
+
 class RedisMonitor:
     """Monitor Redis commands and track latency metrics."""
     
@@ -52,12 +55,12 @@ class RedisMonitor:
             # Also store in Redis for persistence across restarts
             try:
                 # Store last 20 commands in Redis
-                redis_key = "redis_monitor:recent_commands"
+                redis_key = redis_keys.get_redis_commands_key()
                 commands_list = list(self.recent_commands)[-20:]  # Keep last 20
                 r.set(redis_key, json.dumps(commands_list), ex=3600)  # Expire in 1 hour
                 
                 # Store latency samples
-                latency_key = "redis_monitor:latency_samples"
+                latency_key = redis_keys.get_redis_latency_key()
                 latency_list = list(self.latency_samples)[-50:]  # Keep last 50
                 r.set(latency_key, json.dumps(latency_list), ex=3600)
                 
@@ -91,7 +94,7 @@ class RedisMonitor:
         try:
             # Try to load from Redis first (for persistence)
             try:
-                redis_data = r.get("redis_monitor:recent_commands")
+                redis_data = r.get(redis_keys.get_redis_commands_key())
                 if redis_data:
                     stored_commands = json.loads(redis_data)
                     # Merge with in-memory commands
@@ -120,7 +123,7 @@ class RedisMonitor:
         try:
             # Try to load from Redis first
             try:
-                redis_data = r.get("redis_monitor:latency_samples")
+                redis_data = r.get(redis_keys.get_redis_latency_key())
                 if redis_data:
                     stored_samples = json.loads(redis_data)
                     all_samples = stored_samples + list(self.latency_samples)

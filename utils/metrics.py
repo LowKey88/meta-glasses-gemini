@@ -7,6 +7,7 @@ from utils.redis_monitor import (
     monitored_hincrby, monitored_expire, monitored_hget, monitored_hset,
     monitored_hkeys, monitored_exists
 )
+from utils.redis_key_builder import redis_keys
 import logging
 
 logger = logging.getLogger("uvicorn")
@@ -17,13 +18,13 @@ class MetricsTracker:
         """Track AI API request"""
         try:
             # Track daily count
-            today_key = f"metrics:ai_requests:{datetime.now().strftime('%Y-%m-%d')}"
+            today_key = redis_keys.get_ai_requests_key(datetime.now().strftime('%Y-%m-%d'))
             monitored_hincrby(today_key, model_type, 1)
             monitored_expire(today_key, 86400 * 7)  # Keep for 7 days
             
             # Track response time
             if response_time > 0:
-                rt_key = f"metrics:response_times:{datetime.now().strftime('%Y-%m-%d')}"
+                rt_key = redis_keys.get_response_times_key(datetime.now().strftime('%Y-%m-%d'))
                 existing = monitored_hget(rt_key, model_type)
                 if existing:
                     times = json.loads(existing)
@@ -40,12 +41,13 @@ class MetricsTracker:
         """Track WhatsApp message"""
         try:
             # Track hourly count
-            hour_key = f"metrics:messages:{datetime.now().strftime('%Y-%m-%d-%H')}"
+            now = datetime.now()
+            hour_key = redis_keys.get_messages_key(now.strftime('%Y-%m-%d'), now.strftime('%H'))
             monitored_hincrby(hour_key, message_type, 1)
             monitored_expire(hour_key, 86400 * 2)  # Keep for 2 days
             
             # Track user activity
-            user_key = f"metrics:user_activity:{datetime.now().strftime('%Y-%m-%d')}"
+            user_key = redis_keys.get_user_activity_key(now.strftime('%Y-%m-%d'))
             monitored_hincrby(user_key, user_id, 1)
             monitored_expire(user_key, 86400 * 7)
         except Exception as e:
@@ -55,7 +57,7 @@ class MetricsTracker:
     def get_ai_requests_today() -> int:
         """Get total AI requests for today"""
         try:
-            today_key = f"metrics:ai_requests:{datetime.now().strftime('%Y-%m-%d')}"
+            today_key = redis_keys.get_ai_requests_key(datetime.now().strftime('%Y-%m-%d'))
             total = 0
             for model_type in monitored_hkeys(today_key):
                 count = monitored_hget(today_key, model_type)
@@ -76,7 +78,7 @@ class MetricsTracker:
             # Iterate through each hour in the window (from oldest to newest)
             for i in range(hours - 1, -1, -1):
                 hour_time = now - timedelta(hours=i)
-                hour_key = f"metrics:messages:{hour_time.strftime('%Y-%m-%d-%H')}"
+                hour_key = redis_keys.get_messages_key(hour_time.strftime('%Y-%m-%d'), hour_time.strftime('%H'))
                 
                 # Create hour label with visual separation for different days
                 if hour_time.date() == now.date():
@@ -115,7 +117,7 @@ class MetricsTracker:
             # Sum messages from the last 24 hours
             for i in range(24):
                 hour_time = now - timedelta(hours=i)
-                hour_key = f"metrics:messages:{hour_time.strftime('%Y-%m-%d-%H')}"
+                hour_key = redis_keys.get_messages_key(hour_time.strftime('%Y-%m-%d'), hour_time.strftime('%H'))
                 
                 if monitored_exists(hour_key):
                     for msg_type in monitored_hkeys(hour_key):
@@ -142,7 +144,7 @@ class MetricsTracker:
             # Sum messages from midnight to now
             for i in range(hours_since_midnight):
                 hour_time = today_start + timedelta(hours=i)
-                hour_key = f"metrics:messages:{hour_time.strftime('%Y-%m-%d-%H')}"
+                hour_key = redis_keys.get_messages_key(hour_time.strftime('%Y-%m-%d'), hour_time.strftime('%H'))
                 
                 if monitored_exists(hour_key):
                     for msg_type in monitored_hkeys(hour_key):
@@ -174,7 +176,7 @@ class MetricsTracker:
                         break
                         
                     hour_time = day.replace(hour=hour, minute=0, second=0, microsecond=0)
-                    hour_key = f"metrics:messages:{hour_time.strftime('%Y-%m-%d-%H')}"
+                    hour_key = redis_keys.get_messages_key(hour_time.strftime('%Y-%m-%d'), hour_time.strftime('%H'))
                     
                     if monitored_exists(hour_key):
                         for msg_type in monitored_hkeys(hour_key):
@@ -213,7 +215,7 @@ class MetricsTracker:
                 
                 # Today's data (only up to current hour)
                 if hour <= today.hour:
-                    today_key = f"metrics:messages:{today.strftime('%Y-%m-%d')}-{hour:02d}"
+                    today_key = redis_keys.get_messages_key(today.strftime('%Y-%m-%d'), f"{hour:02d}")
                     today_total = 0
                     if monitored_exists(today_key):
                         for msg_type in monitored_hkeys(today_key):
@@ -225,7 +227,7 @@ class MetricsTracker:
                     today_data[hour_label] = 0
                 
                 # Yesterday's data (all 24 hours)
-                yesterday_key = f"metrics:messages:{yesterday.strftime('%Y-%m-%d')}-{hour:02d}"
+                yesterday_key = redis_keys.get_messages_key(yesterday.strftime('%Y-%m-%d'), f"{hour:02d}")
                 yesterday_total = 0
                 if monitored_exists(yesterday_key):
                     for msg_type in monitored_hkeys(yesterday_key):
