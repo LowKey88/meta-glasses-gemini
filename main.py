@@ -585,23 +585,89 @@ def process_text_message(text: str, message_data: dict):
             return ok
         elif operation_type == 'search':
             # Check memories first before web search
-            import re
+            
+            # Check for self-referential questions first
+            self_queries = ['where was i born', 'what do i like', 'where do i work', 'what i like', 'where i work', 'where i live', 'my job', 'my work', 'my birth']
+            if any(phrase in text.lower() for phrase in self_queries):
+                logger.info(f"Detected self-referential query: {text}")
+                user_memories = MemoryManager.get_all_memories(user_id)
+                logger.info(f"Found {len(user_memories)} total user memories")
+                
+                if user_memories:
+                    # Filter relevant memories based on the question
+                    relevant_memories = []
+                    text_lower = text.lower()
+                    
+                    for memory in user_memories:
+                        content_lower = memory['content'].lower()
+                        if ('born' in text_lower and 'born' in content_lower) or \
+                           ('work' in text_lower and 'work' in content_lower) or \
+                           ('like' in text_lower and 'like' in content_lower) or \
+                           ('eat' in text_lower and 'eat' in content_lower) or \
+                           ('watch' in text_lower and 'watch' in content_lower):
+                            relevant_memories.append(memory)
+                    
+                    logger.info(f"Found {len(relevant_memories)} relevant memories: {[m['content'] for m in relevant_memories]}")
+                    
+                    if relevant_memories:
+                        memory_context = "; ".join([m['content'] for m in relevant_memories])
+                        natural_response_prompt = f"""
+                        Question: "{text}"
+                        Memories about you: {memory_context}
+                        
+                        Answer the question naturally using the memory information. 
+                        Use "you" instead of the person's name since they're asking about themselves.
+                        Be conversational and personal.
+                        """
+                        
+                        response = simple_prompt_request(natural_response_prompt, user_id)
+                        send_response_with_context(user_id, text, response, 'search')
+                        return ok
             
             # For personal questions, check memories first (NEVER web search for personal info)
-            if any(phrase in text.lower() for phrase in ['who is', 'what about', 'tell me about', 'when', 'birthday', 'born', 'how old', 'age', 'where', 'work', 'works', 'job', 'do you know', 'know about']):
+            personal_query_triggers = ['who is', 'what about', 'tell me about', 'when', 'birthday', 'born', 'how old', 'age', 'where', 'work', 'works', 'job', 'do you know', 'know about', 'what', 'like', 'likes', 'eat', 'watch']
+            if any(phrase in text.lower() for phrase in personal_query_triggers):
+                logger.info(f"Detected personal query: {text}")
+                
                 # Extract names from the question (including lowercase names)
                 # Look for names after "who is", "what about", etc.
-                name_pattern = r'(?:who is|what about|tell me about|when is|how old is|age of|where.*?|do you know|know about)\s+(\w+)(?:\s+work)?'
+                name_pattern = r'(?:who is|what about|tell me about|when is|how old is|age of|where.*?|do you know|know about|what.*?|like.*?)\s+(\w+)(?:\s+work|born|like|eat|watch)?'
                 names = regex_module.findall(name_pattern, text.lower())
+                logger.info(f"Extracted names from pattern: {names}")
+                
                 if not names:
                     # Fallback to general name pattern (capitalized words)
                     name_pattern = r'\b[A-Z][a-z]+\b'
                     names = regex_module.findall(name_pattern, text)
+                    logger.info(f"Fallback name extraction: {names}")
+                
+                # Also try to extract names from common patterns like "hisyam like" or "where hisyam"
+                common_patterns = [
+                    r'\bhisyam\b',
+                    r'what\s+(\w+)\s+like',
+                    r'where\s+(\w+)\s+',
+                    r'(\w+)\s+like\s+',
+                    r'(\w+)\s+work\s+',
+                    r'(\w+)\s+born\s+',
+                    r'where\s+was\s+(\w+)\s+'
+                ]
+                
+                for pattern in common_patterns:
+                    matches = regex_module.findall(pattern, text.lower())
+                    if matches:
+                        names.extend(matches)
+                        logger.info(f"Found additional names with pattern '{pattern}': {matches}")
+                
+                # Remove duplicates and filter names
+                names = list(set([name.capitalize() for name in names if len(name) > 2]))
+                logger.info(f"Final processed names: {names}")
                 
                 for name in names:
-                    person_memories = MemoryManager.search_memories(user_id, name, limit=3)
+                    logger.info(f"Searching memories for: {name}")
+                    person_memories = MemoryManager.search_memories(user_id, name, limit=5)
+                    logger.info(f"Found {len(person_memories)} memories for {name}: {[m['content'] for m in person_memories]}")
+                    
                     if person_memories:
-                        logger.info(f"Found {len(person_memories)} memories for {name}: {[m['content'] for m in person_memories]}")
                         # Use AI to generate a natural response from memories
                         try:
                             memory_context = "; ".join([m['content'] for m in person_memories])
