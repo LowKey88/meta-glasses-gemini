@@ -263,6 +263,24 @@ Be specific and extract only clearly stated information."""
             for fact in extracted.get('facts', []):
                 if fact and len(fact) > 10:  # Skip very short facts
                     memory_text = f"From {title}: {fact}"
+                    
+                    # Check if memory already exists for this log_id and fact
+                    existing_memories = memory_manager.get_all_memories(phone_number)
+                    duplicate_found = False
+                    
+                    for existing_mem in existing_memories:
+                        metadata = existing_mem.get('metadata', {})
+                        # Check if same log_id and similar content
+                        if (metadata.get('source') == 'limitless' and 
+                            metadata.get('log_id') == log_id and
+                            fact.lower() in existing_mem.get('content', '').lower()):
+                            logger.info(f"Skipping duplicate Limitless memory for log {log_id}: {fact[:50]}...")
+                            duplicate_found = True
+                            break
+                    
+                    if duplicate_found:
+                        continue
+                    
                     # Create memory and manually add metadata for tracking
                     memory_id = memory_manager.create_memory(
                         user_id=phone_number,
@@ -309,6 +327,24 @@ Be specific and extract only clearly stated information."""
             for person in extracted.get('people', []):
                 if person.get('name') and person.get('context'):
                     memory_text = f"{person['name']}: {person['context']}"
+                    
+                    # Check if memory already exists for this log_id and person
+                    existing_memories = memory_manager.get_all_memories(phone_number)
+                    duplicate_found = False
+                    
+                    for existing_mem in existing_memories:
+                        metadata = existing_mem.get('metadata', {})
+                        # Check if same log_id and same person
+                        if (metadata.get('source') == 'limitless' and 
+                            metadata.get('log_id') == log_id and
+                            person['name'].lower() in existing_mem.get('content', '').lower()):
+                            logger.info(f"Skipping duplicate Limitless person for log {log_id}: {person['name']}")
+                            duplicate_found = True
+                            break
+                    
+                    if duplicate_found:
+                        continue
+                    
                     memory_id = memory_manager.create_memory(
                         user_id=phone_number,
                         content=memory_text,
