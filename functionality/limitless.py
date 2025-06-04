@@ -102,8 +102,6 @@ async def sync_recent_lifelogs(phone_number: str, hours: Optional[int] = 24) -> 
         lifelogs = await limitless_client.get_all_lifelogs(
             start_time=None,
             end_time=None,
-            include_transcript=True,
-            include_summary=True,
             max_entries=50  # Limit to prevent infinite loops
         )
         
@@ -459,9 +457,7 @@ async def get_today_lifelogs(phone_number: str) -> str:
         
         lifelogs = await limitless_client.get_all_lifelogs(
             start_time=today,
-            end_time=tomorrow,
-            include_transcript=False,  # Just summaries for listing
-            include_summary=True
+            end_time=tomorrow
         )
         
         if not lifelogs:
@@ -507,9 +503,7 @@ async def get_yesterday_lifelogs(phone_number: str) -> str:
         
         lifelogs = await limitless_client.get_all_lifelogs(
             start_time=yesterday,
-            end_time=today,
-            include_transcript=False,
-            include_summary=True
+            end_time=today
         )
         
         if not lifelogs:
@@ -705,9 +699,7 @@ async def get_daily_summary(date_str: Optional[str], phone_number: str) -> str:
         # Fetch Lifelogs for that day
         lifelogs = await limitless_client.get_all_lifelogs(
             start_time=target_date,
-            end_time=next_day,
-            include_transcript=False,
-            include_summary=True
+            end_time=next_day
         )
         
         if not lifelogs:
