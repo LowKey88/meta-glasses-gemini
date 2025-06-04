@@ -9,7 +9,7 @@ __version__ = '1.1.2'
 import json
 import logging
 import os
-import re
+import re as regex_module
 import threading
 import time
 import asyncio
@@ -185,7 +185,7 @@ def process_text_message(text: str, message_data: dict):
                 # Look for names in relationship or personal contexts
                 # Check if content mentions a name that could be the user's name
                 # Look for patterns like "Hisyam work at", "Hisyam partner", "Hisyam and"
-                name_match = re.search(r'\b([A-Z][a-z]+)\s+(?:work|partner|and|lives|is)', content)
+                name_match = regex_module.search(r'\b([A-Z][a-z]+)\s+(?:work|partner|and|lives|is)', content)
                 if name_match:
                     potential_name = name_match.group(1)
                     # Verify this isn't someone else's name by checking context
@@ -252,7 +252,7 @@ def process_text_message(text: str, message_data: dict):
                 if memory_sentences:
                     # Try to extract the name from the first memory
                     first_memory = memory_sentences[0]
-                    name_match = re.search(r'\b([A-Z][a-z]+)', first_memory)
+                    name_match = regex_module.search(r'\b([A-Z][a-z]+)', first_memory)
                     if name_match:
                         extracted_name = name_match.group(1)
                         response = f"Based on what I remember, you're {extracted_name}! I know that {'. I also remember that '.join(memory_sentences[:3])}."
@@ -592,11 +592,11 @@ def process_text_message(text: str, message_data: dict):
                 # Extract names from the question (including lowercase names)
                 # Look for names after "who is", "what about", etc.
                 name_pattern = r'(?:who is|what about|tell me about|when is|how old is|age of|where.*?|do you know|know about)\s+(\w+)(?:\s+work)?'
-                names = re.findall(name_pattern, text.lower())
+                names = regex_module.findall(name_pattern, text.lower())
                 if not names:
                     # Fallback to general name pattern (capitalized words)
                     name_pattern = r'\b[A-Z][a-z]+\b'
-                    names = re.findall(name_pattern, text)
+                    names = regex_module.findall(name_pattern, text)
                 
                 for name in names:
                     person_memories = MemoryManager.search_memories(user_id, name, limit=3)
