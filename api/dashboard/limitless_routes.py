@@ -81,7 +81,7 @@ async def get_limitless_stats(user: str = Depends(verify_dashboard_token)) -> Di
                 except:
                     pass
         
-        # Calculate pending sync (simplified - check last 24 hours)
+        # Calculate pending sync - check last 24 hours of recordings
         pending_sync = 0
         if limitless_client.api_key:
             try:
@@ -91,19 +91,29 @@ async def get_limitless_stats(user: str = Depends(verify_dashboard_token)) -> Di
                 
                 logger.info(f"Checking pending sync from {start_time} to {end_time}")
                 
-                # Check how many are not processed
-                # Try without date filtering first to test API connectivity
-                logger.info("Testing Limitless API without date filtering...")
+                # Get recordings from the actual time range (not just last 10)
                 lifelogs = await limitless_client.get_all_lifelogs(
-                    start_time=None,
-                    end_time=None,
-                    max_entries=10
+                    start_time=start_time,
+                    end_time=end_time,
+                    max_entries=50,  # Increased limit to catch more recordings
+                    include_markdown=False,  # Don't need full content for pending check
+                    include_headings=False
                 )
                 
+                logger.info(f"Found {len(lifelogs)} recordings in last 24 hours for pending check")
+                
                 for log in lifelogs:
-                    processed_key = RedisKeyBuilder.build_limitless_processed_key(log['id'])
+                    log_id = log.get('id', 'unknown')
+                    log_title = log.get('title', 'Untitled')
+                    processed_key = RedisKeyBuilder.build_limitless_processed_key(log_id)
+                    
                     if not redis_client.exists(processed_key):
                         pending_sync += 1
+                        logger.info(f"PENDING: Recording {log_id} ({log_title}) not processed yet")
+                    else:
+                        logger.debug(f"PROCESSED: Recording {log_id} ({log_title}) already processed")
+                        
+                logger.info(f"Final pending sync count: {pending_sync} out of {len(lifelogs)} recordings")
             except Exception as e:
                 logger.error(f"Error checking pending sync: {str(e)}")
         
