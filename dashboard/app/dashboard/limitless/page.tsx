@@ -74,13 +74,13 @@ export default function LimitlessPage() {
   };
 
   // Manual sync
-  const handleSync = async (force = false) => {
+  const handleSync = async () => {
     setSyncing(true);
     try {
-      const result = await api.syncLimitless(force);
+      const result = await api.syncLimitless();
       toast({
         title: 'Success',
-        description: force ? 'Force sync completed - all recordings re-processed' : 'Limitless sync initiated'
+        description: 'Limitless sync initiated'
       });
       
       // Reload data after sync
@@ -152,7 +152,7 @@ export default function LimitlessPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Limitless Integration</h1>
+        <h1 className="text-3xl font-bold mb-2 text-gray-900 dark:text-gray-100">Limitless Integration</h1>
         <p className="text-gray-600 dark:text-gray-400">
           Sync and manage your Limitless Pendant recordings
         </p>
@@ -164,7 +164,7 @@ export default function LimitlessPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Total Recordings</p>
-              <p className="text-2xl font-bold mt-1">{stats.total_lifelogs}</p>
+              <p className="text-2xl font-bold mt-1 text-gray-900 dark:text-gray-100">{stats.total_lifelogs}</p>
             </div>
             <Mic className="text-blue-500 w-8 h-8" />
           </div>
@@ -174,7 +174,7 @@ export default function LimitlessPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Synced Today</p>
-              <p className="text-2xl font-bold mt-1">{stats.synced_today}</p>
+              <p className="text-2xl font-bold mt-1 text-gray-900 dark:text-gray-100">{stats.synced_today}</p>
             </div>
             <Calendar className="text-green-500 w-8 h-8" />
           </div>
@@ -184,7 +184,7 @@ export default function LimitlessPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Memories Created</p>
-              <p className="text-2xl font-bold mt-1">{stats.memories_created}</p>
+              <p className="text-2xl font-bold mt-1 text-gray-900 dark:text-gray-100">{stats.memories_created}</p>
             </div>
             <CheckCircle className="text-purple-500 w-8 h-8" />
           </div>
@@ -194,7 +194,7 @@ export default function LimitlessPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Tasks Created</p>
-              <p className="text-2xl font-bold mt-1">{stats.tasks_created}</p>
+              <p className="text-2xl font-bold mt-1 text-gray-900 dark:text-gray-100">{stats.tasks_created}</p>
             </div>
             <Clock className="text-orange-500 w-8 h-8" />
           </div>
@@ -228,25 +228,14 @@ export default function LimitlessPage() {
               </div>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handleSync(false)}
-              disabled={syncing || stats.sync_status === 'syncing'}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
-              Sync Now
-            </button>
-            <button
-              onClick={() => handleSync(true)}
-              disabled={syncing || stats.sync_status === 'syncing'}
-              className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              title="Clear all processed flags and re-process all recordings"
-            >
-              <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
-              Force Sync
-            </button>
-          </div>
+          <button
+            onClick={handleSync}
+            disabled={syncing || stats.sync_status === 'syncing'}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+            Sync Now
+          </button>
         </div>
       </div>
 
@@ -286,12 +275,12 @@ export default function LimitlessPage() {
         {loading ? (
           <div className="text-center py-12">
             <RefreshCw className="w-8 h-8 animate-spin mx-auto text-gray-400" />
-            <p className="text-gray-500 mt-2">Loading recordings...</p>
+            <p className="text-gray-500 dark:text-gray-400 mt-2">Loading recordings...</p>
           </div>
         ) : lifelogs.length === 0 ? (
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-12 text-center">
             <Mic className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500">No recordings found</p>
+            <p className="text-gray-500 dark:text-gray-400">No recordings found</p>
           </div>
         ) : (
           lifelogs.map((log) => (
@@ -301,7 +290,7 @@ export default function LimitlessPage() {
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1">
-                  <h3 className="text-lg font-semibold mb-1">{log.title}</h3>
+                  <h3 className="text-lg font-semibold mb-1 text-gray-900 dark:text-gray-100">{log.title}</h3>
                   <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
                     <span>{formatTime(log.start_time)}</span>
                     <span>•</span>
@@ -348,7 +337,7 @@ export default function LimitlessPage() {
                           <li key={i}>
                             ✓ {task.description}
                             {task.due_date && (
-                              <span className="text-gray-500 ml-2">
+                              <span className="text-gray-500 dark:text-gray-400 ml-2">
                                 (Due: {new Date(task.due_date).toLocaleDateString()})
                               </span>
                             )}

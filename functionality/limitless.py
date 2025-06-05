@@ -197,8 +197,16 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
             transcript = contents[0].get('content', '')
             
         summary = log.get('summary', '')
-        start_time = log.get('start_time')  # API uses start_time not startTime
-        end_time = log.get('end_time')      # API uses end_time not endTime
+        
+        # Try different timestamp field names from API response
+        start_time = (log.get('start_time') or 
+                     log.get('startTime') or 
+                     log.get('createdAt') or 
+                     log.get('created_at'))
+        end_time = (log.get('end_time') or 
+                   log.get('endTime') or 
+                   log.get('updatedAt') or 
+                   log.get('updated_at'))
         
         # Always cache the recording, even if no transcript
         # Process transcript only if available
@@ -371,6 +379,7 @@ Be specific and extract only clearly stated information."""
             'summary': summary,
             'start_time': start_time,
             'end_time': end_time,
+            'created_at': log.get('createdAt') or log.get('created_at'),  # Store created_at as fallback
             'extracted': extracted,
             'processed_at': datetime.now().isoformat()
         }

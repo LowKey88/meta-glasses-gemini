@@ -55,9 +55,11 @@ async def get_limitless_stats(user: str = Depends(verify_dashboard_token)) -> Di
                 except:
                     pass
         
-        # Get last sync time
-        sync_key = RedisKeyBuilder.build_limitless_sync_key("default")  # Using default user for now
-        last_sync = redis_client.get(sync_key)
+        # Get last sync time - use same user_id as sync function
+        phone_number = "60122873632"
+        sync_key = RedisKeyBuilder.build_limitless_sync_key(phone_number)
+        last_sync_raw = redis_client.get(sync_key)
+        last_sync = last_sync_raw.decode() if isinstance(last_sync_raw, bytes) else last_sync_raw
         
         # Get sync status (simplified for now)
         sync_status = 'idle'
@@ -168,12 +170,17 @@ async def get_lifelogs(
                         should_include = True  # Include if date parsing fails
                 
                 if should_include:
-                    # Format for frontend
+                    # Format for frontend - use created_at as fallback for start_time
+                    start_time = log_data.get('start_time')
+                    if not start_time:
+                        # Try created_at or processed_at as fallback
+                        start_time = log_data.get('created_at') or log_data.get('processed_at')
+                    
                     formatted_log = {
                         'id': log_data.get('id'),
                         'title': log_data.get('title', 'Untitled'),
                         'summary': log_data.get('summary', ''),
-                        'start_time': log_data.get('start_time'),
+                        'start_time': start_time,
                         'end_time': log_data.get('end_time'),
                         'duration_minutes': 0,
                         'has_transcript': True,
@@ -244,12 +251,17 @@ async def search_lifelogs(
                         query_lower in person.get('context', '').lower() 
                         for person in extracted.get('people', []))):
                     
-                    # Format for frontend
+                    # Format for frontend - use created_at as fallback for start_time
+                    start_time = log_data.get('start_time')
+                    if not start_time:
+                        # Try created_at or processed_at as fallback
+                        start_time = log_data.get('created_at') or log_data.get('processed_at')
+                    
                     formatted_log = {
                         'id': log_data.get('id'),
                         'title': log_data.get('title', 'Untitled'),
                         'summary': log_data.get('summary', ''),
-                        'start_time': log_data.get('start_time'),
+                        'start_time': start_time,
                         'end_time': log_data.get('end_time'),
                         'duration_minutes': 0,
                         'has_transcript': True,
@@ -292,45 +304,20 @@ async def search_lifelogs(
 
 @router.post("/sync")
 async def sync_limitless(
-    force: bool = Query(False, description="Force re-sync by clearing all processed flags"),
     user: str = Depends(verify_dashboard_token)
 ) -> Dict[str, Any]:
     """Manually trigger Limitless sync."""
     try:
-        logger.info(f"Sync endpoint called with force={force}")
+        logger.info("Sync endpoint called")
         # Use the same user_id as the main dashboard
         phone_number = "60122873632"
-        
-        # If force sync, clear all processed flags first
-        if force:
-            logger.info("Force sync requested - clearing all processed flags")
-            cleared_count = 0
-            
-            # Clear processed flags - use proper pattern matching
-            processed_pattern = "meta-glasses:limitless:processed:*"
-            logger.info(f"Scanning for processed keys with pattern: {processed_pattern}")
-            for key in redis_client.scan_iter(match=processed_pattern):
-                logger.info(f"Deleting processed key: {key}")
-                redis_client.delete(key)
-                cleared_count += 1
-            
-            # Clear task creation flags - use proper pattern matching
-            task_pattern = "meta-glasses:limitless:tasks:created:*"
-            logger.info(f"Scanning for task keys with pattern: {task_pattern}")
-            for key in redis_client.scan_iter(match=task_pattern):
-                logger.info(f"Deleting task key: {key}")
-                redis_client.delete(key)
-                cleared_count += 1
-                
-            logger.info(f"Cleared {cleared_count} processed/task flags for force re-sync")
         
         # Run sync synchronously to provide immediate feedback
         result = await sync_recent_lifelogs(phone_number, hours=None)  # No hour limit for initial sync
         
         return {
             "message": "Sync completed successfully", 
-            "result": result,
-            "force_sync": force
+            "result": result
         }
         
     except Exception as e:
