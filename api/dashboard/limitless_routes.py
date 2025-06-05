@@ -314,12 +314,14 @@ async def sync_limitless(
 ) -> Dict[str, Any]:
     """Manually trigger Limitless sync."""
     try:
-        logger.info("Sync endpoint called")
+        logger.info("🔄 MANUAL SYNC ENDPOINT CALLED - Starting sync process...")
         # Use the same user_id as the main dashboard
         phone_number = "60122873632"
         
         # Run sync for last 12 hours to reduce API load and token usage
+        logger.info(f"📡 Calling sync_recent_lifelogs with user: {phone_number}, hours: 12")
         result = await sync_recent_lifelogs(phone_number, hours=12)
+        logger.info(f"✅ Manual sync completed with result: {result[:100]}...")
         
         return {
             "message": "Sync completed successfully", 

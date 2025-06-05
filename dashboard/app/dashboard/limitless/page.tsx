@@ -76,7 +76,9 @@ export default function LimitlessPage() {
   const handleSync = async () => {
     setSyncing(true);
     try {
+      console.log('Manual sync button clicked - calling API...');
       const result = await api.syncLimitless();
+      console.log('Sync API result:', result);
       toast({
         title: 'Success',
         description: 'Limitless sync initiated'
