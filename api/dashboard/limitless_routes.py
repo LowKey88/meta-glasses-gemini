@@ -81,6 +81,34 @@ async def get_limitless_stats(user: str = Depends(verify_dashboard_token)) -> Di
                 except:
                     pass
         
+        # Count tasks created from Limitless recordings
+        lifelog_pattern = RedisKeyBuilder.build_limitless_lifelog_key("*")
+        for key in redis_client.scan_iter(match=lifelog_pattern):
+            data = redis_client.get(key)
+            if data:
+                try:
+                    log_data = json.loads(data.decode() if isinstance(data, bytes) else data)
+                    extracted = log_data.get('extracted', {})
+                    
+                    # Count tasks from extracted data
+                    tasks_from_recording = extracted.get('tasks', [])
+                    tasks_created += len(tasks_from_recording)
+                    
+                except:
+                    pass
+        
+        # Also count natural language tasks from Redis cache
+        task_created_pattern = "meta-glasses:limitless:task_created:*"
+        for key in redis_client.scan_iter(match=task_created_pattern):
+            data = redis_client.get(key)
+            if data:
+                try:
+                    task_data = json.loads(data.decode() if isinstance(data, bytes) else data)
+                    tasks_from_nlp = task_data.get('tasks_created', 0)
+                    tasks_created += tasks_from_nlp
+                except:
+                    pass
+        
         # Get cached pending sync count (avoid API calls on page load)
         pending_sync_key = "meta-glasses:limitless:pending_sync_cache"
         cached_pending = redis_client.get(pending_sync_key)
@@ -95,6 +123,8 @@ async def get_limitless_stats(user: str = Depends(verify_dashboard_token)) -> Di
             # Only calculate pending sync if not cached (to avoid unnecessary API calls)
             pending_sync = 0
             logger.info("No cached pending sync count, showing 0 (will update after next sync)")
+        
+        logger.info(f"📊 Dashboard stats: total_lifelogs={total_lifelogs}, synced_today={synced_today}, memories_created={memories_created}, tasks_created={tasks_created}")
         
         return {
             "total_lifelogs": total_lifelogs,
@@ -312,7 +342,7 @@ async def sync_limitless(
             lifelogs = await limitless_client.get_all_lifelogs(
                 start_time=start_time,
                 end_time=end_time,
-                timezone_str="Asia/Kuala_Lumpur",  # Add timezone parameter
+                timezone_str="Asia/Kuala_Lumpur",  # FIXED: Add timezone parameter
                 max_entries=None,  # Remove limit to get accurate pending count
                 include_markdown=False,
                 include_headings=False
