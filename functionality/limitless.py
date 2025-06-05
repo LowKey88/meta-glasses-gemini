@@ -90,18 +90,22 @@ async def sync_recent_lifelogs(phone_number: str, hours: Optional[int] = 24) -> 
         hours: Number of hours to sync (default 24, None for all recordings)
     """
     try:
-        # For initial sync, get all recordings without date filtering
-        # to ensure we capture all available recordings
+        # Calculate time range based on hours parameter
         logger.info(f"Starting Limitless sync for user {phone_number}")
-        if hours is None:
-            logger.info("Fetching ALL recordings without date filtering for initial sync")
-        else:
-            logger.info(f"Fetching recordings from last {hours} hours")
+        start_time = None
+        end_time = None
         
-        # Fetch Lifelogs without date restrictions for initial sync
+        if hours is not None:
+            end_time = datetime.now(timezone.utc)
+            start_time = end_time - timedelta(hours=hours)
+            logger.info(f"Fetching recordings from last {hours} hours ({start_time} to {end_time})")
+        else:
+            logger.info("Fetching ALL recordings without date filtering for initial sync")
+        
+        # Fetch Lifelogs with time restrictions if specified
         lifelogs = await limitless_client.get_all_lifelogs(
-            start_time=None,
-            end_time=None,
+            start_time=start_time,
+            end_time=end_time,
             max_entries=10,  # Reduced limit to avoid API quota issues
             include_markdown=True,  # Include full transcript for processing
             include_headings=True

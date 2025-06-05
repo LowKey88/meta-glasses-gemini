@@ -48,7 +48,6 @@ export default function LimitlessPage() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedDate, setSelectedDate] = useState('2025-06-05'); // Use June 5th as default since recordings exist on this date
 
   // Load stats and lifelogs
   const loadData = async () => {
@@ -56,7 +55,7 @@ export default function LimitlessPage() {
       setLoading(true);
       const [statsRes, lifelogsRes] = await Promise.all([
         api.getLimitlessStats(),
-        api.getLimitlessLifelogs(selectedDate)
+        api.getLimitlessLifelogs()
       ]);
       
       setStats(statsRes);
@@ -119,11 +118,7 @@ export default function LimitlessPage() {
 
   useEffect(() => {
     loadData();
-    
-    // Refresh every 30 seconds
-    const interval = setInterval(loadData, 30000);
-    return () => clearInterval(interval);
-  }, [selectedDate]);
+  }, []);
 
   // Format time
   const formatTime = (isoString: string | null) => {
@@ -255,12 +250,6 @@ export default function LimitlessPage() {
               />
             </div>
           </div>
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
           <button
             onClick={handleSearch}
             className="px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"

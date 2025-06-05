@@ -124,16 +124,12 @@ async def get_limitless_stats(user: str = Depends(verify_dashboard_token)) -> Di
 
 @router.get("/lifelogs")
 async def get_lifelogs(
-    date: Optional[str] = None,
     user: str = Depends(verify_dashboard_token)
 ) -> List[Dict[str, Any]]:
-    """Get Lifelogs for a specific date."""
+    """Get today's Lifelogs."""
     try:
-        # Parse date or use today
-        if date:
-            target_date = datetime.strptime(date, '%Y-%m-%d').date()
-        else:
-            target_date = datetime.now(timezone.utc).date()
+        # Always use today's date
+        target_date = datetime.now(timezone.utc).date()
         
         # Get cached Lifelogs
         pattern = RedisKeyBuilder.build_limitless_lifelog_key("*")
@@ -312,8 +308,8 @@ async def sync_limitless(
         # Use the same user_id as the main dashboard
         phone_number = "60122873632"
         
-        # Run sync synchronously to provide immediate feedback
-        result = await sync_recent_lifelogs(phone_number, hours=None)  # No hour limit for initial sync
+        # Run sync for last 12 hours to reduce API load and token usage
+        result = await sync_recent_lifelogs(phone_number, hours=12)
         
         return {
             "message": "Sync completed successfully", 
