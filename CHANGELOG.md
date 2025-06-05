@@ -2,6 +2,58 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.6] - 2025-06-05
+
+### Major Improvements
+
+#### Limitless Integration Optimization
+- **Performance Enhancements**:
+  * Implemented Redis caching for pending sync counts (5-minute TTL)
+  * Eliminated unnecessary Limitless API calls on dashboard page load
+  * Fixed gateway timeout errors (504) from excessive API requests
+  * Reduced API rate limiting issues significantly
+
+- **Dashboard UX Improvements**:
+  * Removed confusing "Force Sync" button - kept only "Sync Now"
+  * Eliminated calendar date picker - interface now focuses on current recordings
+  * Stopped auto-refresh polling - manual refresh only on sync completion
+  * Fixed dark mode text visibility across all UI elements
+
+- **Sync Logic Fixes**:
+  * Corrected pending sync calculation time window (was checking wrong timeframe)
+  * Aligned manual sync window (24 hours) with pending count calculation
+  * Fixed accuracy of pending recordings count display
+  * Added detailed logging with emoji indicators for better debugging
+
+### Technical Changes
+
+#### Backend Optimizations
+- **API Endpoint Improvements**:
+  * `GET /api/dashboard/limitless/stats` now uses cached pending counts
+  * `POST /api/dashboard/limitless/sync` updates cache after completion
+  * Enhanced error handling and timeout prevention
+  * Better logging for sync operations and pending calculations
+
+#### Frontend Refinements
+- **React Component Updates**:
+  * Simplified `dashboard/app/dashboard/limitless/page.tsx` interface
+  * Removed unnecessary state management for date selection
+  * Improved button click handlers and API integration
+  * Enhanced TypeScript interfaces for better type safety
+
+#### Redis Caching Strategy
+- **New Cache Keys**:
+  * `meta-glasses:limitless:pending_sync_cache` - Stores pending count with 5-min TTL
+  * Automatic cache invalidation and updates after sync operations
+  * Prevents redundant API calls while maintaining data accuracy
+
+### Bug Fixes
+- Fixed incorrect pending sync count calculation logic
+- Resolved manual sync time window mismatch issue
+- Eliminated automatic API calls on dashboard page visits
+- Fixed dark mode text contrast problems
+- Corrected sync button functionality and response handling
+
 ## [1.1.5] - 2025-01-06
 
 ### Major Features
