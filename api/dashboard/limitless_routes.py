@@ -318,9 +318,9 @@ async def sync_limitless(
         # Use the same user_id as the main dashboard
         phone_number = "60122873632"
         
-        # Run sync for last 12 hours to reduce API load and token usage
-        logger.info(f"📡 Calling sync_recent_lifelogs with user: {phone_number}, hours: 12")
-        result = await sync_recent_lifelogs(phone_number, hours=12)
+        # Run sync for last 24 hours to match pending check window
+        logger.info(f"📡 Calling sync_recent_lifelogs with user: {phone_number}, hours: 24")
+        result = await sync_recent_lifelogs(phone_number, hours=24)
         logger.info(f"✅ Manual sync completed with result: {result[:100]}...")
         
         return {
