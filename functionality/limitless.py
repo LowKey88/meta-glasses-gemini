@@ -106,7 +106,7 @@ async def sync_recent_lifelogs(phone_number: str, hours: Optional[int] = 24) -> 
         lifelogs = await limitless_client.get_all_lifelogs(
             start_time=start_time,
             end_time=end_time,
-            max_entries=10,  # Reduced limit to avoid API quota issues
+            max_entries=50,  # Increased to match dashboard pending count logic
             include_markdown=True,  # Include full transcript for processing
             include_headings=True
         )
