@@ -96,7 +96,7 @@ async def sync_recent_lifelogs(phone_number: str, hours: Optional[int] = 24) -> 
         end_time = None
         
         if hours is not None:
-            end_time = datetime.now(timezone.utc)
+            end_time = datetime.now()
             start_time = end_time - timedelta(hours=hours)
             logger.info(f"Fetching recordings from last {hours} hours ({start_time} to {end_time})")
         else:
@@ -106,6 +106,7 @@ async def sync_recent_lifelogs(phone_number: str, hours: Optional[int] = 24) -> 
         lifelogs = await limitless_client.get_all_lifelogs(
             start_time=start_time,
             end_time=end_time,
+            timezone_str="Asia/Kuala_Lumpur", # Set Malaysia Timezone
             max_entries=None,  # Remove limit to fetch ALL recordings using cursor pagination
             include_markdown=True,  # Include full transcript for processing
             include_headings=True
