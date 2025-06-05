@@ -308,11 +308,11 @@ async def sync_limitless(
             end_time = datetime.now(timezone.utc)
             start_time = end_time - timedelta(hours=24)
             
-            # Get recordings from the actual time range
+            # Get recordings from the actual time range (no limit for accurate pending count)
             lifelogs = await limitless_client.get_all_lifelogs(
                 start_time=start_time,
                 end_time=end_time,
-                max_entries=50,
+                max_entries=None,  # Remove limit to get accurate pending count
                 include_markdown=False,
                 include_headings=False
             )

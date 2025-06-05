@@ -102,11 +102,11 @@ async def sync_recent_lifelogs(phone_number: str, hours: Optional[int] = 24) -> 
         else:
             logger.info("Fetching ALL recordings without date filtering for initial sync")
         
-        # Fetch Lifelogs with time restrictions if specified
+        # Fetch ALL Lifelogs with time restrictions if specified (no max_entries limit)
         lifelogs = await limitless_client.get_all_lifelogs(
             start_time=start_time,
             end_time=end_time,
-            max_entries=50,  # Increased to match dashboard pending count logic
+            max_entries=None,  # Remove limit to fetch ALL recordings using cursor pagination
             include_markdown=True,  # Include full transcript for processing
             include_headings=True
         )
