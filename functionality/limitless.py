@@ -113,6 +113,14 @@ async def sync_recent_lifelogs(phone_number: str, hours: Optional[int] = 24) -> 
         
         logger.info(f"Fetched {len(lifelogs)} recordings from Limitless API")
         
+        # Debug: Log the timestamps of fetched recordings
+        if lifelogs:
+            latest_times = []
+            for log in lifelogs[-5:]:  # Last 5 recordings
+                start_time = log.get('start_time') or log.get('startTime') or log.get('createdAt')
+                latest_times.append(f"ID: {log.get('id', 'unknown')[:8]}... Time: {start_time}")
+            logger.info(f"📅 Latest 5 recordings from API: {latest_times}")
+        
         if not lifelogs:
             return "No new recordings found in the specified time range."
             
