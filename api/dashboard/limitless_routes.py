@@ -81,41 +81,20 @@ async def get_limitless_stats(user: str = Depends(verify_dashboard_token)) -> Di
                 except:
                     pass
         
-        # Calculate pending sync - check last 24 hours of recordings
-        pending_sync = 0
-        if limitless_client.api_key:
+        # Get cached pending sync count (avoid API calls on page load)
+        pending_sync_key = "meta-glasses:limitless:pending_sync_cache"
+        cached_pending = redis_client.get(pending_sync_key)
+        
+        if cached_pending:
             try:
-                # Get lifelogs from last 24 hours
-                end_time = datetime.now(timezone.utc)
-                start_time = end_time - timedelta(hours=24)
-                
-                logger.info(f"Checking pending sync from {start_time} to {end_time}")
-                
-                # Get recordings from the actual time range (not just last 10)
-                lifelogs = await limitless_client.get_all_lifelogs(
-                    start_time=start_time,
-                    end_time=end_time,
-                    max_entries=50,  # Increased limit to catch more recordings
-                    include_markdown=False,  # Don't need full content for pending check
-                    include_headings=False
-                )
-                
-                logger.info(f"Found {len(lifelogs)} recordings in last 24 hours for pending check")
-                
-                for log in lifelogs:
-                    log_id = log.get('id', 'unknown')
-                    log_title = log.get('title', 'Untitled')
-                    processed_key = RedisKeyBuilder.build_limitless_processed_key(log_id)
-                    
-                    if not redis_client.exists(processed_key):
-                        pending_sync += 1
-                        logger.info(f"PENDING: Recording {log_id} ({log_title}) not processed yet")
-                    else:
-                        logger.debug(f"PROCESSED: Recording {log_id} ({log_title}) already processed")
-                        
-                logger.info(f"Final pending sync count: {pending_sync} out of {len(lifelogs)} recordings")
-            except Exception as e:
-                logger.error(f"Error checking pending sync: {str(e)}")
+                pending_sync = int(cached_pending.decode() if isinstance(cached_pending, bytes) else cached_pending)
+                logger.debug(f"Using cached pending sync count: {pending_sync}")
+            except:
+                pending_sync = 0
+        else:
+            # Only calculate pending sync if not cached (to avoid unnecessary API calls)
+            pending_sync = 0
+            logger.info("No cached pending sync count, showing 0 (will update after next sync)")
         
         return {
             "total_lifelogs": total_lifelogs,
@@ -322,6 +301,37 @@ async def sync_limitless(
         logger.info(f"📡 Calling sync_recent_lifelogs with user: {phone_number}, hours: 24")
         result = await sync_recent_lifelogs(phone_number, hours=24)
         logger.info(f"✅ Manual sync completed with result: {result[:100]}...")
+        
+        # Update pending sync cache after manual sync
+        try:
+            logger.info("🔄 Updating pending sync cache after manual sync...")
+            end_time = datetime.now(timezone.utc)
+            start_time = end_time - timedelta(hours=24)
+            
+            # Get recordings from the actual time range
+            lifelogs = await limitless_client.get_all_lifelogs(
+                start_time=start_time,
+                end_time=end_time,
+                max_entries=50,
+                include_markdown=False,
+                include_headings=False
+            )
+            
+            # Count pending recordings
+            pending_count = 0
+            for log in lifelogs:
+                log_id = log.get('id', 'unknown')
+                processed_key = RedisKeyBuilder.build_limitless_processed_key(log_id)
+                if not redis_client.exists(processed_key):
+                    pending_count += 1
+            
+            # Cache the result for 5 minutes
+            pending_sync_key = "meta-glasses:limitless:pending_sync_cache"
+            redis_client.setex(pending_sync_key, 300, str(pending_count))  # 5 minute cache
+            logger.info(f"📊 Updated pending sync cache: {pending_count} recordings pending")
+            
+        except Exception as e:
+            logger.error(f"Error updating pending sync cache: {str(e)}")
         
         return {
             "message": "Sync completed successfully", 

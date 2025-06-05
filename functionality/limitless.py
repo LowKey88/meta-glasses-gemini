@@ -160,6 +160,23 @@ async def sync_recent_lifelogs(phone_number: str, hours: Optional[int] = 24) -> 
         last_sync_key = RedisKeyBuilder.build_limitless_sync_key(phone_number)
         redis_client.set(last_sync_key, datetime.now(timezone.utc).isoformat())
         
+        # Update pending sync cache (avoid unnecessary API calls on dashboard load)
+        try:
+            # Count remaining unprocessed recordings from current fetch
+            remaining_pending = 0
+            for log in lifelogs:
+                log_id = log.get('id', 'unknown')
+                processed_key = RedisKeyBuilder.build_limitless_processed_key(log_id)
+                if not redis_client.exists(processed_key):
+                    remaining_pending += 1
+            
+            # Cache the result for 5 minutes
+            pending_sync_key = "meta-glasses:limitless:pending_sync_cache"
+            redis_client.setex(pending_sync_key, 300, str(remaining_pending))  # 5 minute cache
+            logger.info(f"📊 Updated pending sync cache from sync: {remaining_pending} recordings still pending")
+        except Exception as e:
+            logger.error(f"Error updating pending sync cache from sync: {str(e)}")
+        
         # Build response
         response = f"""✅ *Limitless Sync Complete*
 
