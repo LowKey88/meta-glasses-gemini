@@ -38,7 +38,7 @@ async def get_limitless_stats(user: str = Depends(verify_dashboard_token)) -> Di
         pattern = RedisKeyBuilder.build_limitless_lifelog_key("*")
         total_lifelogs = 0
         synced_today = 0
-        today = datetime.now(timezone.utc).date()
+        today = datetime.now().date()
         
         for key in redis_client.scan_iter(match=pattern):
             total_lifelogs += 1
@@ -118,7 +118,7 @@ async def get_lifelogs(
     """Get today's Lifelogs."""
     try:
         # Always use today's date
-        target_date = datetime.now(timezone.utc).date()
+        target_date = datetime.now().date()
         
         # Get cached Lifelogs
         pattern = RedisKeyBuilder.build_limitless_lifelog_key("*")
@@ -305,13 +305,14 @@ async def sync_limitless(
         # Update pending sync cache after manual sync
         try:
             logger.info("🔄 Updating pending sync cache after manual sync...")
-            end_time = datetime.now(timezone.utc)
+            end_time = datetime.now()
             start_time = end_time - timedelta(hours=24)
             
             # Get recordings from the actual time range (no limit for accurate pending count)
             lifelogs = await limitless_client.get_all_lifelogs(
                 start_time=start_time,
                 end_time=end_time,
+                timezone_str="Asia/Kuala_Lumpur",  # Add timezone parameter
                 max_entries=None,  # Remove limit to get accurate pending count
                 include_markdown=False,
                 include_headings=False
