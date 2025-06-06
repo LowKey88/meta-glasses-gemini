@@ -5,6 +5,11 @@ import { useTheme } from 'next-themes';
 import { Mic, Clock, Search, Users, Calendar, RefreshCw, CheckCircle, AlertCircle, ChevronDown, ChevronUp, User, BrainCircuit, CheckSquare, CalendarDays, Filter, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
+import { useSyncStore } from '@/store/syncStore';
+import SyncButton from '@/components/SyncButton';
+import GlobalProgressBar from '@/components/GlobalProgressBar';
+import LastSyncBadge from '@/components/LastSyncBadge';
+import DateSelector from '@/components/DateSelector';
 
 interface LimitlessStats {
   total_lifelogs: number;
@@ -69,10 +74,10 @@ export default function LimitlessPage() {
   });
   const [lifelogs, setLifelogs] = useState<Lifelog[]>([]);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedRecordings, setExpandedRecordings] = useState<Set<string>>(new Set());
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const { syncStatus, lastSync, lastSyncMode } = useSyncStore();
   const [filters, setFilters] = useState<FilterState>({
     hasTasks: false,
     hasFacts: false,
@@ -83,12 +88,13 @@ export default function LimitlessPage() {
   const [allLifelogs, setAllLifelogs] = useState<Lifelog[]>([]);
 
   // Load stats and lifelogs
-  const loadData = async (date?: string) => {
+  const loadData = async (date?: Date) => {
     try {
       setLoading(true);
+      const dateStr = (date || selectedDate).toISOString().split('T')[0];
       const [statsRes, lifelogsRes] = await Promise.all([
         api.getLimitlessStats(),
-        api.getLimitlessLifelogs(date || selectedDate)
+        api.getLimitlessLifelogs(dateStr)
       ]);
       
       setStats(statsRes);
@@ -107,29 +113,6 @@ export default function LimitlessPage() {
   };
 
 
-  // Manual sync
-  const handleSync = async () => {
-    setSyncing(true);
-    try {
-      console.log('Manual sync button clicked - calling API...');
-      const result = await api.syncLimitless();
-      console.log('Sync API result:', result);
-      toast({
-        title: 'Success',
-        description: 'Limitless sync initiated'
-      });
-      
-    } catch (error) {
-      console.error('Error syncing:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to sync Limitless',
-        variant: 'destructive'
-      });
-    } finally {
-      setSyncing(false);
-    }
-  };
 
   // Search lifelogs
   const handleSearch = async () => {
@@ -192,7 +175,7 @@ export default function LimitlessPage() {
   };
 
   // Handle date change
-  const handleDateChange = (newDate: string) => {
+  const handleDateChange = (newDate: Date) => {
     setSelectedDate(newDate);
     setSearchQuery(''); // Clear search when changing date
     setFilters({
@@ -259,6 +242,7 @@ export default function LimitlessPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <GlobalProgressBar />
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2 text-gray-900 dark:text-gray-100">Limitless Integration</h1>
         <p className="text-gray-600 dark:text-gray-400">
@@ -313,17 +297,13 @@ export default function LimitlessPage() {
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-8">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Last Sync: {stats.last_sync ? formatTime(stats.last_sync) : 'Never'}
+            <LastSyncBadge mode={lastSyncMode} time={lastSync} />
+            {stats.pending_sync > 0 && (
+              <p className="text-sm text-orange-500">
+                {stats.pending_sync} recordings pending sync
               </p>
-              {stats.pending_sync > 0 && (
-                <p className="text-sm text-orange-500 mt-1">
-                  {stats.pending_sync} recordings pending sync
-                </p>
-              )}
-            </div>
-            {stats.sync_status === 'syncing' && (
+            )}
+            {syncStatus === 'syncing' && (
               <div className="flex items-center gap-2 text-blue-500">
                 <RefreshCw className="w-4 h-4 animate-spin" />
                 <span className="text-sm">Syncing...</span>
@@ -343,14 +323,7 @@ export default function LimitlessPage() {
                 <span className="text-sm font-medium">{stats.pending_sync} pending</span>
               </div>
             )}
-            <button
-              onClick={handleSync}
-              disabled={syncing || stats.sync_status === 'syncing'}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
-              Sync Now
-            </button>
+            <SyncButton />
           </div>
         </div>
       </div>
@@ -360,46 +333,11 @@ export default function LimitlessPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <CalendarDays className="w-5 h-5 text-gray-500" />
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => {
-                  const prevDate = new Date(selectedDate);
-                  prevDate.setDate(prevDate.getDate() - 1);
-                  handleDateChange(prevDate.toISOString().split('T')[0]);
-                }}
-                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400"
-              >
-                <ChevronDown className="w-4 h-4 rotate-90" />
-              </button>
-              
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => handleDateChange(e.target.value)}
-                max={new Date().toISOString().split('T')[0]}
-                className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              
-              <button
-                onClick={() => {
-                  const nextDate = new Date(selectedDate);
-                  nextDate.setDate(nextDate.getDate() + 1);
-                  const tomorrow = new Date();
-                  tomorrow.setDate(tomorrow.getDate() + 1);
-                  if (nextDate < tomorrow) {
-                    handleDateChange(nextDate.toISOString().split('T')[0]);
-                  }
-                }}
-                disabled={selectedDate >= new Date().toISOString().split('T')[0]}
-                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <ChevronUp className="w-4 h-4 rotate-90" />
-              </button>
-            </div>
+            <DateSelector selectedDate={selectedDate} onDateChange={handleDateChange} />
             
-            {selectedDate !== new Date().toISOString().split('T')[0] && (
+            {selectedDate.toDateString() !== new Date().toDateString() && (
               <button
-                onClick={() => handleDateChange(new Date().toISOString().split('T')[0])}
+                onClick={() => handleDateChange(new Date())}
                 className="text-sm text-blue-500 hover:text-blue-600"
               >
                 Today
@@ -408,7 +346,7 @@ export default function LimitlessPage() {
           </div>
           
           <div className="text-sm text-gray-600 dark:text-gray-400">
-            Showing recordings for {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { 
+            Showing recordings for {selectedDate.toLocaleDateString('en-US', { 
               weekday: 'long', 
               year: 'numeric', 
               month: 'long', 
