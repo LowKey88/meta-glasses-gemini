@@ -205,6 +205,7 @@ _Use "limitless today" to see today's recordings_"""
 async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]:
     """
     Process a single Lifelog entry to extract memories and tasks.
+    Enhanced with speaker identification.
     
     Returns:
         Dict with counts of created items
@@ -220,10 +221,33 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
         log_id = log.get('id')
         title = log.get('title', 'Untitled Recording')
         
-        # Extract transcript from contents array
+        # ✅ NEW: Extract speakers from Limitless API data
+        speakers_identified = extract_speakers_from_contents(log)
+        logger.info(f"Identified speakers for log {log_id}: {[s['name'] for s in speakers_identified]}")
+        
+        # Extract transcript from contents array with speaker attribution
         transcript = ''
         contents = log.get('contents', [])
         if contents and len(contents) > 0:
+            # Build transcript with speaker attribution
+            transcript_parts = []
+            for content in contents:
+                speaker_name = content.get('speakerName', '')
+                speaker_id = content.get('speakerIdentifier', '')
+                content_text = content.get('content', '')
+                
+                if content_text.strip():  # Only add non-empty content
+                    if speaker_name:
+                        transcript_parts.append(f"{speaker_name}: {content_text}")
+                    elif speaker_id == 'user':
+                        transcript_parts.append(f"You: {content_text}")
+                    else:
+                        transcript_parts.append(content_text)
+            
+            transcript = '\n'.join(transcript_parts)
+        
+        # Fallback: try to get transcript from first content if speaker attribution fails
+        if not transcript and contents and len(contents) > 0:
             transcript = contents[0].get('content', '')
             
         summary = log.get('summary', '')
@@ -247,7 +271,8 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
             'facts': [],
             'tasks': [],
             'events': [],
-            'people': []
+            'people': [],
+            'speakers': speakers_identified  # ✅ NEW: Include speaker info
         }
         
         # Only process transcript if available
@@ -256,27 +281,8 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
             natural_tasks_created = extract_natural_language_tasks(transcript, log_id, phone_number)
             results['tasks_created'] += natural_tasks_created
             
-            # Use Gemini to extract structured information
-            extraction_prompt = f"""Analyze this meeting transcript and extract:
-
-1. Key facts and decisions (for memory storage)
-2. Action items and tasks with deadlines
-3. Important dates or events mentioned
-4. People mentioned and their roles/context
-
-Title: {title}
-Summary: {summary}
-Transcript: {transcript[:3000]}  # Limit for token size
-
-Return a JSON object with:
-{{
-    "facts": ["fact1", "fact2"],
-    "tasks": [{{"description": "task", "due_date": "YYYY-MM-DD or null"}}],
-    "events": [{{"title": "event", "date": "YYYY-MM-DD", "time": "HH:MM or null"}}],
-    "people": [{{"name": "person", "context": "their role or relationship"}}]
-}}
-
-Be specific and extract only clearly stated information."""
+            # ✅ ENHANCED: Use speaker-aware Gemini prompt
+            extraction_prompt = get_enhanced_extraction_prompt(title, summary, transcript)
 
             response = simple_prompt_request(extraction_prompt, phone_number)
             
@@ -292,10 +298,38 @@ Be specific and extract only clearly stated information."""
                     if json_match:
                         response = json_match.group(1)
                         
-                extracted = json.loads(response)
+                extracted_ai = json.loads(response)
+                
+                # ✅ ENHANCED: Merge AI extraction with speaker data
+                extracted['facts'] = extracted_ai.get('facts', [])
+                extracted['tasks'] = extracted_ai.get('tasks', [])
+                extracted['events'] = extracted_ai.get('events', [])
+                
+                # Combine AI-extracted people with API speakers
+                all_people = []
+                
+                # Add AI-extracted people
+                ai_people = extracted_ai.get('people', [])
+                for person in ai_people:
+                    all_people.append(person)
+                
+                # Add speakers identified from API (avoid duplicates)
+                existing_names = [p.get('name', '').lower() for p in all_people]
+                for speaker in speakers_identified:
+                    if speaker['name'].lower() not in existing_names:
+                        all_people.append({
+                            'name': speaker['name'],
+                            'context': speaker['context'],
+                            'is_speaker': True,
+                            'role': speaker['role']
+                        })
+                
+                extracted['people'] = all_people
+                
             except json.JSONDecodeError:
                 logger.error(f"Failed to parse Gemini response for Lifelog {log_id}")
-                # Continue with empty extracted data rather than returning
+                # Continue with speaker data only
+                extracted['people'] = speakers_identified
                 
             # Store facts as memories
             for fact in extracted.get('facts', []):
@@ -337,17 +371,24 @@ Be specific and extract only clearly stated information."""
                             memory_obj['metadata']['log_id'] = log_id
                             redis_client.set(memory_key, json.dumps(memory_obj))
                         
-                        success = True
-                    if success:
                         results['memories_created'] += 1
                         
-            # Create tasks
+            # ✅ ENHANCED: Create tasks with speaker attribution
             for task in extracted.get('tasks', []):
                 if task.get('description'):
-                    # Create Google Task
+                    # Create Google Task with enhanced metadata
+                    task_title = task['description']
+                    task_notes = f"From Limitless recording: {title}"
+                    
+                    # ✅ NEW: Add speaker attribution to task notes
+                    if task.get('assigned_to'):
+                        task_notes += f"\nAssigned to: {task['assigned_to']}"
+                    if task.get('assigned_by'):
+                        task_notes += f"\nMentioned by: {task['assigned_by']}"
+                    
                     task_data = {
-                        'title': task['description'],
-                        'notes': f"From Limitless recording: {title}"
+                        'title': task_title,
+                        'notes': task_notes
                     }
                     
                     if task.get('due_date'):
@@ -361,10 +402,13 @@ Be specific and extract only clearly stated information."""
                     if success:
                         results['tasks_created'] += 1
                         
-            # Store people as relationship memories
+            # ✅ ENHANCED: Store people with speaker attribution
             for person in extracted.get('people', []):
                 if person.get('name') and person.get('context'):
+                    # Enhanced memory text with speaker info
                     memory_text = f"{person['name']}: {person['context']}"
+                    if person.get('is_speaker'):
+                        memory_text += " (Speaker in conversation)"
                     
                     # Check if memory already exists for this log_id and person
                     existing_memories = memory_manager.get_all_memories(phone_number)
@@ -398,10 +442,11 @@ Be specific and extract only clearly stated information."""
                             memory_obj['metadata'] = memory_obj.get('metadata', {})
                             memory_obj['metadata']['source'] = 'limitless'
                             memory_obj['metadata']['log_id'] = log_id
+                            memory_obj['metadata']['is_speaker'] = person.get('is_speaker', False)
                             redis_client.set(memory_key, json.dumps(memory_obj))
                             results['memories_created'] += 1
                 
-        # Cache the processed Lifelog
+        # Cache the processed Lifelog with enhanced data
         cache_key = RedisKeyBuilder.build_limitless_lifelog_key(log_id)
         cache_data = {
             'id': log_id,
@@ -409,12 +454,12 @@ Be specific and extract only clearly stated information."""
             'summary': summary,
             'start_time': start_time,
             'end_time': end_time,
-            'created_at': log.get('createdAt') or log.get('created_at'),  # Store created_at as fallback
-            'extracted': extracted,
+            'created_at': log.get('createdAt') or log.get('created_at'),
+            'extracted': extracted,  # Now includes speaker info
             'processed_at': datetime.now().isoformat()
         }
         
-        logger.info(f"Caching Lifelog {log_id} with start_time: {start_time} to key: {cache_key}")
+        logger.info(f"Caching Lifelog {log_id} with start_time: {start_time} and {len(speakers_identified)} speakers to key: {cache_key}")
         redis_client.setex(
             cache_key,
             86400 * 7,  # Cache for 7 days
@@ -425,6 +470,80 @@ Be specific and extract only clearly stated information."""
         logger.error(f"Error processing Lifelog {log.get('id')}: {str(e)}")
         
     return results
+
+
+def extract_speakers_from_contents(log: Dict) -> List[Dict[str, str]]:
+    """
+    Extract speaker information directly from Limitless API contents.
+    
+    Returns:
+        List of speakers with their roles
+    """
+    speakers = []
+    contents = log.get('contents', [])
+    
+    speaker_names = set()
+    user_detected = False
+    
+    for content in contents:
+        speaker_name = content.get('speakerName', '')
+        speaker_id = content.get('speakerIdentifier', '')
+        
+        if speaker_name and speaker_name not in speaker_names:
+            speakers.append({
+                'name': speaker_name,
+                'context': 'Identified speaker in conversation',
+                'role': 'participant'
+            })
+            speaker_names.add(speaker_name)
+        
+        if speaker_id == 'user' and not user_detected:
+            speakers.append({
+                'name': 'You',
+                'context': 'Primary user (speaker)',
+                'role': 'primary_user'
+            })
+            user_detected = True
+    
+    return speakers
+
+
+def get_enhanced_extraction_prompt(title: str, summary: str, transcript: str) -> str:
+    """Enhanced prompt that considers speaker attribution."""
+    
+    return f"""Analyze this conversation transcript and extract:
+
+1. Key facts and decisions (for memory storage)
+2. Action items and tasks with deadlines - INCLUDE WHO said each task
+3. Important dates or events mentioned
+4. People mentioned and their roles/context - INCLUDE speaker identification
+
+IMPORTANT: Pay attention to speaker attribution in the transcript. When extracting tasks:
+- If "You:" said something, it's the user's task
+- If another speaker mentioned tasks, note who assigned them
+
+Title: {title}
+Summary: {summary}
+Transcript: {transcript[:3000]}
+
+Return a JSON object with:
+{{
+    "facts": ["fact1", "fact2"],
+    "tasks": [{{
+        "description": "task description", 
+        "due_date": "YYYY-MM-DD or null",
+        "assigned_to": "You" or "speaker_name",
+        "assigned_by": "speaker_name who mentioned it"
+    }}],
+    "events": [{{"title": "event", "date": "YYYY-MM-DD", "time": "HH:MM or null"}}],
+    "people": [{{
+        "name": "person", 
+        "context": "their role or relationship",
+        "is_speaker": true/false
+    }}]
+}}
+
+Be specific about WHO said what. Extract only clearly stated information."""
 
 
 def create_task_from_limitless(task_data: Dict, phone_number: str) -> bool:
