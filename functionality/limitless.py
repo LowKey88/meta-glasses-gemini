@@ -205,7 +205,7 @@ _Use "limitless today" to see today's recordings_"""
 async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]:
     """
     Process a single Lifelog entry to extract memories and tasks.
-    Enhanced with speaker identification.
+    Enhanced with speaker identification and robust fallbacks.
     
     Returns:
         Dict with counts of created items
@@ -221,7 +221,7 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
         log_id = log.get('id')
         title = log.get('title', 'Untitled Recording')
         
-        # ✅ NEW: Extract speakers from Limitless API data
+        # ✅ NEW: Extract speakers from Limitless API data with fallbacks
         speakers_identified = extract_speakers_from_contents(log)
         logger.info(f"Identified speakers for log {log_id}: {[s['name'] for s in speakers_identified]}")
         
@@ -249,6 +249,7 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
         # Fallback: try to get transcript from first content if speaker attribution fails
         if not transcript and contents and len(contents) > 0:
             transcript = contents[0].get('content', '')
+            logger.info(f"Using fallback transcript method for log {log_id}")
             
         summary = log.get('summary', '')
         
@@ -281,7 +282,7 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
             natural_tasks_created = extract_natural_language_tasks(transcript, log_id, phone_number)
             results['tasks_created'] += natural_tasks_created
             
-            # ✅ ENHANCED: Use speaker-aware Gemini prompt
+            # ✅ ENHANCED: Use speaker-aware Gemini prompt with fallback
             extraction_prompt = get_enhanced_extraction_prompt(title, summary, transcript)
 
             response = simple_prompt_request(extraction_prompt, phone_number)
@@ -326,10 +327,28 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
                 
                 extracted['people'] = all_people
                 
+                # ✅ ENHANCED FALLBACK: Ensure tasks have attribution
+                for task in extracted.get('tasks', []):
+                    if not task.get('assigned_to'):
+                        task['assigned_to'] = 'You'  # Default to user
+                        logger.debug(f"Task missing assigned_to, defaulting to 'You': {task.get('description', '')[:50]}")
+                    if not task.get('assigned_by'):
+                        task['assigned_by'] = 'You'  # Default to user
+                
             except json.JSONDecodeError:
                 logger.error(f"Failed to parse Gemini response for Lifelog {log_id}")
                 # Continue with speaker data only
                 extracted['people'] = speakers_identified
+            
+            # ✅ ENHANCED FALLBACK: Always ensure we have at least the primary user in people list
+            if not extracted.get('people'):
+                logger.info(f"No people extracted for log {log_id}, adding primary user")
+                extracted['people'] = [{
+                    'name': 'You',
+                    'context': 'Primary user (default)',
+                    'is_speaker': True,
+                    'role': 'primary_user'
+                }]
                 
             # Store facts as memories
             for fact in extracted.get('facts', []):
@@ -445,6 +464,14 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
                             memory_obj['metadata']['is_speaker'] = person.get('is_speaker', False)
                             redis_client.set(memory_key, json.dumps(memory_obj))
                             results['memories_created'] += 1
+        else:
+            # ✅ FALLBACK: Even without transcript, ensure user appears in people
+            extracted['people'] = speakers_identified if speakers_identified else [{
+                'name': 'You',
+                'context': 'Primary user (no transcript)',
+                'is_speaker': True,
+                'role': 'primary_user'
+            }]
                 
         # Cache the processed Lifelog with enhanced data
         cache_key = RedisKeyBuilder.build_limitless_lifelog_key(log_id)
@@ -455,7 +482,7 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
             'start_time': start_time,
             'end_time': end_time,
             'created_at': log.get('createdAt') or log.get('created_at'),
-            'extracted': extracted,  # Now includes speaker info
+            'extracted': extracted,  # Now includes speaker info and fallbacks
             'processed_at': datetime.now().isoformat()
         }
         
@@ -475,6 +502,7 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
 def extract_speakers_from_contents(log: Dict) -> List[Dict[str, str]]:
     """
     Extract speaker information directly from Limitless API contents.
+    Includes robust fallback for when speaker detection fails.
     
     Returns:
         List of speakers with their roles
@@ -505,13 +533,28 @@ def extract_speakers_from_contents(log: Dict) -> List[Dict[str, str]]:
             })
             user_detected = True
     
+    # ✅ ENHANCED FALLBACK: If no speakers detected, assume user is speaking
+    if not speakers:
+        logger.warning(f"No speakers detected in log {log.get('id')}, assuming primary user")
+        speakers.append({
+            'name': 'You',
+            'context': 'Primary user (assumed speaker)',
+            'role': 'primary_user'
+        })
+    
     return speakers
 
 
 def get_enhanced_extraction_prompt(title: str, summary: str, transcript: str) -> str:
-    """Enhanced prompt that considers speaker attribution."""
+    """Enhanced prompt with fallback for when speaker info is missing."""
     
-    return f"""Analyze this conversation transcript and extract:
+    # Check if transcript has speaker attribution
+    has_speaker_info = any(prefix in transcript for prefix in ['You:', 'Speaker:', ':'])
+    
+    if has_speaker_info:
+        # Use speaker-aware prompt
+        logger.debug("Using speaker-aware prompt for AI extraction")
+        prompt = f"""Analyze this conversation transcript and extract:
 
 1. Key facts and decisions (for memory storage)
 2. Action items and tasks with deadlines - INCLUDE WHO said each task
@@ -544,6 +587,42 @@ Return a JSON object with:
 }}
 
 Be specific about WHO said what. Extract only clearly stated information."""
+    else:
+        # ✅ FALLBACK: Use original prompt assuming single speaker
+        logger.info("No speaker attribution detected, using fallback prompt assuming single user")
+        prompt = f"""Analyze this recording transcript and extract:
+
+1. Key facts and decisions (for memory storage)
+2. Action items and tasks with deadlines
+3. Important dates or events mentioned
+4. People mentioned and their roles/context
+
+NOTE: This appears to be a single-speaker recording. Assume all tasks are for the primary user.
+
+Title: {title}
+Summary: {summary}
+Transcript: {transcript[:3000]}
+
+Return a JSON object with:
+{{
+    "facts": ["fact1", "fact2"],
+    "tasks": [{{
+        "description": "task description", 
+        "due_date": "YYYY-MM-DD or null",
+        "assigned_to": "You",
+        "assigned_by": "You"
+    }}],
+    "events": [{{"title": "event", "date": "YYYY-MM-DD", "time": "HH:MM or null"}}],
+    "people": [{{
+        "name": "person", 
+        "context": "their role or relationship",
+        "is_speaker": false
+    }}]
+}}
+
+Extract clear, actionable information from this single-speaker recording."""
+    
+    return prompt
 
 
 def create_task_from_limitless(task_data: Dict, phone_number: str) -> bool:
