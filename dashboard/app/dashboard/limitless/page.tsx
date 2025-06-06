@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useTheme } from 'next-themes';
-import { Mic, Clock, Search, Users, Calendar, RefreshCw, CheckCircle, AlertCircle, ChevronDown, ChevronUp, User, BrainCircuit, CheckSquare, CalendarDays } from 'lucide-react';
+import { Mic, Clock, Search, Users, Calendar, RefreshCw, CheckCircle, AlertCircle, ChevronDown, ChevronUp, User, BrainCircuit, CheckSquare, CalendarDays, Filter, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 
@@ -47,6 +47,14 @@ interface Lifelog {
   };
 }
 
+interface FilterState {
+  hasTasks: boolean;
+  hasFacts: boolean;
+  multipleSpeakers: boolean;
+  personName: string;
+  processed: boolean;
+}
+
 export default function LimitlessPage() {
   const { theme } = useTheme();
   const { toast } = useToast();
@@ -62,9 +70,19 @@ export default function LimitlessPage() {
   const [lifelogs, setLifelogs] = useState<Lifelog[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [autoRefreshing, setAutoRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedRecordings, setExpandedRecordings] = useState<Set<string>>(new Set());
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [autoRefreshCleanup, setAutoRefreshCleanup] = useState<(() => void) | null>(null);
+  const [filters, setFilters] = useState<FilterState>({
+    hasTasks: false,
+    hasFacts: false,
+    multipleSpeakers: false,
+    personName: '',
+    processed: false
+  });
+  const [allLifelogs, setAllLifelogs] = useState<Lifelog[]>([]);
 
   // Load stats and lifelogs
   const loadData = async (date?: string) => {
@@ -76,6 +94,7 @@ export default function LimitlessPage() {
       ]);
       
       setStats(statsRes);
+      setAllLifelogs(lifelogsRes);
       setLifelogs(lifelogsRes);
     } catch (error) {
       console.error('Error loading Limitless data:', error);
@@ -87,6 +106,42 @@ export default function LimitlessPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Auto-refresh during sync
+  const startAutoRefresh = () => {
+    setAutoRefreshing(true);
+    const interval = setInterval(async () => {
+      try {
+        const newStats = await api.getLimitlessStats();
+        setStats(newStats);
+        
+        // Stop auto-refresh if sync is complete or there's an error
+        if (newStats.sync_status === 'idle' || newStats.sync_status === 'error') {
+          setAutoRefreshing(false);
+          clearInterval(interval);
+          // Reload full data when sync completes
+          loadData();
+        }
+      } catch (error) {
+        console.error('Error during auto-refresh:', error);
+        setAutoRefreshing(false);
+        clearInterval(interval);
+      }
+    }, 2000); // Check every 2 seconds
+
+    // Safety timeout - stop after 5 minutes
+    const timeout = setTimeout(() => {
+      setAutoRefreshing(false);
+      clearInterval(interval);
+    }, 300000);
+
+    // Return cleanup function
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+      setAutoRefreshing(false);
+    };
   };
 
   // Manual sync
@@ -101,8 +156,9 @@ export default function LimitlessPage() {
         description: 'Limitless sync initiated'
       });
       
-      // Reload data after sync
-      setTimeout(() => loadData(), 3000);
+      // Start auto-refresh to monitor sync progress
+      const cleanup = startAutoRefresh();
+      setAutoRefreshCleanup(() => cleanup);
     } catch (error) {
       console.error('Error syncing:', error);
       toast({
@@ -135,16 +191,83 @@ export default function LimitlessPage() {
     }
   };
 
+  // Filter recordings based on current filters
+  const applyFilters = (recordings: Lifelog[]) => {
+    return recordings.filter(log => {
+      // Check if has tasks
+      if (filters.hasTasks && (!log.extracted_data?.tasks.length)) {
+        return false;
+      }
+      
+      // Check if has facts
+      if (filters.hasFacts && (!log.extracted_data?.facts.length)) {
+        return false;
+      }
+      
+      // Check if has multiple speakers
+      if (filters.multipleSpeakers) {
+        const speakerCount = log.extracted_data?.people?.filter(p => p.is_speaker).length || 0;
+        if (speakerCount <= 1) {
+          return false;
+        }
+      }
+      
+      // Check if processed
+      if (filters.processed && !log.processed) {
+        return false;
+      }
+      
+      // Check person name filter
+      if (filters.personName.trim()) {
+        const hasPersonMention = log.extracted_data?.people?.some(p => 
+          p.name.toLowerCase().includes(filters.personName.toLowerCase())
+        ) || false;
+        if (!hasPersonMention) {
+          return false;
+        }
+      }
+      
+      return true;
+    });
+  };
+
   // Handle date change
   const handleDateChange = (newDate: string) => {
     setSelectedDate(newDate);
     setSearchQuery(''); // Clear search when changing date
+    setFilters({
+      hasTasks: false,
+      hasFacts: false,
+      multipleSpeakers: false,
+      personName: '',
+      processed: false
+    }); // Reset filters when changing date
     loadData(newDate);
   };
+
+  // Apply filters when filters or data changes
+  useEffect(() => {
+    if (searchQuery.trim()) {
+      // If there's a search query, don't apply filters (search takes precedence)
+      return;
+    }
+    const filtered = applyFilters(allLifelogs);
+    setLifelogs(filtered);
+  }, [filters, allLifelogs, searchQuery]);
 
   useEffect(() => {
     loadData();
   }, []);
+
+  // Cleanup auto-refresh when component unmounts
+  useEffect(() => {
+    return () => {
+      if (autoRefreshCleanup) {
+        autoRefreshCleanup();
+        setAutoRefreshCleanup(null);
+      }
+    };
+  }, [autoRefreshCleanup]);
 
   // Format time
   const formatTime = (isoString: string | null) => {
@@ -249,10 +372,12 @@ export default function LimitlessPage() {
                 </p>
               )}
             </div>
-            {stats.sync_status === 'syncing' && (
+            {(stats.sync_status === 'syncing' || autoRefreshing) && (
               <div className="flex items-center gap-2 text-blue-500">
                 <RefreshCw className="w-4 h-4 animate-spin" />
-                <span className="text-sm">Syncing...</span>
+                <span className="text-sm">
+                  {stats.sync_status === 'syncing' ? 'Syncing...' : 'Monitoring sync...'}
+                </span>
               </div>
             )}
             {stats.sync_status === 'error' && (
@@ -367,6 +492,106 @@ export default function LimitlessPage() {
             Search
           </button>
         </div>
+
+        {/* Filter Controls */}
+        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex items-center gap-2 mb-3">
+            <Filter className="w-4 h-4 text-gray-500" />
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Filters</span>
+            {(filters.hasTasks || filters.hasFacts || filters.multipleSpeakers || filters.processed || filters.personName) && (
+              <button
+                onClick={() => setFilters({
+                  hasTasks: false,
+                  hasFacts: false,
+                  multipleSpeakers: false,
+                  personName: '',
+                  processed: false
+                })}
+                className="text-xs text-blue-500 hover:text-blue-600 ml-2"
+              >
+                Clear All
+              </button>
+            )}
+          </div>
+          
+          <div className="flex flex-wrap gap-3">
+            {/* Has Tasks Filter */}
+            <button
+              onClick={() => setFilters(prev => ({ ...prev, hasTasks: !prev.hasTasks }))}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-colors ${
+                filters.hasTasks
+                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+            >
+              <CheckSquare className="w-3 h-3" />
+              Has Tasks
+              {filters.hasTasks && <X className="w-3 h-3" />}
+            </button>
+
+            {/* Has Facts Filter */}
+            <button
+              onClick={() => setFilters(prev => ({ ...prev, hasFacts: !prev.hasFacts }))}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-colors ${
+                filters.hasFacts
+                  ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-700'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+            >
+              <BrainCircuit className="w-3 h-3" />
+              Has Facts
+              {filters.hasFacts && <X className="w-3 h-3" />}
+            </button>
+
+            {/* Multiple Speakers Filter */}
+            <button
+              onClick={() => setFilters(prev => ({ ...prev, multipleSpeakers: !prev.multipleSpeakers }))}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-colors ${
+                filters.multipleSpeakers
+                  ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border border-green-300 dark:border-green-700'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+            >
+              <Users className="w-3 h-3" />
+              Multiple Speakers
+              {filters.multipleSpeakers && <X className="w-3 h-3" />}
+            </button>
+
+            {/* Processed Filter */}
+            <button
+              onClick={() => setFilters(prev => ({ ...prev, processed: !prev.processed }))}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-colors ${
+                filters.processed
+                  ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border border-green-300 dark:border-green-700'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+            >
+              <CheckCircle className="w-3 h-3" />
+              Processed Only
+              {filters.processed && <X className="w-3 h-3" />}
+            </button>
+
+            {/* Person Name Filter */}
+            <div className="relative">
+              <input
+                type="text"
+                value={filters.personName}
+                onChange={(e) => setFilters(prev => ({ ...prev, personName: e.target.value }))}
+                placeholder="Filter by person..."
+                className="pl-8 pr-8 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-full bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[150px]"
+              />
+              <User className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
+              {filters.personName && (
+                <button
+                  onClick={() => setFilters(prev => ({ ...prev, personName: '' }))}
+                  className="absolute right-2.5 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Lifelogs List */}
@@ -382,6 +607,15 @@ export default function LimitlessPage() {
             <p className="text-gray-500 dark:text-gray-400">No recordings found</p>
           </div>
         ) : (
+          <>
+            {autoRefreshing && (
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-4">
+                <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span className="text-sm">Auto-refreshing data during sync...</span>
+                </div>
+              </div>
+            )}
           lifelogs.map((log) => {
             const isExpanded = expandedRecordings.has(log.id);
             const hasExtractedData = log.extracted_data && (
@@ -603,6 +837,7 @@ export default function LimitlessPage() {
               </div>
             );
           })
+          </>
         )}
       </div>
     </div>
