@@ -342,7 +342,7 @@ async def sync_limitless(
             lifelogs = await limitless_client.get_all_lifelogs(
                 start_time=start_time,
                 end_time=end_time,
-                timezone_str="Asia/Kuala_Lumpur",  # FIXED: Add timezone parameter
+                timezone_str="Asia/Kuala_Lumpur",  # Add timezone parameter
                 max_entries=None,  # Remove limit to get accurate pending count
                 include_markdown=False,
                 include_headings=False

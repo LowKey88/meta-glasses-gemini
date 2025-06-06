@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useTheme } from 'next-themes';
-import { Mic, Clock, Search, Users, Calendar, RefreshCw, CheckCircle, AlertCircle } from 'lucide-react';
+import { Mic, Clock, Search, Users, Calendar, RefreshCw, CheckCircle, AlertCircle, ChevronDown, ChevronUp, User, BrainCircuit, CheckSquare } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 
@@ -27,8 +27,23 @@ interface Lifelog {
   processed: boolean;
   extracted_data?: {
     facts: string[];
-    tasks: Array<{ description: string; due_date?: string }>;
-    people: Array<{ name: string; context: string }>;
+    tasks: Array<{ 
+      description: string; 
+      due_date?: string;
+      assigned_to?: string;
+      assigned_by?: string;
+    }>;
+    people: Array<{ 
+      name: string; 
+      context: string;
+      is_speaker?: boolean;
+      role?: string;
+    }>;
+    speakers?: Array<{
+      name: string;
+      context: string;
+      role: string;
+    }>;
   };
 }
 
@@ -48,6 +63,7 @@ export default function LimitlessPage() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [expandedRecordings, setExpandedRecordings] = useState<Set<string>>(new Set());
 
   // Load stats and lifelogs
   const loadData = async () => {
@@ -146,6 +162,19 @@ export default function LimitlessPage() {
     return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
   };
 
+  // Toggle expanded state for a recording
+  const toggleExpanded = (recordingId: string) => {
+    setExpandedRecordings(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(recordingId)) {
+        newSet.delete(recordingId);
+      } else {
+        newSet.add(recordingId);
+      }
+      return newSet;
+    });
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
@@ -225,14 +254,22 @@ export default function LimitlessPage() {
               </div>
             )}
           </div>
-          <button
-            onClick={handleSync}
-            disabled={syncing || stats.sync_status === 'syncing'}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
-            Sync Now
-          </button>
+          <div className="flex items-center gap-3">
+            {stats.pending_sync > 0 && (
+              <div className="flex items-center gap-2 px-3 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-full">
+                <AlertCircle className="w-4 h-4" />
+                <span className="text-sm font-medium">{stats.pending_sync} pending</span>
+              </div>
+            )}
+            <button
+              onClick={handleSync}
+              disabled={syncing || stats.sync_status === 'syncing'}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+              Sync Now
+            </button>
+          </div>
         </div>
       </div>
 
@@ -274,92 +311,227 @@ export default function LimitlessPage() {
             <p className="text-gray-500 dark:text-gray-400">No recordings found</p>
           </div>
         ) : (
-          lifelogs.map((log) => (
-            <div
-              key={log.id}
-              className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow"
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold mb-1 text-gray-900 dark:text-gray-100">{log.title}</h3>
-                  <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
-                    <span>{formatTime(log.start_time)}</span>
-                    <span>•</span>
-                    <span>{formatDuration(log.duration_minutes)}</span>
-                    {log.processed && (
-                      <>
+          lifelogs.map((log) => {
+            const isExpanded = expandedRecordings.has(log.id);
+            const hasExtractedData = log.extracted_data && (
+              log.extracted_data.facts.length > 0 ||
+              log.extracted_data.tasks.length > 0 ||
+              log.extracted_data.people.length > 0
+            );
+
+            return (
+              <div
+                key={log.id}
+                className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-md transition-shadow"
+              >
+                {/* Recording Header */}
+                <div 
+                  className={`p-6 ${hasExtractedData ? 'cursor-pointer' : ''}`}
+                  onClick={() => hasExtractedData && toggleExpanded(log.id)}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold mb-1 text-gray-900 dark:text-gray-100">{log.title}</h3>
+                      <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+                        <span>{formatTime(log.start_time)}</span>
                         <span>•</span>
-                        <span className="flex items-center gap-1 text-green-500">
-                          <CheckCircle className="w-4 h-4" />
-                          Processed
-                        </span>
-                      </>
+                        <span>{formatDuration(log.duration_minutes)}</span>
+                        {log.processed && (
+                          <>
+                            <span>•</span>
+                            <span className="flex items-center gap-1 text-green-500">
+                              <CheckCircle className="w-4 h-4" />
+                              Processed
+                            </span>
+                          </>
+                        )}
+                        {/* Speaker Indicator */}
+                        {log.extracted_data && log.extracted_data.people.filter(p => p.is_speaker).length > 1 && (
+                          <>
+                            <span>•</span>
+                            <span className="flex items-center gap-1 text-blue-500">
+                              <Users className="w-4 h-4" />
+                              {log.extracted_data.people.filter(p => p.is_speaker).length} speakers
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    {hasExtractedData && (
+                      <button
+                        className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleExpanded(log.id);
+                        }}
+                      >
+                        {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                      </button>
                     )}
                   </div>
-                </div>
-              </div>
 
-              {log.summary && (
-                <p className="text-gray-700 dark:text-gray-300 mb-4">{log.summary}</p>
-              )}
-
-              {log.extracted_data && (
-                <div className="space-y-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-                  {log.extracted_data.facts.length > 0 && (
-                    <div>
-                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                        Key Facts ({log.extracted_data.facts.length})
-                      </p>
-                      <ul className="text-sm text-gray-700 dark:text-gray-300 space-y-1">
-                        {log.extracted_data.facts.slice(0, 3).map((fact, i) => (
-                          <li key={i}>• {fact}</li>
-                        ))}
-                      </ul>
-                    </div>
+                  {log.summary && (
+                    <p className="text-gray-700 dark:text-gray-300 mt-3">{log.summary}</p>
                   )}
 
-                  {log.extracted_data.tasks.length > 0 && (
-                    <div>
-                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                        Tasks ({log.extracted_data.tasks.length})
-                      </p>
-                      <ul className="text-sm text-gray-700 dark:text-gray-300 space-y-1">
-                        {log.extracted_data.tasks.slice(0, 3).map((task, i) => (
-                          <li key={i}>
-                            ✓ {task.description}
-                            {task.due_date && (
-                              <span className="text-gray-500 dark:text-gray-400 ml-2">
-                                (Due: {new Date(task.due_date).toLocaleDateString()})
-                              </span>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {log.extracted_data.people.length > 0 && (
-                    <div>
-                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                        People Mentioned
-                      </p>
+                  {/* Speaker Names Preview */}
+                  {log.extracted_data && log.extracted_data.people.filter(p => p.is_speaker).length > 0 && !isExpanded && (
+                    <div className="flex items-center gap-2 mt-3">
+                      <Users className="w-4 h-4 text-gray-500" />
                       <div className="flex flex-wrap gap-2">
-                        {log.extracted_data.people.map((person, i) => (
-                          <div
-                            key={i}
-                            className="flex items-center gap-1 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-sm"
-                          >
-                            <Users className="w-3 h-3" />
-                            {person.name}
-                          </div>
-                        ))}
+                        {log.extracted_data.people
+                          .filter(p => p.is_speaker)
+                          .slice(0, 3)
+                          .map((person, i) => (
+                            <span key={i} className="text-sm text-gray-600 dark:text-gray-400">
+                              {person.name}{i < Math.min(log.extracted_data!.people.filter(p => p.is_speaker).length - 1, 2) ? ',' : ''}
+                            </span>
+                          ))}
+                        {log.extracted_data.people.filter(p => p.is_speaker).length > 3 && (
+                          <span className="text-sm text-gray-500 dark:text-gray-400">
+                            +{log.extracted_data.people.filter(p => p.is_speaker).length - 3} more
+                          </span>
+                        )}
                       </div>
                     </div>
                   )}
+
+                  {/* Quick Stats */}
+                  {hasExtractedData && !isExpanded && (
+                    <div className="flex items-center gap-4 mt-4">
+                      {log.extracted_data!.facts.length > 0 && (
+                        <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
+                          <BrainCircuit className="w-4 h-4" />
+                          <span>{log.extracted_data!.facts.length} facts</span>
+                        </div>
+                      )}
+                      {log.extracted_data!.tasks.length > 0 && (
+                        <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
+                          <CheckSquare className="w-4 h-4" />
+                          <span>{log.extracted_data!.tasks.length} tasks</span>
+                        </div>
+                      )}
+                      {log.extracted_data!.people.length > 0 && (
+                        <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
+                          <Users className="w-4 h-4" />
+                          <span>{log.extracted_data!.people.length} people</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          ))
+
+                {/* Expanded Content */}
+                {isExpanded && log.extracted_data && (
+                  <div className="border-t border-gray-200 dark:border-gray-700 p-6 bg-gray-50 dark:bg-gray-900/50">
+                    <div className="space-y-6">
+                      {/* Facts Section */}
+                      {log.extracted_data.facts.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-2 mb-3">
+                            <BrainCircuit className="w-5 h-5 text-purple-500" />
+                            <h4 className="font-medium text-gray-900 dark:text-gray-100">
+                              Key Facts ({log.extracted_data.facts.length})
+                            </h4>
+                          </div>
+                          <ul className="space-y-2">
+                            {log.extracted_data.facts.map((fact, i) => (
+                              <li key={i} className="flex items-start gap-2">
+                                <span className="text-purple-500 mt-0.5">•</span>
+                                <span className="text-gray-700 dark:text-gray-300">{fact}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Tasks Section */}
+                      {log.extracted_data.tasks.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-2 mb-3">
+                            <CheckSquare className="w-5 h-5 text-blue-500" />
+                            <h4 className="font-medium text-gray-900 dark:text-gray-100">
+                              Tasks & Action Items ({log.extracted_data.tasks.length})
+                            </h4>
+                          </div>
+                          <div className="space-y-3">
+                            {log.extracted_data.tasks.map((task, i) => (
+                              <div key={i} className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                                <div className="flex items-start gap-3">
+                                  <CheckCircle className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                                  <div className="flex-1">
+                                    <p className="text-gray-900 dark:text-gray-100">{task.description}</p>
+                                    <div className="flex flex-wrap gap-3 mt-2 text-sm text-gray-600 dark:text-gray-400">
+                                      {task.assigned_to && (
+                                        <span className="flex items-center gap-1">
+                                          <User className="w-3 h-3" />
+                                          Assigned to: {task.assigned_to}
+                                        </span>
+                                      )}
+                                      {task.assigned_by && task.assigned_by !== task.assigned_to && (
+                                        <span>By: {task.assigned_by}</span>
+                                      )}
+                                      {task.due_date && (
+                                        <span className="flex items-center gap-1">
+                                          <Calendar className="w-3 h-3" />
+                                          Due: {new Date(task.due_date).toLocaleDateString()}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* People Section */}
+                      {log.extracted_data.people.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-2 mb-3">
+                            <Users className="w-5 h-5 text-green-500" />
+                            <h4 className="font-medium text-gray-900 dark:text-gray-100">
+                              People & Speakers ({log.extracted_data.people.length})
+                            </h4>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {log.extracted_data.people.map((person, i) => (
+                              <div 
+                                key={i} 
+                                className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700"
+                              >
+                                <div className="flex items-start gap-3">
+                                  <div className={`p-2 rounded-full ${
+                                    person.is_speaker 
+                                      ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400' 
+                                      : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                                  }`}>
+                                    <User className="w-4 h-4" />
+                                  </div>
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <p className="font-medium text-gray-900 dark:text-gray-100">{person.name}</p>
+                                      {person.is_speaker && (
+                                        <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full">
+                                          Speaker
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{person.context}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })
         )}
       </div>
     </div>
