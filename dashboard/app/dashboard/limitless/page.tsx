@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useTheme } from 'next-themes';
-import { Mic, Clock, Search, Users, Calendar, RefreshCw, CheckCircle, AlertCircle, ChevronDown, ChevronUp, User, BrainCircuit, CheckSquare } from 'lucide-react';
+import { Mic, Clock, Search, Users, Calendar, RefreshCw, CheckCircle, AlertCircle, ChevronDown, ChevronUp, User, BrainCircuit, CheckSquare, CalendarDays } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 
@@ -64,14 +64,15 @@ export default function LimitlessPage() {
   const [syncing, setSyncing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedRecordings, setExpandedRecordings] = useState<Set<string>>(new Set());
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
   // Load stats and lifelogs
-  const loadData = async () => {
+  const loadData = async (date?: string) => {
     try {
       setLoading(true);
       const [statsRes, lifelogsRes] = await Promise.all([
         api.getLimitlessStats(),
-        api.getLimitlessLifelogs()
+        api.getLimitlessLifelogs(date || selectedDate)
       ]);
       
       setStats(statsRes);
@@ -101,7 +102,7 @@ export default function LimitlessPage() {
       });
       
       // Reload data after sync
-      setTimeout(loadData, 3000);
+      setTimeout(() => loadData(), 3000);
     } catch (error) {
       console.error('Error syncing:', error);
       toast({
@@ -132,6 +133,13 @@ export default function LimitlessPage() {
         variant: 'destructive'
       });
     }
+  };
+
+  // Handle date change
+  const handleDateChange = (newDate: string) => {
+    setSelectedDate(newDate);
+    setSearchQuery(''); // Clear search when changing date
+    loadData(newDate);
   };
 
   useEffect(() => {
@@ -269,6 +277,69 @@ export default function LimitlessPage() {
               <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
               Sync Now
             </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Date Navigation */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-8">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <CalendarDays className="w-5 h-5 text-gray-500" />
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  const prevDate = new Date(selectedDate);
+                  prevDate.setDate(prevDate.getDate() - 1);
+                  handleDateChange(prevDate.toISOString().split('T')[0]);
+                }}
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400"
+              >
+                <ChevronDown className="w-4 h-4 rotate-90" />
+              </button>
+              
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => handleDateChange(e.target.value)}
+                max={new Date().toISOString().split('T')[0]}
+                className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              
+              <button
+                onClick={() => {
+                  const nextDate = new Date(selectedDate);
+                  nextDate.setDate(nextDate.getDate() + 1);
+                  const tomorrow = new Date();
+                  tomorrow.setDate(tomorrow.getDate() + 1);
+                  if (nextDate < tomorrow) {
+                    handleDateChange(nextDate.toISOString().split('T')[0]);
+                  }
+                }}
+                disabled={selectedDate >= new Date().toISOString().split('T')[0]}
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronUp className="w-4 h-4 rotate-90" />
+              </button>
+            </div>
+            
+            {selectedDate !== new Date().toISOString().split('T')[0] && (
+              <button
+                onClick={() => handleDateChange(new Date().toISOString().split('T')[0])}
+                className="text-sm text-blue-500 hover:text-blue-600"
+              >
+                Today
+              </button>
+            )}
+          </div>
+          
+          <div className="text-sm text-gray-600 dark:text-gray-400">
+            Showing recordings for {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { 
+              weekday: 'long', 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric' 
+            })}
           </div>
         </div>
       </div>

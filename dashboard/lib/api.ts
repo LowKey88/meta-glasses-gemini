@@ -240,8 +240,9 @@ class ApiClient {
     return this.request('/api/dashboard/limitless/stats');
   }
 
-  async getLimitlessLifelogs(): Promise<any[]> {
-    return this.request('/api/dashboard/limitless/lifelogs');
+  async getLimitlessLifelogs(date?: string): Promise<any[]> {
+    const params = date ? `?date=${encodeURIComponent(date)}` : '';
+    return this.request(`/api/dashboard/limitless/lifelogs${params}`);
   }
 
   async searchLimitlessLifelogs(query: string): Promise<any[]> {

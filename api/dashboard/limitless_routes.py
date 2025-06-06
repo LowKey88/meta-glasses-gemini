@@ -143,12 +143,19 @@ async def get_limitless_stats(user: str = Depends(verify_dashboard_token)) -> Di
 
 @router.get("/lifelogs")
 async def get_lifelogs(
+    date: Optional[str] = Query(None),
     user: str = Depends(verify_dashboard_token)
 ) -> List[Dict[str, Any]]:
-    """Get today's Lifelogs."""
+    """Get Lifelogs for a specific date."""
     try:
-        # Always use today's date
-        target_date = datetime.now().date()
+        # Use provided date or default to today
+        if date:
+            try:
+                target_date = datetime.strptime(date, "%Y-%m-%d").date()
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+        else:
+            target_date = datetime.now().date()
         
         # Get cached Lifelogs
         pattern = RedisKeyBuilder.build_limitless_lifelog_key("*")
