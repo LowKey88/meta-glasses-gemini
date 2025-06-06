@@ -213,7 +213,8 @@ export default function LimitlessPage() {
         month: 'short',
         day: 'numeric',
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
+        year: 'numeric'
       });
     } catch {
       return 'Invalid date';
@@ -519,16 +520,16 @@ export default function LimitlessPage() {
                   onClick={() => hasExtractedData && toggleExpanded(log.id)}
                 >
                   <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold mb-1 text-gray-900 dark:text-gray-100">{log.title}</h3>
-                      <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
-                        <span>{formatTime(log.start_time)}</span>
-                        <span>•</span>
-                        <span>{formatDuration(log.duration_minutes)}</span>
+                    <div className="flex-1 max-w-[85vw] sm:max-w-none">
+                      <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-gray-100 leading-snug">{log.title}</h3>
+                      <div className="flex flex-wrap gap-x-2 gap-y-1 items-center text-sm text-gray-500 dark:text-slate-400 leading-normal">
+                        <span className="whitespace-nowrap">{formatTime(log.start_time)}</span>
+                        <span className="text-gray-400">•</span>
+                        <span className="whitespace-nowrap">{formatDuration(log.duration_minutes)}</span>
                         {log.processed && (
                           <>
-                            <span>•</span>
-                            <span className="flex items-center gap-1 text-green-500">
+                            <span className="text-gray-400">•</span>
+                            <span className="flex items-center gap-1 text-green-500 whitespace-nowrap">
                               <CheckCircle className="w-4 h-4" />
                               Processed
                             </span>
@@ -537,8 +538,8 @@ export default function LimitlessPage() {
                         {/* Speaker Indicator */}
                         {log.extracted_data && log.extracted_data.people.filter(p => p.is_speaker).length > 1 && (
                           <>
-                            <span>•</span>
-                            <span className="flex items-center gap-1 text-blue-500">
+                            <span className="text-gray-400">•</span>
+                            <span className="flex items-center gap-1 text-blue-500 whitespace-nowrap">
                               <Users className="w-4 h-4" />
                               {log.extracted_data.people.filter(p => p.is_speaker).length} speakers
                             </span>
@@ -565,19 +566,19 @@ export default function LimitlessPage() {
 
                   {/* Speaker Names Preview */}
                   {log.extracted_data && log.extracted_data.people.filter(p => p.is_speaker).length > 0 && !isExpanded && (
-                    <div className="flex items-center gap-2 mt-3">
-                      <Users className="w-4 h-4 text-gray-500" />
-                      <div className="flex flex-wrap gap-2">
+                    <div className="flex items-center gap-2 mt-3 max-w-[85vw] sm:max-w-none">
+                      <Users className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                      <div className="flex flex-wrap gap-x-2 gap-y-1 items-center text-sm text-gray-600 dark:text-gray-400 leading-normal min-w-0">
                         {log.extracted_data.people
                           .filter(p => p.is_speaker)
                           .slice(0, 3)
-                          .map((person, i) => (
-                            <span key={i} className="text-sm text-gray-600 dark:text-gray-400">
-                              {person.name}{i < Math.min(log.extracted_data!.people.filter(p => p.is_speaker).length - 1, 2) ? ',' : ''}
+                          .map((person, i, speakers) => (
+                            <span key={i} className="whitespace-nowrap">
+                              {person.name}{i < speakers.length - 1 && i < 2 ? ',' : ''}
                             </span>
                           ))}
                         {log.extracted_data.people.filter(p => p.is_speaker).length > 3 && (
-                          <span className="text-sm text-gray-500 dark:text-gray-400">
+                          <span className="text-gray-500 dark:text-gray-400 whitespace-nowrap">
                             +{log.extracted_data.people.filter(p => p.is_speaker).length - 3} more
                           </span>
                         )}
