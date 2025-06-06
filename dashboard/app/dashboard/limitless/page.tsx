@@ -556,7 +556,8 @@ export default function LimitlessPage() {
             <p className="text-gray-500 dark:text-gray-400">No recordings found</p>
           </div>
         ) : (
-          lifelogs.map((log) => {
+          <>
+            {lifelogs.map((log) => {
             const isExpanded = expandedRecordings.has(log.id);
             const hasExtractedData = log.extracted_data && (
               log.extracted_data.facts.length > 0 ||
@@ -776,7 +777,7 @@ export default function LimitlessPage() {
                 )}
               </div>
             );
-          })
+          })}
           </>
         )}
       </div>
