@@ -70,11 +70,9 @@ export default function LimitlessPage() {
   const [lifelogs, setLifelogs] = useState<Lifelog[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [autoRefreshing, setAutoRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedRecordings, setExpandedRecordings] = useState<Set<string>>(new Set());
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [autoRefreshCleanup, setAutoRefreshCleanup] = useState<(() => void) | null>(null);
   const [filters, setFilters] = useState<FilterState>({
     hasTasks: false,
     hasFacts: false,
@@ -108,41 +106,6 @@ export default function LimitlessPage() {
     }
   };
 
-  // Auto-refresh during sync
-  const startAutoRefresh = () => {
-    setAutoRefreshing(true);
-    const interval = setInterval(async () => {
-      try {
-        const newStats = await api.getLimitlessStats();
-        setStats(newStats);
-        
-        // Stop auto-refresh if sync is complete or there's an error
-        if (newStats.sync_status === 'idle' || newStats.sync_status === 'error') {
-          setAutoRefreshing(false);
-          clearInterval(interval);
-          // Reload full data when sync completes
-          loadData();
-        }
-      } catch (error) {
-        console.error('Error during auto-refresh:', error);
-        setAutoRefreshing(false);
-        clearInterval(interval);
-      }
-    }, 2000); // Check every 2 seconds
-
-    // Safety timeout - stop after 5 minutes
-    const timeout = setTimeout(() => {
-      setAutoRefreshing(false);
-      clearInterval(interval);
-    }, 300000);
-
-    // Return cleanup function
-    return () => {
-      clearInterval(interval);
-      clearTimeout(timeout);
-      setAutoRefreshing(false);
-    };
-  };
 
   // Manual sync
   const handleSync = async () => {
@@ -156,9 +119,6 @@ export default function LimitlessPage() {
         description: 'Limitless sync initiated'
       });
       
-      // Start auto-refresh to monitor sync progress
-      const cleanup = startAutoRefresh();
-      setAutoRefreshCleanup(() => cleanup);
     } catch (error) {
       console.error('Error syncing:', error);
       toast({
@@ -259,15 +219,6 @@ export default function LimitlessPage() {
     loadData();
   }, []);
 
-  // Cleanup auto-refresh when component unmounts
-  useEffect(() => {
-    return () => {
-      if (autoRefreshCleanup) {
-        autoRefreshCleanup();
-        setAutoRefreshCleanup(null);
-      }
-    };
-  }, [autoRefreshCleanup]);
 
   // Format time
   const formatTime = (isoString: string | null) => {
@@ -372,12 +323,10 @@ export default function LimitlessPage() {
                 </p>
               )}
             </div>
-            {(stats.sync_status === 'syncing' || autoRefreshing) && (
+            {stats.sync_status === 'syncing' && (
               <div className="flex items-center gap-2 text-blue-500">
                 <RefreshCw className="w-4 h-4 animate-spin" />
-                <span className="text-sm">
-                  {stats.sync_status === 'syncing' ? 'Syncing...' : 'Monitoring sync...'}
-                </span>
+                <span className="text-sm">Syncing...</span>
               </div>
             )}
             {stats.sync_status === 'error' && (
@@ -607,15 +556,6 @@ export default function LimitlessPage() {
             <p className="text-gray-500 dark:text-gray-400">No recordings found</p>
           </div>
         ) : (
-          <>
-            {autoRefreshing && (
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-4">
-                <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span className="text-sm">Auto-refreshing data during sync...</span>
-                </div>
-              </div>
-            )}
           lifelogs.map((log) => {
             const isExpanded = expandedRecordings.has(log.id);
             const hasExtractedData = log.extracted_data && (
