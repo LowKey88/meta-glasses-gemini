@@ -244,7 +244,12 @@ export default function LimitlessPage() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <GlobalProgressBar />
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2 text-gray-900 dark:text-gray-100">Limitless Integration</h1>
+        <div className="flex items-center gap-3 mb-2">
+          <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+            <Mic className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+          </div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Limitless Integration</h1>
+        </div>
         <p className="text-gray-600 dark:text-gray-400">
           Sync and manage your Limitless Pendant recordings
         </p>
