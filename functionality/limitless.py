@@ -50,6 +50,8 @@ async def process_limitless_command(command: str, phone_number: str) -> str:
     # Route to appropriate handler
     if command == "sync" or command == "sync limitless":
         return await sync_recent_lifelogs(phone_number)
+    elif command == "force reprocess" or command == "reprocess":
+        return await force_reprocess_recent_tasks(phone_number)
     elif command == "today":
         return await get_today_lifelogs(phone_number)
     elif command == "yesterday":
@@ -74,6 +76,7 @@ async def get_limitless_help() -> str:
     return """🎙️ *Limitless Commands:*
 
 • *sync limitless* - Sync recent recordings
+• *limitless reprocess* - Force reprocess recent recordings
 • *limitless today* - Today's recordings
 • *limitless yesterday* - Yesterday's recordings  
 • *limitless search [query]* - Search transcripts
@@ -81,6 +84,60 @@ async def get_limitless_help() -> str:
 • *limitless summary [date]* - Daily summary
 
 _Example: "limitless search project deadline"_"""
+
+
+async def force_reprocess_recent_tasks(phone_number: str, hours: int = 24) -> str:
+    """
+    Force reprocessing of recent recordings to fix task counting issues.
+    Clears processed flags for recent recordings to ensure they get reprocessed.
+    """
+    try:
+        logger.info(f"🔄 Force reprocessing recent tasks for last {hours} hours")
+        
+        # Calculate time range
+        end_time = datetime.now()
+        start_time = end_time - timedelta(hours=hours)
+        
+        # Get recent recordings
+        lifelogs = await limitless_client.get_all_lifelogs(
+            start_time=start_time,
+            end_time=end_time,
+            timezone_str="Asia/Kuala_Lumpur",
+            max_entries=None,
+            include_markdown=False,
+            include_headings=False
+        )
+        
+        cleared_count = 0
+        
+        # Clear processed flags for recent recordings
+        for log in lifelogs:
+            log_id = log.get('id')
+            if log_id:
+                # Clear processed flag
+                processed_key = RedisKeyBuilder.build_limitless_processed_key(log_id)
+                if redis_client.exists(processed_key):
+                    redis_client.delete(processed_key)
+                    cleared_count += 1
+                
+                # Clear AI task processed flag  
+                ai_task_key = f"meta-glasses:limitless:ai_tasks_processed:{log_id}"
+                if redis_client.exists(ai_task_key):
+                    redis_client.delete(ai_task_key)
+                
+                # Clear natural language task flag
+                task_key = RedisKeyBuilder.build_limitless_task_created_key(log_id)
+                if redis_client.exists(task_key):
+                    redis_client.delete(task_key)
+        
+        logger.info(f"🧹 Cleared processed flags for {cleared_count} recordings")
+        
+        # Now run normal sync to reprocess
+        return await sync_recent_lifelogs(phone_number, hours)
+        
+    except Exception as e:
+        logger.error(f"Error in force reprocessing: {str(e)}")
+        return f"❌ Error force reprocessing: {str(e)}"
 
 
 async def sync_recent_lifelogs(phone_number: str, hours: Optional[int] = 24) -> str:
