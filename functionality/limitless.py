@@ -179,13 +179,14 @@ async def sync_recent_lifelogs(phone_number: str, hours: Optional[int] = 24) -> 
             for log in lifelogs[-5:]:  # Last 5 recordings
                 start_time = log.get('start_time') or log.get('startTime') or log.get('createdAt')
                 latest_times.append(f"ID: {log.get('id', 'unknown')[:8]}... Time: {start_time}")
-            logger.info(f"📅 Latest 5 recordings from API: {latest_times}")
+            logger.debug(f"📅 Latest 5 recordings from API: {latest_times}")
         
         if not lifelogs:
             return "No new recordings found in the specified time range."
             
         # Process each Lifelog
         processed_count = 0
+        skipped_count = 0
         memories_created = 0
         tasks_created = 0
         
@@ -193,13 +194,15 @@ async def sync_recent_lifelogs(phone_number: str, hours: Optional[int] = 24) -> 
             try:
                 log_id = log.get('id', 'unknown')
                 log_title = log.get('title', 'Untitled')
-                logger.info(f"Processing recording {i}/{len(lifelogs)}: {log_title} (ID: {log_id})")
                 
                 # Check if already processed
                 processed_key = RedisKeyBuilder.build_limitless_processed_key(log_id)
                 if redis_client.exists(processed_key):
-                    logger.info(f"Recording {log_id} already processed, skipping")
+                    skipped_count += 1
+                    logger.debug(f"Recording {log_id} already processed, skipping")
                     continue
+                    
+                logger.info(f"Processing recording {i}/{len(lifelogs)}: {log_title} (ID: {log_id})")
                     
                 # Process the Lifelog
                 results = await process_single_lifelog(log, phone_number)
@@ -227,6 +230,10 @@ async def sync_recent_lifelogs(phone_number: str, hours: Optional[int] = 24) -> 
         # Update last sync timestamp
         last_sync_key = RedisKeyBuilder.build_limitless_sync_key(phone_number)
         redis_client.set(last_sync_key, datetime.now(timezone.utc).isoformat())
+        
+        # Log summary
+        if processed_count > 0 or skipped_count > 0:
+            logger.info(f"🔄 Sync summary: {processed_count} processed, {skipped_count} skipped from {len(lifelogs)} total recordings")
         
         # Update pending sync cache (avoid unnecessary API calls on dashboard load)
         try:
