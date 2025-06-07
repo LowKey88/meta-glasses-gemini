@@ -299,34 +299,52 @@ export default function LimitlessPage() {
         </div>
       </div>
 
-      {/* Sync Status Bar */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-8">
+      {/* Sync Status Bar - Compact & Enhanced */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-3 mb-6">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <LastSyncBadge mode={lastSyncMode} time={lastSync} />
-            {stats.pending_sync > 0 && (
-              <p className="text-sm text-orange-500">
-                {stats.pending_sync} recordings pending sync
-              </p>
-            )}
-            {syncStatus === 'syncing' && (
-              <div className="flex items-center gap-2 text-blue-500">
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                <span className="text-sm">Syncing...</span>
+            
+            {/* Status Indicators */}
+            {stats.pending_sync > 0 ? (
+              <div className="flex items-center gap-2 px-2.5 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-full">
+                <AlertCircle className="w-3.5 h-3.5" />
+                <span className="text-xs font-medium">{stats.pending_sync} pending</span>
               </div>
-            )}
-            {stats.sync_status === 'error' && (
-              <div className="flex items-center gap-2 text-red-500">
-                <AlertCircle className="w-4 h-4" />
-                <span className="text-sm">Sync error</span>
+            ) : syncStatus === 'syncing' ? (
+              <div className="flex items-center gap-2 px-2.5 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full">
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                <span className="text-xs font-medium">Syncing...</span>
+              </div>
+            ) : stats.sync_status === 'error' ? (
+              <div className="flex items-center gap-2 px-2.5 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-full">
+                <AlertCircle className="w-3.5 h-3.5" />
+                <span className="text-xs font-medium">Sync error</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 px-2.5 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full">
+                <CheckCircle className="w-3.5 h-3.5" />
+                <span className="text-xs font-medium">All synced • {stats.tasks_created} tasks</span>
               </div>
             )}
           </div>
-          <div className="flex items-center gap-3">
-            {stats.pending_sync > 0 && (
-              <div className="flex items-center gap-2 px-3 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-full">
-                <AlertCircle className="w-4 h-4" />
-                <span className="text-sm font-medium">{stats.pending_sync} pending</span>
+          
+          <div className="flex items-center gap-2">
+            {/* Quick Stats */}
+            {stats.pending_sync === 0 && syncStatus !== 'syncing' && (
+              <div className="hidden sm:flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 mr-3">
+                <span className="flex items-center gap-1">
+                  <Mic className="w-3 h-3" />
+                  {stats.total_lifelogs}
+                </span>
+                <span className="flex items-center gap-1">
+                  <CheckSquare className="w-3 h-3" />
+                  {stats.tasks_created}
+                </span>
+                <span className="flex items-center gap-1">
+                  <BrainCircuit className="w-3 h-3" />
+                  {stats.memories_created}
+                </span>
               </div>
             )}
             <SyncButton />
