@@ -454,17 +454,34 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
                 redis_client.setex(ai_task_key, 86400 * 7, "1")  # 7 days TTL
             else:
                 logger.debug(f"AI tasks already processed for {log_id[:8]}..., skipping task creation")
-                # Preserve existing successful AI tasks from cache if they exist
+                # Preserve existing successful tasks from cache (both AI and natural language)
                 for task in extracted.get('tasks', []):
-                    if isinstance(task, dict) and task.get('created_successfully') is True and task.get('source') == 'ai_extracted':
-                        validated_tasks.append(task)
+                    if isinstance(task, dict) and task.get('created_successfully') is True:
+                        # Include both ai_extracted and natural_language tasks
+                        if task.get('source') in ['ai_extracted', 'natural_language']:
+                            validated_tasks.append(task)
                         
             # Merge natural language tasks with AI-extracted tasks
             if natural_tasks_data:
                 validated_tasks.extend(natural_tasks_data)
             
+            # CRITICAL FIX: Also preserve natural language tasks from previous cache
+            # This handles cases where natural language tasks were skipped due to deduplication
+            for task in extracted.get('tasks', []):
+                if isinstance(task, dict) and task.get('source') == 'natural_language':
+                    # Only add if not already in validated_tasks
+                    task_desc = task.get('description', '')
+                    if not any(t.get('description') == task_desc for t in validated_tasks):
+                        validated_tasks.append(task)
+            
             # Update extracted data with only successful tasks
             extracted['tasks'] = validated_tasks
+            
+            # DIAGNOSTIC: Log final task count for this recording
+            if validated_tasks:
+                task_sources = [t.get('source', 'unknown') for t in validated_tasks]
+                logger.info(f"Lifelog {log_id[:8]}... final task count: {len(validated_tasks)} "
+                           f"(sources: {task_sources})")
                         
             # ✅ ENHANCED: Store people with speaker attribution
             for person in extracted.get('people', []):
