@@ -12,6 +12,7 @@ from api.dashboard.config import JWT_SECRET
 from utils.redis_utils import r as redis_client
 from utils.redis_key_builder import RedisKeyBuilder
 from functionality.limitless import sync_recent_lifelogs, limitless_client
+from utils.limitless_logger import limitless_routes_logger
 
 def verify_dashboard_token(authorization: Optional[str] = Header(None)):
     """Verify JWT token for dashboard access"""
@@ -116,15 +117,20 @@ async def get_limitless_stats(user: str = Depends(verify_dashboard_token)) -> Di
         if cached_pending:
             try:
                 pending_sync = int(cached_pending.decode() if isinstance(cached_pending, bytes) else cached_pending)
-                logger.debug(f"Using cached pending sync count: {pending_sync}")
+                limitless_routes_logger.cache_update("pending_sync", pending_sync)
             except:
                 pending_sync = 0
         else:
             # Only calculate pending sync if not cached (to avoid unnecessary API calls)
             pending_sync = 0
-            logger.info("No cached pending sync count, showing 0 (will update after next sync)")
+            logger.debug("No cached pending sync count, defaulting to 0")
         
-        logger.info(f"📊 Dashboard stats: total_lifelogs={total_lifelogs}, synced_today={synced_today}, memories_created={memories_created}, tasks_created={tasks_created}")
+        limitless_routes_logger.dashboard_request("stats", {
+            "total": total_lifelogs,
+            "today": synced_today,
+            "memories": memories_created,
+            "tasks": tasks_created
+        })
         
         return {
             "total_lifelogs": total_lifelogs,
@@ -161,7 +167,7 @@ async def get_lifelogs(
         pattern = RedisKeyBuilder.build_limitless_lifelog_key("*")
         lifelogs = []
         
-        logger.info(f"Dashboard searching for Lifelogs with pattern: {pattern} for date: {target_date}")
+        limitless_routes_logger.dashboard_request("lifelogs", {"date": str(target_date)})
         key_count = 0
         for key in redis_client.scan_iter(match=pattern):
             key_count += 1
@@ -174,21 +180,18 @@ async def get_lifelogs(
                 
                 # Check if log is from target date
                 start_time = log_data.get('start_time')
-                logger.info(f"Found cached log {log_data.get('id')} with start_time: {start_time}")
                 
                 # If no start_time, show the recording (fallback behavior)
                 # or if start_time matches target date
                 should_include = False
                 if not start_time:
-                    logger.info(f"Log {log_data.get('id')} has no start_time, including in results")
                     should_include = True
                 else:
                     try:
                         log_date = datetime.fromisoformat(start_time.replace('Z', '+00:00')).date()
-                        logger.info(f"Parsed log date: {log_date}, target date: {target_date}")
                         should_include = (log_date == target_date)
                     except Exception as e:
-                        logger.error(f"Error parsing date for log {log_data.get('id')}: {e}")
+                        logger.debug(f"Date parse error for {log_data.get('id')[:8]}...: {e}")
                         should_include = True  # Include if date parsing fails
                 
                 if should_include:
@@ -228,7 +231,7 @@ async def get_lifelogs(
         # Sort by start time
         lifelogs.sort(key=lambda x: x['start_time'] or '', reverse=True)
         
-        logger.info(f"Dashboard found {key_count} cached keys, returning {len(lifelogs)} lifelogs for date {target_date}")
+        logger.debug(f"Found {len(lifelogs)}/{key_count} logs for {target_date}")
         return lifelogs
         
     except Exception as e:
@@ -330,18 +333,17 @@ async def sync_limitless(
 ) -> Dict[str, Any]:
     """Manually trigger Limitless sync."""
     try:
-        logger.info("🔄 MANUAL SYNC ENDPOINT CALLED - Starting sync process...")
+        limitless_routes_logger.dashboard_request("sync", {"manual": True})
         # Use the same user_id as the main dashboard
         phone_number = "60122873632"
         
         # Run sync for last 24 hours to match pending check window
-        logger.info(f"📡 Calling sync_recent_lifelogs with user: {phone_number}, hours: 24")
         result = await sync_recent_lifelogs(phone_number, hours=24)
-        logger.info(f"✅ Manual sync completed with result: {result[:100]}...")
+        logger.info("✅ Manual sync completed successfully")
         
         # Update pending sync cache after manual sync
         try:
-            logger.info("🔄 Updating pending sync cache after manual sync...")
+            logger.debug("Updating pending sync cache...")
             end_time = datetime.now()
             start_time = end_time - timedelta(hours=24)
             
@@ -366,7 +368,7 @@ async def sync_limitless(
             # Cache the result for 5 minutes
             pending_sync_key = "meta-glasses:limitless:pending_sync_cache"
             redis_client.setex(pending_sync_key, 300, str(pending_count))  # 5 minute cache
-            logger.info(f"📊 Updated pending sync cache: {pending_count} recordings pending")
+            limitless_routes_logger.cache_update("pending_sync", pending_count)
             
         except Exception as e:
             logger.error(f"Error updating pending sync cache: {str(e)}")

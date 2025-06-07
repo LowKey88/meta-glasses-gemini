@@ -44,6 +44,22 @@ from api.dashboard import dashboard_router
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("uvicorn")
 
+# Configure Limitless logging to be less verbose
+limitless_loggers = [
+    "functionality.limitless",
+    "utils.limitless_api", 
+    "api.dashboard.limitless_routes"
+]
+
+# Get log level from environment or config
+from utils.limitless_config import limitless_config
+log_level = getattr(logging, limitless_config.get_log_level())
+
+for logger_name in limitless_loggers:
+    limitless_logger = logging.getLogger(logger_name)
+    # Set to WARNING to reduce noise, or DEBUG for troubleshooting
+    limitless_logger.setLevel(log_level)
+
 app = FastAPI()
 ok = {'status': 'Ok'}
 

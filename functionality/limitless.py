@@ -17,6 +17,8 @@ from functionality.task import create_task, get_task_lists
 from functionality.calendar import create_google_calendar_event
 from utils.redis_key_builder import RedisKeyBuilder
 from functionality.calendar import get_event_color
+from utils.limitless_logger import limitless_logger
+from utils.limitless_config import limitless_config
 
 logger = logging.getLogger(__name__)
 
@@ -159,7 +161,7 @@ async def sync_recent_lifelogs(phone_number: str, hours: Optional[int] = 24) -> 
                 )
                 
                 # Delay between processing to respect API rate limits
-                await asyncio.sleep(2.0)  # Increased delay to avoid quota issues
+                await asyncio.sleep(limitless_config.BATCH_PROCESSING_DELAY)
                 
             except Exception as e:
                 logger.error(f"Error processing Lifelog {log.get('id')}: {str(e)}")
@@ -249,7 +251,7 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
         # Fallback: try to get transcript from first content if speaker attribution fails
         if not transcript and contents and len(contents) > 0:
             transcript = contents[0].get('content', '')
-            logger.info(f"Using fallback transcript method for log {log_id}")
+            logger.debug(f"Using fallback transcript for {log_id[:8]}...")
             
         summary = log.get('summary', '')
         
@@ -331,7 +333,6 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
                 for task in extracted.get('tasks', []):
                     if not task.get('assigned_to'):
                         task['assigned_to'] = 'You'  # Default to user
-                        logger.debug(f"Task missing assigned_to, defaulting to 'You': {task.get('description', '')[:50]}")
                     if not task.get('assigned_by'):
                         task['assigned_by'] = 'You'  # Default to user
                 
@@ -342,7 +343,7 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
             
             # ✅ ENHANCED FALLBACK: Always ensure we have at least the primary user in people list
             if not extracted.get('people'):
-                logger.info(f"No people extracted for log {log_id}, adding primary user")
+                logger.debug(f"No people extracted for {log_id[:8]}..., adding user")
                 extracted['people'] = [{
                     'name': 'You',
                     'context': 'Primary user (default)',
@@ -365,11 +366,12 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
                         if (metadata.get('source') == 'limitless' and 
                             metadata.get('log_id') == log_id and
                             fact.lower() in existing_mem.get('content', '').lower()):
-                            logger.info(f"Skipping duplicate Limitless memory for log {log_id}: {fact[:50]}...")
+                            logger.debug(f"Skipping duplicate fact for {log_id[:8]}...")
                             duplicate_found = True
                             break
                     
                     if duplicate_found:
+                        logger.debug(f"Skipping duplicate memory for log {log_id[:8]}...")
                         continue
                     
                     # Create memory and manually add metadata for tracking
@@ -439,11 +441,12 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
                         if (metadata.get('source') == 'limitless' and 
                             metadata.get('log_id') == log_id and
                             person['name'].lower() in existing_mem.get('content', '').lower()):
-                            logger.info(f"Skipping duplicate Limitless person for log {log_id}: {person['name']}")
+                            logger.debug(f"Skipping duplicate person {person['name']} for {log_id[:8]}...")
                             duplicate_found = True
                             break
                     
                     if duplicate_found:
+                        logger.debug(f"Skipping duplicate memory for log {log_id[:8]}...")
                         continue
                     
                     memory_id = memory_manager.create_memory(
@@ -589,7 +592,7 @@ Return a JSON object with:
 Be specific about WHO said what. Extract only clearly stated information."""
     else:
         # ✅ FALLBACK: Use original prompt assuming single speaker
-        logger.info("No speaker attribution detected, using fallback prompt assuming single user")
+        logger.debug("No speaker attribution detected, using single-user prompt")
         prompt = f"""Analyze this recording transcript and extract:
 
 1. Key facts and decisions (for memory storage)

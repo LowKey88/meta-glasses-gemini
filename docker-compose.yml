@@ -22,6 +22,7 @@ services:
       - REDIS_PORT=6379
       - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD:-meta-admin-2024}
       - LIMITLESS_API_KEY=${LIMITLESS_API_KEY}
+      - LIMITLESS_LOG_LEVEL=${LIMITLESS_LOG_LEVEL:-WARNING}
     depends_on:
       - redis
     networks:

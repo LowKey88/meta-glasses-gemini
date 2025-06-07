@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import List, Dict, Optional, Any
 import logging
 from urllib.parse import urlencode
+from utils.limitless_logger import limitless_api_logger
 
 logger = logging.getLogger(__name__)
 
@@ -86,19 +87,20 @@ class LimitlessAPIClient:
             params["cursor"] = cursor
             
         url = f"{self.BASE_URL}/lifelogs?{urlencode(params)}"
-        logger.debug(f"Limitless API request: {url}")
-        logger.debug(f"Limitless API params: {params}")
+        # Only log params in debug mode, not the full URL
+        logger.debug(f"API request with params: {params}")
         
         async with aiohttp.ClientSession() as session:
             try:
                 async with session.get(url, headers=self.headers) as response:
-                    logger.info(f"Limitless API response status: {response.status}")
                     response.raise_for_status()
                     data = await response.json()
                     
                     # Extract lifelogs from the correct response structure
                     lifelogs = data.get('data', {}).get('lifelogs', [])
-                    logger.info(f"Retrieved {len(lifelogs)} Lifelog entries")
+                    # Only log if we got data
+                    if lifelogs:
+                        logger.debug(f"Retrieved {len(lifelogs)} entries")
                     
                     # Return in expected format for compatibility
                     return {"items": lifelogs, "meta": data.get('meta', {})}
@@ -151,16 +153,19 @@ class LimitlessAPIClient:
                 
                 items = response.get("items", [])
                 if not items:
-                    logger.info(f"No more items found with cursor {cursor}, stopping pagination")
+                    logger.debug(f"End of pagination at page {page_count}")
                     break
                     
                 all_entries.extend(items)
                 page_count += 1
                 
+                # Log pagination progress using custom logger
+                limitless_api_logger.api_pagination(page_count, len(items), cursor)
+                
                 # Check if we've reached the desired max
                 if max_entries and len(all_entries) >= max_entries:
                     all_entries = all_entries[:max_entries]
-                    logger.info(f"Reached max_entries limit of {max_entries}, stopping pagination")
+                    logger.debug(f"Reached max_entries limit of {max_entries}")
                     break
                     
                 # Get next cursor from response
@@ -168,11 +173,9 @@ class LimitlessAPIClient:
                 next_cursor = meta.get("lifelogs", {}).get("nextCursor")
                 
                 if not next_cursor:
-                    logger.info("No next cursor found, stopping pagination")
                     break
                     
                 cursor = next_cursor
-                logger.info(f"Fetching next page with cursor: {cursor}")
                 
                 # Small delay to avoid rate limiting
                 await asyncio.sleep(0.5)
@@ -184,7 +187,9 @@ class LimitlessAPIClient:
         if page_count >= max_pages:
             logger.warning(f"Hit maximum page limit of {max_pages}, may not have retrieved all entries")
                 
-        logger.info(f"Retrieved total of {len(all_entries)} Lifelog entries after {page_count} pages")
+        # Only log summary if we got entries
+        if all_entries:
+            logger.info(f"✅ Retrieved {len(all_entries)} total entries ({page_count} pages)")
         return all_entries
     
     async def get_lifelogs_by_date(
