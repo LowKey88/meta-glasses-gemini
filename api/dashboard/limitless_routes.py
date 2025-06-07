@@ -83,6 +83,7 @@ async def get_limitless_stats(user: str = Depends(verify_dashboard_token)) -> Di
                     pass
         
         # Count tasks created from Limitless recordings
+        # FIXED: Use unified counting to eliminate double counting
         lifelog_pattern = RedisKeyBuilder.build_limitless_lifelog_key("*")
         for key in redis_client.scan_iter(match=lifelog_pattern):
             data = redis_client.get(key)
@@ -91,23 +92,17 @@ async def get_limitless_stats(user: str = Depends(verify_dashboard_token)) -> Di
                     log_data = json.loads(data.decode() if isinstance(data, bytes) else data)
                     extracted = log_data.get('extracted', {})
                     
-                    # Count tasks from extracted data
+                    # Count only successfully created tasks from extracted data
+                    # This now includes both AI-extracted and natural language tasks
                     tasks_from_recording = extracted.get('tasks', [])
-                    tasks_created += len(tasks_from_recording)
                     
-                except:
-                    pass
-        
-        # Also count natural language tasks from Redis cache
-        task_created_pattern = "meta-glasses:limitless:task_created:*"
-        for key in redis_client.scan_iter(match=task_created_pattern):
-            data = redis_client.get(key)
-            if data:
-                try:
-                    task_data = json.loads(data.decode() if isinstance(data, bytes) else data)
-                    tasks_from_nlp = task_data.get('tasks_created', 0)
-                    tasks_created += tasks_from_nlp
-                except:
+                    # Filter only tasks that were actually created (have success flag)
+                    successful_tasks = [task for task in tasks_from_recording 
+                                      if isinstance(task, dict) and task.get('created_successfully', True)]
+                    tasks_created += len(successful_tasks)
+                    
+                except Exception as e:
+                    logger.debug(f"Error parsing lifelog data: {e}")
                     pass
         
         # Get cached pending sync count (avoid API calls on page load)

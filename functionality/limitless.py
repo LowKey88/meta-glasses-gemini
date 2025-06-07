@@ -281,7 +281,7 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
         # Only process transcript if available
         if has_transcript:
             # First, extract natural language tasks and reminders
-            natural_tasks_created = extract_natural_language_tasks(transcript, log_id, phone_number)
+            natural_tasks_created, natural_tasks_data = extract_natural_language_tasks(transcript, log_id, phone_number, title)
             results['tasks_created'] += natural_tasks_created
             
             # ✅ ENHANCED: Use speaker-aware Gemini prompt with fallback
@@ -305,7 +305,14 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
                 
                 # ✅ ENHANCED: Merge AI extraction with speaker data
                 extracted['facts'] = extracted_ai.get('facts', [])
-                extracted['tasks'] = extracted_ai.get('tasks', [])
+                
+                # Mark AI-extracted tasks with source before storing
+                ai_tasks = extracted_ai.get('tasks', [])
+                for task in ai_tasks:
+                    if isinstance(task, dict):
+                        task['source'] = 'ai_extracted'
+                        
+                extracted['tasks'] = ai_tasks
                 extracted['events'] = extracted_ai.get('events', [])
                 
                 # Combine AI-extracted people with API speakers
@@ -394,34 +401,63 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
                         
                         results['memories_created'] += 1
                         
-            # ✅ ENHANCED: Create tasks with speaker attribution
-            for task in extracted.get('tasks', []):
-                if task.get('description'):
-                    # Create Google Task with enhanced metadata
-                    task_title = task['description']
-                    task_notes = f"From Limitless recording: {title}"
-                    
-                    # ✅ NEW: Add speaker attribution to task notes
-                    if task.get('assigned_to'):
-                        task_notes += f"\nAssigned to: {task['assigned_to']}"
-                    if task.get('assigned_by'):
-                        task_notes += f"\nMentioned by: {task['assigned_by']}"
-                    
-                    task_data = {
-                        'title': task_title,
-                        'notes': task_notes
-                    }
-                    
-                    if task.get('due_date'):
-                        try:
-                            due = datetime.strptime(task['due_date'], '%Y-%m-%d')
-                            task_data['due'] = due.isoformat() + 'Z'
-                        except:
-                            pass
-                            
-                    success = create_task_from_limitless(task_data, phone_number)
-                    if success:
-                        results['tasks_created'] += 1
+            # ✅ ENHANCED: Create tasks with speaker attribution and success validation
+            validated_tasks = []  # Track only successfully created tasks
+            
+            # Check if AI tasks were already processed for this log
+            ai_task_key = f"meta-glasses:limitless:ai_tasks_processed:{log_id}"
+            ai_tasks_already_processed = redis_client.exists(ai_task_key)
+            
+            if not ai_tasks_already_processed:
+                for task in extracted.get('tasks', []):
+                    if task.get('description'):
+                        # Create Google Task with enhanced metadata
+                        task_title = task['description']
+                        task_notes = f"From Limitless recording: {title}"
+                        
+                        # ✅ NEW: Add speaker attribution to task notes
+                        if task.get('assigned_to'):
+                            task_notes += f"\nAssigned to: {task['assigned_to']}"
+                        if task.get('assigned_by'):
+                            task_notes += f"\nMentioned by: {task['assigned_by']}"
+                        
+                        task_data = {
+                            'title': task_title,
+                            'notes': task_notes
+                        }
+                        
+                        if task.get('due_date'):
+                            try:
+                                due = datetime.strptime(task['due_date'], '%Y-%m-%d')
+                                task_data['due'] = due.isoformat() + 'Z'
+                            except:
+                                pass
+                                
+                        success = create_task_from_limitless(task_data, phone_number)
+                        if success:
+                            results['tasks_created'] += 1
+                            # FIXED: Only store successfully created tasks
+                            task_with_success = task.copy()
+                            task_with_success['created_successfully'] = True
+                            task_with_success['google_task_created'] = True
+                            task_with_success['source'] = 'ai_extracted'
+                            validated_tasks.append(task_with_success)
+                        else:
+                            # Mark as failed but still log for debugging
+                            logger.warning(f"Failed to create Google Task: {task_title}")
+                            # Don't add to validated_tasks - this excludes it from counts
+                
+                # Mark AI tasks as processed to prevent duplicate creation
+                redis_client.setex(ai_task_key, 86400 * 7, "1")  # 7 days TTL
+            else:
+                logger.debug(f"AI tasks already processed for {log_id[:8]}..., skipping task creation")
+                        
+            # Merge natural language tasks with AI-extracted tasks
+            if 'natural_tasks_data' in locals() and natural_tasks_data:
+                validated_tasks.extend(natural_tasks_data)
+            
+            # Update extracted data with only successful tasks
+            extracted['tasks'] = validated_tasks
                         
             # ✅ ENHANCED: Store people with speaker attribution
             for person in extracted.get('people', []):
@@ -653,7 +689,7 @@ def create_task_from_limitless(task_data: Dict, phone_number: str) -> bool:
         return False
 
 
-def extract_natural_language_tasks(transcript: str, log_id: str, phone_number: str) -> int:
+def extract_natural_language_tasks(transcript: str, log_id: str, phone_number: str, title: str = "") -> tuple[int, List[Dict]]:
     """
     Extract natural language tasks and reminders from transcript.
     
@@ -663,14 +699,23 @@ def extract_natural_language_tasks(transcript: str, log_id: str, phone_number: s
     - "my wife told me to buy..."
     - "don't forget to..."
     
-    Returns the number of tasks created.
+    Returns tuple of (number of tasks created, list of task data).
     """
     try:
         # Check if we've already processed this transcript for tasks
         task_key = RedisKeyBuilder.build_limitless_task_created_key(log_id)
         if redis_client.exists(task_key):
-            logger.info(f"Natural language tasks already extracted for log {log_id}")
-            return 0
+            logger.debug(f"Tasks already extracted for {log_id[:8]}...")
+            # Return cached data if available
+            cached_data = redis_client.get(task_key)
+            if cached_data:
+                try:
+                    cache_info = json.loads(cached_data.decode() if isinstance(cached_data, bytes) else cached_data)
+                    cached_tasks = cache_info.get('task_data', [])
+                    return cache_info.get('tasks_created', 0), cached_tasks
+                except:
+                    pass
+            return 0, []
         
         # Use Gemini to detect natural language task instructions
         task_detection_prompt = f"""Analyze this conversation transcript and identify any natural language task or reminder instructions.
@@ -728,14 +773,15 @@ Be conservative - only extract when you're confident it's a personal task/remind
                 else:
                     # No JSON found, return 0 tasks (this is normal for recordings without tasks)
                     logger.debug(f"No JSON structure found in task response for log {log_id}, no tasks extracted")
-                    return 0
+                    return 0, []
                 
             task_data = json.loads(cleaned_response)
         except json.JSONDecodeError:
             logger.debug(f"Failed to parse natural language task response for log {log_id}, no tasks extracted")
-            return 0
+            return 0, []
         
         tasks_created = 0
+        successful_tasks_data = []  # Track task data for successful tasks
         
         if task_data.get("tasks_found", False):
             natural_tasks = task_data.get("natural_tasks", [])
@@ -748,7 +794,11 @@ Be conservative - only extract when you're confident it's a personal task/remind
                 if task_text and len(task_text) > 5:  # Ensure meaningful task
                     # Create the task
                     task_title = f"{task_text}"
-                    task_notes = f"From Limitless recording - {context}" if context else "From Limitless recording"
+                    task_notes = f"From Limitless recording"
+                    if title:
+                        task_notes += f": {title}"
+                    if context:
+                        task_notes += f" - {context}"
                     
                     success = create_task_from_limitless({
                         'title': task_title,
@@ -757,7 +807,20 @@ Be conservative - only extract when you're confident it's a personal task/remind
                     
                     if success:
                         tasks_created += 1
-                        logger.info(f"Created natural language task: {task_title}")
+                        logger.debug(f"Created task: {task_title[:50]}...")
+                        
+                        # Store task data for unified storage
+                        task_data_item = {
+                            'description': task_title,
+                            'urgency': urgency,
+                            'context': context,
+                            'source': 'natural_language',
+                            'created_successfully': True,
+                            'google_task_created': True,
+                            'assigned_to': 'You',
+                            'assigned_by': 'You'
+                        }
+                        successful_tasks_data.append(task_data_item)
                         
                         # Send WhatsApp notification
                         notification_msg = f"📝 *Task Created from Recording*\n\n✅ {task_title}\n\n_From your Limitless Pendant recording_"
@@ -770,18 +833,19 @@ Be conservative - only extract when you're confident it's a personal task/remind
             json.dumps({
                 "processed_at": datetime.now().isoformat(),
                 "tasks_created": tasks_created,
-                "log_id": log_id
+                "log_id": log_id,
+                "task_data": successful_tasks_data  # Store task data for unified counting
             })
         )
         
         if tasks_created > 0:
-            logger.info(f"Extracted {tasks_created} natural language tasks from log {log_id}")
+            logger.debug(f"Extracted {tasks_created} tasks from {log_id[:8]}...")
         
-        return tasks_created
+        return tasks_created, successful_tasks_data
         
     except Exception as e:
         logger.error(f"Error extracting natural language tasks from log {log_id}: {str(e)}")
-        return 0
+        return 0, []
 
 
 async def get_today_lifelogs(phone_number: str) -> str:
