@@ -278,6 +278,9 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
             'speakers': speakers_identified  # ✅ NEW: Include speaker info
         }
         
+        # Initialize natural tasks data
+        natural_tasks_data = []
+        
         # Only process transcript if available
         if has_transcript:
             # First, extract natural language tasks and reminders
@@ -451,9 +454,13 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
                 redis_client.setex(ai_task_key, 86400 * 7, "1")  # 7 days TTL
             else:
                 logger.debug(f"AI tasks already processed for {log_id[:8]}..., skipping task creation")
+                # Preserve existing successful AI tasks from cache if they exist
+                for task in extracted.get('tasks', []):
+                    if isinstance(task, dict) and task.get('created_successfully') is True and task.get('source') == 'ai_extracted':
+                        validated_tasks.append(task)
                         
             # Merge natural language tasks with AI-extracted tasks
-            if 'natural_tasks_data' in locals() and natural_tasks_data:
+            if natural_tasks_data:
                 validated_tasks.extend(natural_tasks_data)
             
             # Update extracted data with only successful tasks

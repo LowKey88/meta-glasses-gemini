@@ -96,10 +96,28 @@ async def get_limitless_stats(user: str = Depends(verify_dashboard_token)) -> Di
                     # This now includes both AI-extracted and natural language tasks
                     tasks_from_recording = extracted.get('tasks', [])
                     
-                    # Filter only tasks that were actually created (have success flag)
-                    successful_tasks = [task for task in tasks_from_recording 
-                                      if isinstance(task, dict) and task.get('created_successfully', True)]
-                    tasks_created += len(successful_tasks)
+                    # FIXED: Only count tasks that explicitly have success flag = True
+                    # Exclude legacy data without validation and failed tasks
+                    validated_count = 0
+                    legacy_count = 0
+                    failed_count = 0
+                    
+                    for task in tasks_from_recording:
+                        if isinstance(task, dict):
+                            # Only count tasks with explicit success validation
+                            if task.get('created_successfully') is True:
+                                validated_count += 1
+                            elif 'created_successfully' not in task:
+                                legacy_count += 1  # Legacy data without validation
+                            elif task.get('created_successfully') is False:
+                                failed_count += 1  # Explicitly failed tasks
+                    
+                    tasks_created += validated_count
+                    
+                    # Debug logging for investigation
+                    if validated_count > 0 or legacy_count > 0 or failed_count > 0:
+                        logger.debug(f"Task count analysis - Log {log_data.get('id', 'unknown')[:8]}...: "
+                                   f"validated={validated_count}, legacy={legacy_count}, failed={failed_count}")
                     
                 except Exception as e:
                     logger.debug(f"Error parsing lifelog data: {e}")
