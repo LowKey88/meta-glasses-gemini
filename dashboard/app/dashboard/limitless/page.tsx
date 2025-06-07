@@ -91,7 +91,9 @@ export default function LimitlessPage() {
   const loadData = async (date?: Date) => {
     try {
       setLoading(true);
-      const dateStr = (date || selectedDate).toISOString().split('T')[0];
+      // Use local date instead of UTC to prevent timezone offset issues
+      const targetDate = date || selectedDate;
+      const dateStr = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`;
       const [statsRes, lifelogsRes] = await Promise.all([
         api.getLimitlessStats(),
         api.getLimitlessLifelogs(dateStr)
