@@ -85,7 +85,10 @@ async def get_limitless_stats(user: str = Depends(verify_dashboard_token)) -> Di
         # Count tasks created from Limitless recordings
         # FIXED: Use unified counting to eliminate double counting
         lifelog_pattern = RedisKeyBuilder.build_limitless_lifelog_key("*")
+        total_lifelogs_found = 0
+        
         for key in redis_client.scan_iter(match=lifelog_pattern):
+            total_lifelogs_found += 1
             data = redis_client.get(key)
             if data:
                 try:
@@ -96,32 +99,44 @@ async def get_limitless_stats(user: str = Depends(verify_dashboard_token)) -> Di
                     # This now includes both AI-extracted and natural language tasks
                     tasks_from_recording = extracted.get('tasks', [])
                     
-                    # FIXED: Only count tasks that explicitly have success flag = True
-                    # Exclude legacy data without validation and failed tasks
+                    # EMERGENCY FIX: Pragmatic counting with backward compatibility
                     validated_count = 0
                     legacy_count = 0
                     failed_count = 0
                     
                     for task in tasks_from_recording:
                         if isinstance(task, dict):
-                            # Only count tasks with explicit success validation
+                            # Count tasks based on validation status
                             if task.get('created_successfully') is True:
+                                # New format: explicitly successful
                                 validated_count += 1
-                            elif 'created_successfully' not in task:
-                                legacy_count += 1  # Legacy data without validation
                             elif task.get('created_successfully') is False:
-                                failed_count += 1  # Explicitly failed tasks
+                                # New format: explicitly failed - skip
+                                failed_count += 1
+                            elif 'created_successfully' not in task:
+                                # Legacy format: assume successful if has description
+                                if task.get('description') and len(str(task.get('description')).strip()) > 0:
+                                    legacy_count += 1
+                                # Skip empty or malformed legacy tasks
                     
-                    tasks_created += validated_count
+                    # Count both validated and legitimate legacy tasks
+                    tasks_created += (validated_count + legacy_count)
                     
                     # Debug logging for investigation
                     if validated_count > 0 or legacy_count > 0 or failed_count > 0:
-                        logger.debug(f"Task count analysis - Log {log_data.get('id', 'unknown')[:8]}...: "
+                        logger.info(f"Task count analysis - Log {log_data.get('id', 'unknown')[:8]}...: "
                                    f"validated={validated_count}, legacy={legacy_count}, failed={failed_count}")
+                    
+                    # DIAGNOSTIC: Log task structure for debugging
+                    if len(tasks_from_recording) > 0:
+                        sample_task = tasks_from_recording[0]
+                        logger.info(f"Sample task structure: {list(sample_task.keys()) if isinstance(sample_task, dict) else type(sample_task)}")
                     
                 except Exception as e:
                     logger.debug(f"Error parsing lifelog data: {e}")
                     pass
+        
+        logger.info(f"📊 Task counting summary: Found {total_lifelogs_found} lifelogs, counted {tasks_created} tasks total")
         
         # Get cached pending sync count (avoid API calls on page load)
         pending_sync_key = "meta-glasses:limitless:pending_sync_cache"
