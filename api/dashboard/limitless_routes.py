@@ -124,19 +124,19 @@ async def get_limitless_stats(user: str = Depends(verify_dashboard_token)) -> Di
                     
                     # Debug logging for investigation
                     if validated_count > 0 or legacy_count > 0 or failed_count > 0:
-                        logger.info(f"Task count analysis - Log {log_data.get('id', 'unknown')[:8]}...: "
+                        logger.debug(f"Task count analysis - Log {log_data.get('id', 'unknown')[:8]}...: "
                                    f"validated={validated_count}, legacy={legacy_count}, failed={failed_count}")
                     
                     # DIAGNOSTIC: Log task structure for debugging
                     if len(tasks_from_recording) > 0:
                         sample_task = tasks_from_recording[0]
-                        logger.info(f"Sample task structure: {list(sample_task.keys()) if isinstance(sample_task, dict) else type(sample_task)}")
+                        logger.debug(f"Sample task structure: {list(sample_task.keys()) if isinstance(sample_task, dict) else type(sample_task)}")
                     
                 except Exception as e:
                     logger.debug(f"Error parsing lifelog data: {e}")
                     pass
         
-        logger.info(f"📊 Task counting summary: Found {total_lifelogs_found} lifelogs, counted {tasks_created} tasks total")
+        logger.debug(f"📊 Task counting summary: Found {total_lifelogs_found} lifelogs, counted {tasks_created} tasks total")
         
         # Get cached pending sync count (avoid API calls on page load)
         pending_sync_key = "meta-glasses:limitless:pending_sync_cache"

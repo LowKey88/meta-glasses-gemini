@@ -537,7 +537,7 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
             # DIAGNOSTIC: Log final task count for this recording
             if validated_tasks:
                 task_sources = [t.get('source', 'unknown') for t in validated_tasks]
-                logger.info(f"Lifelog {log_id[:8]}... final task count: {len(validated_tasks)} "
+                logger.debug(f"Lifelog {log_id[:8]}... final task count: {len(validated_tasks)} "
                            f"(sources: {task_sources})")
                         
             # ✅ ENHANCED: Store people with speaker attribution
