@@ -2,6 +2,99 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.8] - 2025-06-08
+
+### Critical Bug Fix: Limitless Speaker Identification System
+
+#### Major Issue Resolution
+- **Problem**: Dashboard displaying "Unknown" speakers and generic "Speaker" labels instead of proper "Speaker 0", "Speaker 1", "Speaker 2" naming convention
+- **Impact**: Poor user experience with confusing speaker identification across all Limitless recordings
+- **Root Cause**: Multiple code paths in the system creating inconsistent speaker names from Limitless API responses
+
+#### Comprehensive Speaker Standardization System
+- **Enhanced API Processing**:
+  * Upgraded `extract_speakers_from_contents()` to handle Limitless API returning "Unknown" as actual speaker names
+  * Implemented dynamic "Speaker N" mapping with sequential numbering (Speaker 0, Speaker 1, Speaker 2, etc.)
+  * Added proper speaker ID to Speaker N name mapping for consistent transcript building
+
+- **Cache Data Standardization**:
+  * Created `standardize_cached_speakers()` function to fix existing cached recordings
+  * Applied standardization to all cache loading endpoints in dashboard
+  * Ensured backward compatibility with existing data structures
+
+- **Bulletproof Validation Pipeline**:
+  * Added `validate_speaker_names()` as final validation before caching
+  * Fixed transcript building logic to assign proper Speaker N numbers for unmapped speakers
+  * Eliminated generic "Speaker" labels without numbers
+
+#### Historical Data Fixes
+- **Targeted Fix Scripts** (preserved in `scripts/fixes/`):
+  * `fix_limitless_speakers.py` - Initial fix for Unknown speakers
+  * `fix_false_speakers.py` - Fixed 86 recordings with `is_speaker=False` Unknown speakers
+  * `fix_speaker_naming_bug.py` - Fixed 1 recording with generic "Speaker" label
+  * Multiple debug and diagnostic scripts for troubleshooting
+
+#### Script Organization & Documentation
+- **Professional Script Management**:
+  * Moved all temporary fix scripts to organized `scripts/fixes/` directory
+  * Created comprehensive `scripts/README.md` with categorized documentation
+  * Moved `cleanup_fix_scripts.py` and `LIMITLESS_SPEAKER_FIX_SUMMARY.md` to scripts folder
+  * Preserved historical context and usage guidelines for future reference
+
+### Technical Implementation Details
+
+#### Core Speaker Processing Enhancements
+```python
+# Enhanced speaker extraction with Unknown detection
+def extract_speakers_from_contents(log: Dict) -> List[Dict[str, str]]:
+    # Converts problematic speaker names to proper Speaker N format
+    if valid_names:
+        speaker_name = sorted(valid_names)[0]
+    else:
+        # All names are problematic - assign Speaker N
+        speaker_n_name = f"Speaker {unrecognized_speaker_counter}"
+        speaker_id_mapping[speaker_id] = speaker_n_name
+```
+
+#### Cache Standardization System
+```python
+def standardize_cached_speakers(extracted_data: Dict) -> Dict:
+    # Fix any "Unknown" speakers with comprehensive detection
+    if (person_name.lower() in ['unknown', 'unknown speaker'] and 
+        person.get('is_speaker')):
+        new_speaker_name = f"Speaker {unknown_speaker_counter}"
+        person['name'] = new_speaker_name
+```
+
+#### Final Validation Pipeline
+```python
+def validate_speaker_names(extracted_data: Dict, log_id: str) -> Dict:
+    # Last line of defense against any remaining Unknown speakers
+    if person_name.lower() in ['unknown', 'unknown speaker']:
+        person['name'] = f'Speaker {next_speaker_number}'
+        logger.error(f"CRITICAL: Found Unknown speaker in final validation")
+```
+
+### Files Modified
+- `functionality/limitless.py`: Complete speaker identification system overhaul
+- `api/dashboard/limitless_routes.py`: Applied standardization to all cache loading endpoints
+- `scripts/README.md`: Comprehensive script documentation (NEW)
+- `scripts/cleanup_fix_scripts.py`: Updated to organize rather than delete scripts
+- Multiple fix scripts preserved in `scripts/fixes/` directory
+
+### Results & Impact
+- **Eliminated Unknown Speakers**: Fixed 86+ recordings showing "Unknown" speakers
+- **Consistent Naming**: All speakers now use proper "Speaker N" format (Speaker 0, Speaker 1, Speaker 2)
+- **Bulletproof System**: Multiple validation layers prevent future Unknown speaker issues
+- **Professional Organization**: All scripts properly documented and organized
+- **Historical Preservation**: Complete fix history preserved for future reference
+
+### Development Standards Established
+- **Speaker Naming Convention**: Always use "Speaker N" format, never "Unknown"
+- **Script Organization**: Use `scripts/` folder with proper categorization
+- **Documentation Requirements**: Comprehensive README files for complex fixes
+- **Validation Pipeline**: Multiple layers of speaker name validation
+
 ## [1.1.7] - 2025-06-08
 
 ### Major Fixes & Improvements
