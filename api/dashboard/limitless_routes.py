@@ -13,7 +13,7 @@ from typing import List, Dict, Optional, Any
 from api.dashboard.config import JWT_SECRET
 from utils.redis_utils import r as redis_client
 from utils.redis_key_builder import RedisKeyBuilder
-from functionality.limitless import sync_recent_lifelogs, limitless_client
+from functionality.limitless import sync_recent_lifelogs, limitless_client, standardize_cached_speakers
 from utils.limitless_logger import limitless_routes_logger
 
 def verify_dashboard_token(authorization: Optional[str] = Header(None)):
@@ -293,6 +293,10 @@ async def get_lifelogs(
                         # Try created_at or processed_at as fallback
                         start_time = log_data.get('created_at') or log_data.get('processed_at')
                     
+                    # ✅ CRITICAL FIX: Standardize speaker names in cached data
+                    extracted_data = log_data.get('extracted', {})
+                    extracted_data = standardize_cached_speakers(extracted_data)
+                    
                     formatted_log = {
                         'id': log_data.get('id'),
                         'title': log_data.get('title', 'Untitled'),
@@ -302,7 +306,7 @@ async def get_lifelogs(
                         'duration_minutes': 0,
                         'has_transcript': True,
                         'processed': True,
-                        'extracted_data': log_data.get('extracted', {})
+                        'extracted_data': extracted_data
                     }
                     
                     # Calculate duration
@@ -358,6 +362,8 @@ async def search_lifelogs(
                 title = log_data.get('title', '').lower()
                 summary = log_data.get('summary', '').lower()
                 extracted = log_data.get('extracted', {})
+                # ✅ CRITICAL FIX: Standardize speaker names in cached data for search
+                extracted = standardize_cached_speakers(extracted)
                 
                 # Check if query matches
                 if (query_lower in title or 

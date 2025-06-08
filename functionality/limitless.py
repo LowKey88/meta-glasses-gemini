@@ -394,23 +394,60 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
                 # Combine AI-extracted people with API speakers
                 all_people = []
                 
-                # Add AI-extracted people
-                ai_people = extracted_ai.get('people', [])
-                for person in ai_people:
-                    all_people.append(person)
+                # Get speaker mapping for standardization
+                speaker_id_mapping = log.get('_speaker_mapping', {})
                 
-                # Add speakers identified from API (avoid duplicates)
-                existing_names = [p.get('name', '').lower() for p in all_people]
+                # Add speakers identified from API first (these have correct Speaker N names)
                 for speaker in speakers_identified:
-                    if speaker['name'].lower() not in existing_names:
-                        all_people.append({
-                            'name': speaker['name'],
-                            'context': speaker['context'],
-                            'is_speaker': True,
-                            'role': speaker['role']
-                        })
+                    all_people.append({
+                        'name': speaker['name'],
+                        'context': speaker['context'],
+                        'is_speaker': True,
+                        'role': speaker['role']
+                    })
+                
+                # Add AI-extracted people, but filter out and fix any inconsistent naming
+                ai_people = extracted_ai.get('people', [])
+                existing_names = [p.get('name', '').lower() for p in all_people]
+                
+                for person in ai_people:
+                    person_name = person.get('name', '')
+                    
+                    # Skip if we already have this person from API speakers
+                    if person_name.lower() in existing_names:
+                        continue
+                    
+                    # CRITICAL FIX: Replace any "Unknown" speakers with proper Speaker N naming
+                    if person_name.lower() in ['unknown', 'unknown speaker']:
+                        # Skip - these should be handled by our Speaker N system
+                        logger.debug(f"Filtering out AI-generated 'Unknown' speaker for {log_id[:8]}...")
+                        continue
+                    
+                    # Add valid AI-extracted people (named individuals)
+                    if person_name and len(person_name.strip()) > 0:
+                        all_people.append(person)
                 
                 extracted['people'] = all_people
+                
+                # ✅ POST-PROCESSING CLEANUP: Standardize any remaining inconsistent speaker names
+                standardized_people = []
+                unknown_speaker_counter = 0
+                
+                for person in extracted['people']:
+                    person_name = person.get('name', '')
+                    
+                    # Fix any "Unknown" speakers that might come from cached data or AI extraction
+                    if person_name.lower() in ['unknown', 'unknown speaker'] and person.get('is_speaker'):
+                        # Replace with proper Speaker N naming
+                        new_speaker_name = f"Speaker {unknown_speaker_counter}"
+                        person['name'] = new_speaker_name
+                        person['context'] = 'Unrecognized speaker in conversation'
+                        logger.info(f"Standardized 'Unknown' speaker to '{new_speaker_name}' for {log_id[:8]}...")
+                        unknown_speaker_counter += 1
+                    
+                    standardized_people.append(person)
+                
+                extracted['people'] = standardized_people
                 
                 # ✅ ENHANCED FALLBACK: Ensure tasks have attribution
                 for task in extracted.get('tasks', []):
@@ -639,6 +676,43 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
         logger.error(f"Error processing Lifelog {log.get('id')}: {str(e)}")
         
     return results
+
+
+def standardize_cached_speakers(extracted_data: Dict) -> Dict:
+    """
+    Standardize speaker names in cached data to ensure consistency.
+    Converts any "Unknown" speakers to proper "Speaker N" naming.
+    """
+    if not isinstance(extracted_data, dict):
+        return extracted_data
+    
+    people = extracted_data.get('people', [])
+    if not people:
+        return extracted_data
+    
+    unknown_speaker_counter = 0
+    # Count existing Speaker N names to continue numbering
+    for person in people:
+        person_name = person.get('name', '')
+        if person_name.startswith('Speaker ') and person.get('is_speaker'):
+            try:
+                speaker_num = int(person_name.split(' ')[1])
+                unknown_speaker_counter = max(unknown_speaker_counter, speaker_num + 1)
+            except (IndexError, ValueError):
+                pass
+    
+    # Fix any "Unknown" speakers
+    for person in people:
+        person_name = person.get('name', '')
+        if (person_name.lower() in ['unknown', 'unknown speaker'] and 
+            person.get('is_speaker')):
+            new_speaker_name = f"Speaker {unknown_speaker_counter}"
+            person['name'] = new_speaker_name
+            person['context'] = 'Unrecognized speaker in conversation'
+            logger.debug(f"Standardized cached 'Unknown' speaker to '{new_speaker_name}'")
+            unknown_speaker_counter += 1
+    
+    return extracted_data
 
 
 def extract_speakers_from_contents(log: Dict) -> List[Dict[str, str]]:
@@ -1091,6 +1165,8 @@ async def search_lifelogs(query: str, phone_number: str) -> str:
                 title = log_data.get('title', '').lower()
                 summary = log_data.get('summary', '').lower()
                 extracted = log_data.get('extracted', {})
+                # ✅ CRITICAL FIX: Standardize speaker names in cached data for search
+                extracted = standardize_cached_speakers(extracted)
                 
                 # Check if query matches
                 if (query_lower in title or 
@@ -1160,6 +1236,8 @@ async def find_person_discussions(person_name: str, phone_number: str) -> str:
             try:
                 log_data = json.loads(data.decode() if isinstance(data, bytes) else data)
                 extracted = log_data.get('extracted', {})
+                # ✅ CRITICAL FIX: Standardize speaker names in cached data for person search
+                extracted = standardize_cached_speakers(extracted)
                 
                 # Check people mentioned
                 people = extracted.get('people', [])
