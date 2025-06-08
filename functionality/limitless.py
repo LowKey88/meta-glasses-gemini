@@ -301,23 +301,31 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
             # Build transcript with speaker attribution using Speaker N names
             transcript_parts = []
             for content in contents:
-                speaker_name = content.get('speakerName', '')
-                speaker_id = content.get('speakerIdentifier', '')
-                content_text = content.get('content', '')
+                speaker_name = content.get('speakerName', '').strip()
+                speaker_id = content.get('speakerIdentifier', '').strip()
+                content_text = content.get('content', '').strip()
                 
-                if content_text.strip():  # Only add non-empty content
-                    if speaker_name:
-                        # Use recognized speaker name
-                        transcript_parts.append(f"{speaker_name}: {content_text}")
-                    elif speaker_id == 'user':
-                        transcript_parts.append(f"You: {content_text}")
+                if content_text:  # Only add non-empty content
+                    # Determine the speaker label - NEVER use "Unknown"
+                    speaker_label = None
+                    
+                    if speaker_id == 'user':
+                        speaker_label = "You"
+                    elif speaker_name and speaker_name.lower() not in ['unknown', 'unknown speaker', 'unidentified', 'unidentified speaker', '']:
+                        # Valid speaker name from API
+                        speaker_label = speaker_name
                     elif speaker_id and speaker_id in speaker_id_mapping:
-                        # Use mapped Speaker N name for unrecognized speakers
-                        speaker_n_name = speaker_id_mapping[speaker_id]
-                        transcript_parts.append(f"{speaker_n_name}: {content_text}")
+                        # Use mapped Speaker N name for problematic speakers
+                        speaker_label = speaker_id_mapping[speaker_id]
+                    elif speaker_id:
+                        # Unmapped speaker ID - this shouldn't happen if extract_speakers was called first
+                        # But handle it gracefully by using a generic Speaker label
+                        speaker_label = "Speaker"
                     else:
-                        # Fallback for content without speaker attribution
-                        transcript_parts.append(content_text)
+                        # No speaker info at all - use generic label
+                        speaker_label = "Speaker"
+                    
+                    transcript_parts.append(f"{speaker_label}: {content_text}")
             
             transcript = '\n'.join(transcript_parts)
         
@@ -799,6 +807,7 @@ def extract_speakers_from_contents(log: Dict) -> List[Dict[str, str]]:
     """
     Extract speaker information directly from Limitless API contents.
     Uses dynamic "Speaker N" naming for unrecognized speakers.
+    Properly handles multiple speakers with same name (e.g., "Unknown").
     
     Returns:
         List of speakers with their roles
@@ -806,37 +815,59 @@ def extract_speakers_from_contents(log: Dict) -> List[Dict[str, str]]:
     speakers = []
     contents = log.get('contents', [])
     
-    speaker_names = set()
     speaker_id_mapping = {}  # Map speaker IDs to Speaker N names
+    speaker_id_to_info = {}  # Track all info about each speaker ID
     unrecognized_speaker_counter = 0
     user_detected = False
     
+    # First pass: collect all unique speaker IDs and their names
     for content in contents:
-        speaker_name = content.get('speakerName', '')
-        speaker_id = content.get('speakerIdentifier', '')
+        speaker_name = content.get('speakerName', '').strip()
+        speaker_id = content.get('speakerIdentifier', '').strip()
         
-        # Handle recognized speakers (have both name and ID)
-        if speaker_name and speaker_name not in speaker_names:
-            speakers.append({
-                'name': speaker_name,
-                'context': 'Identified speaker in conversation',
-                'role': 'participant'
-            })
-            speaker_names.add(speaker_name)
+        if not speaker_id:
+            continue
+            
+        # Store speaker info by ID
+        if speaker_id not in speaker_id_to_info:
+            speaker_id_to_info[speaker_id] = {
+                'names': set(),
+                'is_user': speaker_id == 'user'
+            }
         
-        # Handle primary user
-        elif speaker_id == 'user' and not user_detected:
+        if speaker_name:
+            speaker_id_to_info[speaker_id]['names'].add(speaker_name)
+    
+    # Second pass: create speaker entries based on unique IDs
+    for speaker_id, info in speaker_id_to_info.items():
+        names = info['names']
+        is_user = info['is_user']
+        
+        if is_user:
+            # Handle primary user
             speakers.append({
                 'name': 'You',
                 'context': 'Primary user (speaker)',
-                'role': 'primary_user'
+                'role': 'primary_user',
+                'speaker_id': speaker_id
             })
             user_detected = True
-        
-        # Handle unrecognized speakers (have ID but no name)
-        elif speaker_id and not speaker_name and speaker_id != 'user':
-            if speaker_id not in speaker_id_mapping:
-                # Assign sequential Speaker N name
+        elif names:
+            # Check if any of the names are problematic
+            valid_names = [n for n in names if n and 
+                          n.lower() not in ['unknown', 'unknown speaker', 'unidentified', 'unidentified speaker', '']]
+            
+            if valid_names:
+                # Use the first valid name (sorted for consistency)
+                speaker_name = sorted(valid_names)[0]
+                speakers.append({
+                    'name': speaker_name,
+                    'context': 'Identified speaker in conversation',
+                    'role': 'participant',
+                    'speaker_id': speaker_id
+                })
+            else:
+                # All names are problematic (e.g., "Unknown") - assign Speaker N
                 speaker_n_name = f"Speaker {unrecognized_speaker_counter}"
                 speaker_id_mapping[speaker_id] = speaker_n_name
                 
@@ -846,8 +877,35 @@ def extract_speakers_from_contents(log: Dict) -> List[Dict[str, str]]:
                     'role': 'participant',
                     'speaker_id': speaker_id
                 })
-                speaker_names.add(speaker_n_name)
                 unrecognized_speaker_counter += 1
+                logger.info(f"Converted problematic speaker name '{list(names)}' to '{speaker_n_name}' for {log.get('id', 'unknown')[:8]}...")
+        else:
+            # No name at all - assign Speaker N
+            speaker_n_name = f"Speaker {unrecognized_speaker_counter}"
+            speaker_id_mapping[speaker_id] = speaker_n_name
+            
+            speakers.append({
+                'name': speaker_n_name,
+                'context': 'Unrecognized speaker in conversation',
+                'role': 'participant',
+                'speaker_id': speaker_id
+            })
+            unrecognized_speaker_counter += 1
+    
+    # Handle contents without any speaker ID (edge case)
+    has_unattributed_content = any(
+        not content.get('speakerIdentifier', '').strip() 
+        for content in contents 
+        if content.get('content', '').strip()
+    )
+    
+    if has_unattributed_content and not speakers:
+        # Add a generic speaker for unattributed content
+        speakers.append({
+            'name': f"Speaker {unrecognized_speaker_counter}",
+            'context': 'Unattributed content in conversation',
+            'role': 'participant'
+        })
     
     # ✅ ENHANCED FALLBACK: If no speakers detected, assume user is speaking
     if not speakers:
