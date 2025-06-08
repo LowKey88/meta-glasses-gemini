@@ -1086,7 +1086,8 @@ async def check_reminders_task():
 async def check_limitless_sync_task():
     """Background task to periodically sync Limitless recordings."""
     import os
-    from functionality.limitless import sync_recent_lifelogs
+    import uuid
+    from api.dashboard.limitless_routes import run_sync_in_background
     
     # Check if Limitless is configured
     if not os.getenv("LIMITLESS_API_KEY"):
@@ -1102,10 +1103,14 @@ async def check_limitless_sync_task():
             # Wait for the sync interval
             await asyncio.sleep(sync_interval)
             
-            # Perform sync for default user
+            # Perform non-blocking sync for default user using same background task approach
             logger.info("Running scheduled Limitless sync...")
-            await sync_recent_lifelogs("scheduled_sync", hours=24)
-            logger.info("Scheduled Limitless sync completed")
+            task_id = str(uuid.uuid4())
+            phone_number = "60122873632"
+            
+            # Run sync in background without blocking the event loop
+            await run_sync_in_background(task_id, phone_number, 24)
+            logger.info(f"Scheduled Limitless sync completed with task ID: {task_id}")
             
         except Exception as e:
             logger.error(f"Error in Limitless sync task: {str(e)}")
