@@ -1,11 +1,13 @@
 """
 Limitless dashboard API routes.
 """
-from fastapi import APIRouter, Depends, HTTPException, Header, Query
+from fastapi import APIRouter, Depends, HTTPException, Header, Query, BackgroundTasks
 from datetime import datetime, timedelta, timezone
 import json
 import logging
 import jwt
+import uuid
+import asyncio
 from typing import List, Dict, Optional, Any
 
 from api.dashboard.config import JWT_SECRET
@@ -29,6 +31,68 @@ def verify_dashboard_token(authorization: Optional[str] = Header(None)):
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/limitless", tags=["limitless"])
+
+
+async def run_sync_in_background(task_id: str, phone_number: str, hours: int = 24):
+    """Run Limitless sync in background and update status in Redis."""
+    try:
+        # Update status to running
+        status_key = f"meta-glasses:limitless:sync_status:{task_id}"
+        redis_client.setex(status_key, 3600, json.dumps({
+            "status": "running",
+            "progress": 0,
+            "message": "Starting sync...",
+            "started_at": datetime.now().isoformat()
+        }))
+        
+        # Run the actual sync
+        result = await sync_recent_lifelogs(phone_number, hours=hours)
+        
+        # Update status to completed
+        redis_client.setex(status_key, 3600, json.dumps({
+            "status": "completed",
+            "progress": 100,
+            "message": "Sync completed successfully",
+            "result": result,
+            "completed_at": datetime.now().isoformat()
+        }))
+        
+        logger.info(f"✅ Background sync {task_id} completed successfully")
+        
+        # Update pending sync cache after completion
+        try:
+            end_time = datetime.now()
+            start_time = end_time - timedelta(hours=hours)
+            
+            lifelogs = await limitless_client.get_all_lifelogs(
+                start_time=start_time,
+                end_time=end_time,
+                timezone_str="Asia/Kuala_Lumpur",
+                max_entries=None,
+                include_markdown=False,
+                include_headings=False
+            )
+            
+            pending_count = 0
+            for log in lifelogs:
+                log_id = log.get('id', 'unknown')
+                processed_key = RedisKeyBuilder.build_limitless_processed_key(log_id)
+                if not redis_client.exists(processed_key):
+                    pending_count += 1
+            
+            pending_sync_key = "meta-glasses:limitless:pending_sync_cache"
+            redis_client.setex(pending_sync_key, 300, str(pending_count))
+            
+        except Exception as e:
+            logger.error(f"Error updating pending sync cache: {str(e)}")
+            
+    except Exception as e:
+        logger.error(f"Background sync {task_id} failed: {str(e)}")
+        redis_client.setex(status_key, 3600, json.dumps({
+            "status": "failed",
+            "error": str(e),
+            "failed_at": datetime.now().isoformat()
+        }))
 
 
 @router.get("/stats")
@@ -357,55 +421,50 @@ async def search_lifelogs(
 
 @router.post("/sync")
 async def sync_limitless(
+    background_tasks: BackgroundTasks,
     user: str = Depends(verify_dashboard_token)
 ) -> Dict[str, Any]:
-    """Manually trigger Limitless sync."""
+    """Start Limitless sync in background - returns immediately with task ID."""
     try:
         limitless_routes_logger.dashboard_request("sync", {"manual": True})
-        # Use the same user_id as the main dashboard
+        
+        # Generate unique task ID
+        task_id = str(uuid.uuid4())
         phone_number = "60122873632"
         
-        # Run sync for last 24 hours to match pending check window
-        result = await sync_recent_lifelogs(phone_number, hours=24)
-        logger.info("✅ Manual sync completed successfully")
+        # Start sync in background
+        background_tasks.add_task(run_sync_in_background, task_id, phone_number, 24)
         
-        # Update pending sync cache after manual sync
-        try:
-            logger.debug("Updating pending sync cache...")
-            end_time = datetime.now()
-            start_time = end_time - timedelta(hours=24)
-            
-            # Get recordings from the actual time range (no limit for accurate pending count)
-            lifelogs = await limitless_client.get_all_lifelogs(
-                start_time=start_time,
-                end_time=end_time,
-                timezone_str="Asia/Kuala_Lumpur",  # Add timezone parameter
-                max_entries=None,  # Remove limit to get accurate pending count
-                include_markdown=False,
-                include_headings=False
-            )
-            
-            # Count pending recordings
-            pending_count = 0
-            for log in lifelogs:
-                log_id = log.get('id', 'unknown')
-                processed_key = RedisKeyBuilder.build_limitless_processed_key(log_id)
-                if not redis_client.exists(processed_key):
-                    pending_count += 1
-            
-            # Cache the result for 5 minutes
-            pending_sync_key = "meta-glasses:limitless:pending_sync_cache"
-            redis_client.setex(pending_sync_key, 300, str(pending_count))  # 5 minute cache
-            limitless_routes_logger.cache_update("pending_sync", pending_count)
-            
-        except Exception as e:
-            logger.error(f"Error updating pending sync cache: {str(e)}")
+        logger.info(f"📋 Started background sync with task ID: {task_id}")
         
         return {
-            "message": "Sync completed successfully", 
-            "result": result
+            "task_id": task_id,
+            "message": "Sync started in background"
         }
         
     except Exception as e:
         logger.error(f"Error running Limitless sync: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/sync/status/{task_id}")
+async def get_sync_status(
+    task_id: str,
+    user: str = Depends(verify_dashboard_token)
+) -> Dict[str, Any]:
+    """Get status of a background sync task."""
+    try:
+        status_key = f"meta-glasses:limitless:sync_status:{task_id}"
+        status_data = redis_client.get(status_key)
+        
+        if not status_data:
+            raise HTTPException(status_code=404, detail="Task not found")
+        
+        status = json.loads(status_data.decode() if isinstance(status_data, bytes) else status_data)
+        return status
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting sync status: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

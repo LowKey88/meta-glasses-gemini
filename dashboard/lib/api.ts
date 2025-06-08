@@ -249,10 +249,20 @@ class ApiClient {
     return this.request(`/api/dashboard/limitless/search?q=${encodeURIComponent(query)}`);
   }
 
-  async syncLimitless(): Promise<{ message: string }> {
+  async syncLimitless(): Promise<{ task_id: string; message: string }> {
     return this.request('/api/dashboard/limitless/sync', {
       method: 'POST'
     });
+  }
+
+  async getSyncStatus(taskId: string): Promise<{
+    status: 'running' | 'completed' | 'failed';
+    progress?: number;
+    message?: string;
+    result?: string;
+    error?: string;
+  }> {
+    return this.request(`/api/dashboard/limitless/sync/status/${taskId}`);
   }
 }
 
