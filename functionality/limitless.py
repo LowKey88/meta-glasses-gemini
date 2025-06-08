@@ -318,12 +318,32 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
                         # Use mapped Speaker N name for problematic speakers
                         speaker_label = speaker_id_mapping[speaker_id]
                     elif speaker_id:
-                        # Unmapped speaker ID - this shouldn't happen if extract_speakers was called first
-                        # But handle it gracefully by using a generic Speaker label
-                        speaker_label = "Speaker"
+                        # Unmapped speaker ID - assign next available Speaker N number
+                        # Find the highest existing Speaker N in mapping
+                        existing_numbers = []
+                        for mapped_name in speaker_id_mapping.values():
+                            if mapped_name.startswith('Speaker '):
+                                try:
+                                    num = int(mapped_name.split(' ')[1])
+                                    existing_numbers.append(num)
+                                except (IndexError, ValueError):
+                                    pass
+                        next_speaker_num = max(existing_numbers) + 1 if existing_numbers else 0
+                        speaker_label = f"Speaker {next_speaker_num}"
+                        speaker_id_mapping[speaker_id] = speaker_label  # Cache for consistency
+                        logger.debug(f"Assigned unmapped speaker ID '{speaker_id}' to '{speaker_label}'")
                     else:
-                        # No speaker info at all - use generic label
-                        speaker_label = "Speaker"
+                        # No speaker info at all - assign next available Speaker N number
+                        existing_numbers = []
+                        for mapped_name in speaker_id_mapping.values():
+                            if mapped_name.startswith('Speaker '):
+                                try:
+                                    num = int(mapped_name.split(' ')[1])
+                                    existing_numbers.append(num)
+                                except (IndexError, ValueError):
+                                    pass
+                        next_speaker_num = max(existing_numbers) + 1 if existing_numbers else 0
+                        speaker_label = f"Speaker {next_speaker_num}"
                     
                     transcript_parts.append(f"{speaker_label}: {content_text}")
             
