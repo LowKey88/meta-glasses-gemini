@@ -288,6 +288,8 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
         title = log.get('title', 'Untitled Recording')
         
         # ✅ NEW: Extract speakers from Limitless API data with fallbacks
+        # Pass phone_number in log metadata for context generation
+        log['_phone_number'] = phone_number
         speakers_identified = extract_speakers_from_contents(log)
         logger.info(f"Identified speakers for log {log_id}: {[s['name'] for s in speakers_identified]}")
         
@@ -842,6 +844,55 @@ def standardize_cached_speakers(extracted_data: Dict) -> Dict:
     return extracted_data
 
 
+def get_context_from_title_and_summary(title: str, summary: str, is_single_speaker: bool = False, phone_number: str = None) -> str:
+    """
+    Generate descriptive context based on recording title and summary using AI.
+    
+    Args:
+        title: Recording title
+        summary: Recording summary
+        is_single_speaker: Whether this is a single-speaker recording
+        phone_number: User's phone number for context
+        
+    Returns:
+        Descriptive context string
+    """
+    try:
+        # Create a prompt for AI to analyze the recording context
+        prompt = f"""Based on this recording title and summary, provide a brief context description (max 5 words).
+
+Title: {title}
+Summary: {summary}
+Is single speaker: {is_single_speaker}
+
+Provide a short descriptive context like:
+- "Solo coding session"
+- "Team meeting discussion"
+- "Personal reflection"
+- "Technical brainstorming"
+- "Work planning session"
+- "Learning new concepts"
+- "Casual conversation"
+
+Return ONLY the context description, nothing else."""
+
+        # Use simple_prompt_request for quick context generation
+        context = simple_prompt_request(prompt, phone_number).strip()
+        
+        # Validate the response is reasonable length
+        if context and len(context.split()) <= 8:  # Allow up to 8 words for flexibility
+            return context
+        else:
+            # Fallback to generic context if AI response is too long or empty
+            logger.debug(f"AI context too long or empty: '{context}', using fallback")
+            return "Solo recording" if is_single_speaker else "General conversation"
+            
+    except Exception as e:
+        logger.debug(f"Error generating AI context: {e}, using fallback")
+        # Fallback to generic context on any error
+        return "Solo recording" if is_single_speaker else "General conversation"
+
+
 def extract_speakers_from_contents(log: Dict) -> List[Dict[str, str]]:
     """
     Extract speaker information directly from Limitless API contents.
@@ -910,9 +961,18 @@ def extract_speakers_from_contents(log: Dict) -> List[Dict[str, str]]:
                 speaker_n_name = f"Speaker {unrecognized_speaker_counter}"
                 speaker_id_mapping[speaker_id] = speaker_n_name
                 
+                # Get context based on recording content
+                title = log.get('title', '')
+                summary = log.get('summary', '')
+                # Check if this is likely a single speaker based on speaker count
+                is_single = len(speaker_id_to_info) == 1
+                # Get phone number from log metadata if available
+                phone_number = log.get('_phone_number', None)
+                context = get_context_from_title_and_summary(title, summary, is_single_speaker=is_single, phone_number=phone_number)
+                
                 speakers.append({
                     'name': speaker_n_name,
-                    'context': 'Unrecognized speaker in conversation',
+                    'context': context,
                     'role': 'participant',
                     'speaker_id': speaker_id
                 })
@@ -923,9 +983,18 @@ def extract_speakers_from_contents(log: Dict) -> List[Dict[str, str]]:
             speaker_n_name = f"Speaker {unrecognized_speaker_counter}"
             speaker_id_mapping[speaker_id] = speaker_n_name
             
+            # Get context based on recording content
+            title = log.get('title', '')
+            summary = log.get('summary', '')
+            # Check if this is likely a single speaker based on speaker count
+            is_single = len(speaker_id_to_info) == 1
+            # Get phone number from log metadata if available
+            phone_number = log.get('_phone_number', None)
+            context = get_context_from_title_and_summary(title, summary, is_single_speaker=is_single, phone_number=phone_number)
+            
             speakers.append({
                 'name': speaker_n_name,
-                'context': 'Unrecognized speaker in conversation',
+                'context': context,
                 'role': 'participant',
                 'speaker_id': speaker_id
             })
@@ -939,10 +1008,17 @@ def extract_speakers_from_contents(log: Dict) -> List[Dict[str, str]]:
     )
     
     if has_unattributed_content and not speakers:
-        # Add a generic speaker for unattributed content
+        # Get context from title and summary
+        title = log.get('title', '')
+        summary = log.get('summary', '')
+        # Get phone number from log metadata if available
+        phone_number = log.get('_phone_number', None)
+        context = get_context_from_title_and_summary(title, summary, is_single_speaker=True, phone_number=phone_number)
+        
+        # Add a speaker with descriptive context
         speakers.append({
             'name': f"Speaker {unrecognized_speaker_counter}",
-            'context': 'Unattributed content in conversation',
+            'context': context,
             'role': 'participant'
         })
     
