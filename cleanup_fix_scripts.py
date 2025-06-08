@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 """
-Cleanup script to remove temporary fix scripts now that the speaker identification system is fixed.
+Move temporary fix scripts to scripts/fixes folder for organization.
 """
 
 import os
+import shutil
 import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def cleanup_fix_scripts():
-    """Remove temporary fix scripts that are no longer needed."""
+def organize_fix_scripts():
+    """Move temporary fix scripts to scripts/fixes folder."""
     
-    # List of temporary fix scripts that can be safely removed
+    # List of temporary fix scripts to organize
     temp_scripts = [
         'fix_limitless_speakers.py',
         'fix_limitless_speakers_v2.py', 
@@ -27,31 +28,37 @@ def cleanup_fix_scripts():
         'emergency_speaker_fix.py'
     ]
     
-    logger.info("🧹 Cleaning up temporary fix scripts...")
+    # Create scripts/fixes directory if it doesn't exist
+    fixes_dir = "scripts/fixes"
+    os.makedirs(fixes_dir, exist_ok=True)
+    logger.info(f"📁 Created directory: {fixes_dir}")
     
-    removed_count = 0
+    logger.info("📦 Moving temporary fix scripts to scripts/fixes...")
+    
+    moved_count = 0
     for script in temp_scripts:
         if os.path.exists(script):
             try:
-                os.remove(script)
-                logger.info(f"  ✅ Removed: {script}")
-                removed_count += 1
+                destination = os.path.join(fixes_dir, script)
+                shutil.move(script, destination)
+                logger.info(f"  ✅ Moved: {script} → {destination}")
+                moved_count += 1
             except Exception as e:
-                logger.error(f"  ❌ Failed to remove {script}: {e}")
+                logger.error(f"  ❌ Failed to move {script}: {e}")
         else:
             logger.debug(f"  ⏭️  Not found: {script}")
     
-    logger.info(f"🎉 Cleanup complete! Removed {removed_count} temporary scripts")
+    logger.info(f"🎉 Organization complete! Moved {moved_count} scripts to scripts/fixes/")
     
-    # Keep useful documentation
+    # Keep useful documentation files in root
     keep_files = [
         'LIMITLESS_SPEAKER_FIX_SUMMARY.md'
     ]
     
-    logger.info("\n📋 Keeping documentation files:")
+    logger.info("\n📋 Keeping documentation files in root:")
     for file in keep_files:
         if os.path.exists(file):
             logger.info(f"  📄 Kept: {file}")
 
 if __name__ == "__main__":
-    cleanup_fix_scripts()
+    organize_fix_scripts()
