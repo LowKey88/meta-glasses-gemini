@@ -418,10 +418,24 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
                         continue
                     
                     # CRITICAL FIX: Replace any "Unknown" speakers with proper Speaker N naming
-                    if person_name.lower() in ['unknown', 'unknown speaker']:
-                        # Skip - these should be handled by our Speaker N system
-                        logger.debug(f"Filtering out AI-generated 'Unknown' speaker for {log_id[:8]}...")
-                        continue
+                    if person_name.lower() in ['unknown', 'unknown speaker', 'unidentified', 'unidentified speaker']:
+                        # Convert to proper Speaker N naming using current counter
+                        current_speaker_numbers = []
+                        for existing_person in all_people:
+                            existing_name = existing_person.get('name', '')
+                            if existing_name.startswith('Speaker ') and existing_person.get('is_speaker'):
+                                try:
+                                    num = int(existing_name.split(' ')[1])
+                                    current_speaker_numbers.append(num)
+                                except (IndexError, ValueError):
+                                    pass
+                        
+                        # Find next available Speaker N number
+                        next_speaker_number = max(current_speaker_numbers) + 1 if current_speaker_numbers else 0
+                        person['name'] = f'Speaker {next_speaker_number}'
+                        person['context'] = 'Unrecognized speaker in conversation'
+                        person['is_speaker'] = True
+                        logger.warning(f"AI generated Unknown speaker, converted to 'Speaker {next_speaker_number}' for {log_id[:8]}...")
                     
                     # Add valid AI-extracted people (named individuals)
                     if person_name and len(person_name.strip()) > 0:
@@ -651,6 +665,9 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
                 'role': 'primary_user'
             }]
                 
+        # ✅ FINAL VALIDATION: Ensure no "Unknown" speakers slip through
+        extracted = validate_speaker_names(extracted, log_id)
+        
         # Cache the processed Lifelog with enhanced data
         cache_key = RedisKeyBuilder.build_limitless_lifelog_key(log_id)
         cache_data = {
@@ -678,6 +695,52 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
     return results
 
 
+def validate_speaker_names(extracted_data: Dict, log_id: str = "unknown") -> Dict:
+    """
+    Final validation to ensure no "Unknown" speakers exist in the data.
+    This is the last line of defense against any remaining Unknown speakers.
+    """
+    if not isinstance(extracted_data, dict):
+        return extracted_data
+    
+    people = extracted_data.get('people', [])
+    if not people:
+        return extracted_data
+    
+    # Get all existing Speaker N numbers
+    existing_speaker_numbers = set()
+    for person in people:
+        person_name = person.get('name', '')
+        if person_name.startswith('Speaker ') and person.get('is_speaker'):
+            try:
+                num = int(person_name.split(' ')[1])
+                existing_speaker_numbers.add(num)
+            except (IndexError, ValueError):
+                pass
+    
+    # Find any remaining problematic speakers and fix them
+    next_speaker_number = max(existing_speaker_numbers) + 1 if existing_speaker_numbers else 0
+    
+    for person in people:
+        person_name = person.get('name', '')
+        
+        # Check for any remaining Unknown speakers
+        if (person_name.lower() in ['unknown', 'unknown speaker', 'unidentified', 'unidentified speaker', ''] or
+            not person_name or person_name.isspace()):
+            
+            if person.get('is_speaker'):
+                # Replace with proper Speaker N naming
+                person['name'] = f'Speaker {next_speaker_number}'
+                person['context'] = 'Unrecognized speaker in conversation'
+                logger.error(f"🚨 CRITICAL: Found {person_name or 'empty'} speaker in final validation for {log_id[:8]}..., fixed to Speaker {next_speaker_number}")
+                next_speaker_number += 1
+            else:
+                # For non-speakers, we can be more lenient but still log
+                logger.warning(f"Found empty/unknown non-speaker for {log_id[:8]}...: {person}")
+    
+    return extracted_data
+
+
 def standardize_cached_speakers(extracted_data: Dict) -> Dict:
     """
     Standardize speaker names in cached data to ensure consistency.
@@ -701,16 +764,33 @@ def standardize_cached_speakers(extracted_data: Dict) -> Dict:
             except (IndexError, ValueError):
                 pass
     
-    # Fix any "Unknown" speakers
+    # Fix any "Unknown" speakers with more comprehensive detection
     for person in people:
         person_name = person.get('name', '')
-        if (person_name.lower() in ['unknown', 'unknown speaker'] and 
+        if (person_name.lower() in ['unknown', 'unknown speaker', 'unidentified', 'unidentified speaker', ''] and 
             person.get('is_speaker')):
             new_speaker_name = f"Speaker {unknown_speaker_counter}"
             person['name'] = new_speaker_name
             person['context'] = 'Unrecognized speaker in conversation'
-            logger.debug(f"Standardized cached 'Unknown' speaker to '{new_speaker_name}'")
+            logger.info(f"Standardized cached '{person_name or 'empty'}' speaker to '{new_speaker_name}'")
             unknown_speaker_counter += 1
+        # Also fix any malformed Speaker N names
+        elif person_name.startswith('Speaker ') and person.get('is_speaker'):
+            try:
+                # Validate the Speaker N format
+                parts = person_name.split(' ')
+                if len(parts) != 2 or not parts[1].isdigit():
+                    # Fix malformed Speaker N name
+                    new_speaker_name = f"Speaker {unknown_speaker_counter}"
+                    person['name'] = new_speaker_name
+                    logger.info(f"Fixed malformed Speaker name '{person_name}' to '{new_speaker_name}'")
+                    unknown_speaker_counter += 1
+            except (IndexError, ValueError):
+                # Fix invalid Speaker N name
+                new_speaker_name = f"Speaker {unknown_speaker_counter}"
+                person['name'] = new_speaker_name
+                logger.info(f"Fixed invalid Speaker name '{person_name}' to '{new_speaker_name}'")
+                unknown_speaker_counter += 1
     
     return extracted_data
 
@@ -787,8 +867,12 @@ def extract_speakers_from_contents(log: Dict) -> List[Dict[str, str]]:
 def get_enhanced_extraction_prompt(title: str, summary: str, transcript: str) -> str:
     """Enhanced prompt with Speaker N naming support and fallback for when speaker info is missing."""
     
-    # Check if transcript has speaker attribution (including Speaker N naming)
-    has_speaker_info = any(prefix in transcript for prefix in ['You:', 'Speaker 0:', 'Speaker 1:', 'Speaker 2:', 'Speaker 3:', 'Speaker 4:', 'Speaker 5:', ':'])
+    # Check if transcript has speaker attribution (including any Speaker N naming)
+    has_speaker_info = (
+        'You:' in transcript or 
+        any(f'Speaker {i}:' in transcript for i in range(0, 20)) or
+        ':' in transcript  # Fallback for any speaker attribution
+    )
     
     if has_speaker_info:
         # Use speaker-aware prompt with Speaker N support
@@ -802,9 +886,10 @@ def get_enhanced_extraction_prompt(title: str, summary: str, transcript: str) ->
 
 IMPORTANT: Pay attention to speaker attribution in the transcript. When extracting tasks:
 - If "You:" said something, it's the user's task
-- If "Speaker 0:", "Speaker 1:", "Speaker 2:", "Speaker 3:", "Speaker 4:", etc. mentioned tasks, note who assigned them
-- Preserve the exact "Speaker N" names when referencing unrecognized speakers
-- Use "Speaker 0", "Speaker 1", "Speaker 2", "Speaker 3", "Speaker 4", etc. consistently in extractions
+- If "Speaker 0:", "Speaker 1:", "Speaker 2:", etc. mentioned tasks, note who assigned them
+- Preserve the exact "Speaker N" names (Speaker 0, Speaker 1, Speaker 2, etc.) when referencing unrecognized speakers
+- NEVER use "Unknown" or "Unknown Speaker" - always use the specific "Speaker N" format found in the transcript
+- Use consistent "Speaker N" numbering throughout all extractions
 
 Title: {title}
 Summary: {summary}
@@ -816,18 +901,18 @@ Return a JSON object with:
     "tasks": [{{
         "description": "task description", 
         "due_date": "YYYY-MM-DD or null",
-        "assigned_to": "You" or "Speaker 0" or "Speaker 1" or "Speaker 2" or "speaker_name",
-        "assigned_by": "speaker_name or Speaker N who mentioned it"
+        "assigned_to": "You" or "Speaker 0" or "Speaker 1" or "Speaker 2" or "exact_speaker_name_from_transcript",
+        "assigned_by": "exact_speaker_name_from_transcript or Speaker N who mentioned it"
     }}],
     "events": [{{"title": "event", "date": "YYYY-MM-DD", "time": "HH:MM or null"}}],
     "people": [{{
-        "name": "person or Speaker 0 or Speaker 1 or Speaker 2 etc", 
+        "name": "exact_name_from_transcript or Speaker 0 or Speaker 1 or Speaker 2 etc", 
         "context": "their role or relationship",
         "is_speaker": true/false
     }}]
 }}
 
-Be specific about WHO said what. Preserve "Speaker 0", "Speaker 1", "Speaker 2", "Speaker 3", "Speaker 4", etc. naming for unrecognized speakers. Extract only clearly stated information."""
+Be specific about WHO said what. Preserve exact "Speaker N" naming for unrecognized speakers. NEVER generate "Unknown" speakers. Extract only clearly stated information."""
     else:
         # ✅ FALLBACK: Use original prompt assuming single speaker
         logger.debug("No speaker attribution detected, using single-user prompt")
