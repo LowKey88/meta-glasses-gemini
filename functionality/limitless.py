@@ -295,7 +295,10 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
         transcript = ''
         contents = log.get('contents', [])
         if contents and len(contents) > 0:
-            # Build transcript with speaker attribution
+            # Get speaker mapping from previous extraction
+            speaker_id_mapping = log.get('_speaker_mapping', {})
+            
+            # Build transcript with speaker attribution using Speaker N names
             transcript_parts = []
             for content in contents:
                 speaker_name = content.get('speakerName', '')
@@ -304,10 +307,16 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
                 
                 if content_text.strip():  # Only add non-empty content
                     if speaker_name:
+                        # Use recognized speaker name
                         transcript_parts.append(f"{speaker_name}: {content_text}")
                     elif speaker_id == 'user':
                         transcript_parts.append(f"You: {content_text}")
+                    elif speaker_id and speaker_id in speaker_id_mapping:
+                        # Use mapped Speaker N name for unrecognized speakers
+                        speaker_n_name = speaker_id_mapping[speaker_id]
+                        transcript_parts.append(f"{speaker_n_name}: {content_text}")
                     else:
+                        # Fallback for content without speaker attribution
                         transcript_parts.append(content_text)
             
             transcript = '\n'.join(transcript_parts)
@@ -547,13 +556,18 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
                 logger.debug(f"Lifelog {log_id[:8]}... final task count: {len(validated_tasks)} "
                            f"(sources: {task_sources})")
                         
-            # ✅ ENHANCED: Store people with speaker attribution
+            # ✅ ENHANCED: Store people with speaker attribution (preserving Speaker N names)
             for person in extracted.get('people', []):
                 if person.get('name') and person.get('context'):
-                    # Enhanced memory text with speaker info
-                    memory_text = f"{person['name']}: {person['context']}"
+                    # Enhanced memory text with speaker info (preserving Speaker N naming)
+                    person_name = person['name']
+                    memory_text = f"{person_name}: {person['context']}"
                     if person.get('is_speaker'):
-                        memory_text += " (Speaker in conversation)"
+                        # Preserve Speaker N naming in memory text
+                        if person_name.startswith('Speaker '):
+                            memory_text += f" ({person_name} in conversation)"
+                        else:
+                            memory_text += " (Speaker in conversation)"
                     
                     # Check if memory already exists for this log_id and person
                     existing_memories = memory_manager.get_all_memories(phone_number)
@@ -610,6 +624,7 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
             'end_time': end_time,
             'created_at': log.get('createdAt') or log.get('created_at'),
             'extracted': extracted,  # Now includes speaker info and fallbacks
+            'speaker_mapping': log.get('_speaker_mapping', {}),  # Store Speaker N mapping
             'processed_at': datetime.now().isoformat()
         }
         
@@ -629,7 +644,7 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
 def extract_speakers_from_contents(log: Dict) -> List[Dict[str, str]]:
     """
     Extract speaker information directly from Limitless API contents.
-    Includes robust fallback for when speaker detection fails.
+    Uses dynamic "Speaker N" naming for unrecognized speakers.
     
     Returns:
         List of speakers with their roles
@@ -638,12 +653,15 @@ def extract_speakers_from_contents(log: Dict) -> List[Dict[str, str]]:
     contents = log.get('contents', [])
     
     speaker_names = set()
+    speaker_id_mapping = {}  # Map speaker IDs to Speaker N names
+    unrecognized_speaker_counter = 0
     user_detected = False
     
     for content in contents:
         speaker_name = content.get('speakerName', '')
         speaker_id = content.get('speakerIdentifier', '')
         
+        # Handle recognized speakers (have both name and ID)
         if speaker_name and speaker_name not in speaker_names:
             speakers.append({
                 'name': speaker_name,
@@ -652,13 +670,30 @@ def extract_speakers_from_contents(log: Dict) -> List[Dict[str, str]]:
             })
             speaker_names.add(speaker_name)
         
-        if speaker_id == 'user' and not user_detected:
+        # Handle primary user
+        elif speaker_id == 'user' and not user_detected:
             speakers.append({
                 'name': 'You',
                 'context': 'Primary user (speaker)',
                 'role': 'primary_user'
             })
             user_detected = True
+        
+        # Handle unrecognized speakers (have ID but no name)
+        elif speaker_id and not speaker_name and speaker_id != 'user':
+            if speaker_id not in speaker_id_mapping:
+                # Assign sequential Speaker N name
+                speaker_n_name = f"Speaker {unrecognized_speaker_counter}"
+                speaker_id_mapping[speaker_id] = speaker_n_name
+                
+                speakers.append({
+                    'name': speaker_n_name,
+                    'context': 'Unrecognized speaker in conversation',
+                    'role': 'participant',
+                    'speaker_id': speaker_id
+                })
+                speaker_names.add(speaker_n_name)
+                unrecognized_speaker_counter += 1
     
     # ✅ ENHANCED FALLBACK: If no speakers detected, assume user is speaking
     if not speakers:
@@ -669,18 +704,21 @@ def extract_speakers_from_contents(log: Dict) -> List[Dict[str, str]]:
             'role': 'primary_user'
         })
     
+    # Store speaker mapping for consistent naming throughout transcript
+    log['_speaker_mapping'] = speaker_id_mapping
+    
     return speakers
 
 
 def get_enhanced_extraction_prompt(title: str, summary: str, transcript: str) -> str:
-    """Enhanced prompt with fallback for when speaker info is missing."""
+    """Enhanced prompt with Speaker N naming support and fallback for when speaker info is missing."""
     
-    # Check if transcript has speaker attribution
-    has_speaker_info = any(prefix in transcript for prefix in ['You:', 'Speaker:', ':'])
+    # Check if transcript has speaker attribution (including Speaker N naming)
+    has_speaker_info = any(prefix in transcript for prefix in ['You:', 'Speaker 0:', 'Speaker 1:', 'Speaker 2:', 'Speaker 3:', 'Speaker 4:', 'Speaker 5:', ':'])
     
     if has_speaker_info:
-        # Use speaker-aware prompt
-        logger.debug("Using speaker-aware prompt for AI extraction")
+        # Use speaker-aware prompt with Speaker N support
+        logger.debug("Using speaker-aware prompt with Speaker N naming for AI extraction")
         prompt = f"""Analyze this conversation transcript and extract:
 
 1. Key facts and decisions (for memory storage)
@@ -690,7 +728,9 @@ def get_enhanced_extraction_prompt(title: str, summary: str, transcript: str) ->
 
 IMPORTANT: Pay attention to speaker attribution in the transcript. When extracting tasks:
 - If "You:" said something, it's the user's task
-- If another speaker mentioned tasks, note who assigned them
+- If "Speaker 0:", "Speaker 1:", "Speaker 2:", "Speaker 3:", "Speaker 4:", etc. mentioned tasks, note who assigned them
+- Preserve the exact "Speaker N" names when referencing unrecognized speakers
+- Use "Speaker 0", "Speaker 1", "Speaker 2", "Speaker 3", "Speaker 4", etc. consistently in extractions
 
 Title: {title}
 Summary: {summary}
@@ -702,18 +742,18 @@ Return a JSON object with:
     "tasks": [{{
         "description": "task description", 
         "due_date": "YYYY-MM-DD or null",
-        "assigned_to": "You" or "speaker_name",
-        "assigned_by": "speaker_name who mentioned it"
+        "assigned_to": "You" or "Speaker 0" or "Speaker 1" or "Speaker 2" or "speaker_name",
+        "assigned_by": "speaker_name or Speaker N who mentioned it"
     }}],
     "events": [{{"title": "event", "date": "YYYY-MM-DD", "time": "HH:MM or null"}}],
     "people": [{{
-        "name": "person", 
+        "name": "person or Speaker 0 or Speaker 1 or Speaker 2 etc", 
         "context": "their role or relationship",
         "is_speaker": true/false
     }}]
 }}
 
-Be specific about WHO said what. Extract only clearly stated information."""
+Be specific about WHO said what. Preserve "Speaker 0", "Speaker 1", "Speaker 2", "Speaker 3", "Speaker 4", etc. naming for unrecognized speakers. Extract only clearly stated information."""
     else:
         # ✅ FALLBACK: Use original prompt assuming single speaker
         logger.debug("No speaker attribution detected, using single-user prompt")
