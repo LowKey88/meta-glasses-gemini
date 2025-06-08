@@ -231,6 +231,62 @@ Answer the question directly and specifically. If asked about one person, focus 
         logger.error(f"Error in prompt request: {e}")
         return f"Failed to process request: {e}"
 
+def limitless_extraction_request(message: str, user_id: str = None) -> str:
+    """
+    Send a prompt request to Gemini API specifically for Limitless data extraction.
+    Uses higher token limits to accommodate complex JSON structures.
+    
+    Args:
+        message (str): The extraction prompt message to send
+        user_id (str): User identifier for context (optional)
+        
+    Returns:
+        str: Generated JSON response text or error message
+    """
+    try:
+        if not message:
+            raise ValueError("Message cannot be empty")
+            
+        model = genai.GenerativeModel(GEMINI_CHAT_MODEL)
+        actual_time = datetime.now().strftime('%Y-%m-%d %H:%M')
+        
+        # Add time context for date-aware extraction
+        contextualized_message = f'''The current time is {actual_time}. {message}
+
+Return ONLY valid JSON without any explanatory text or markdown formatting.'''
+        
+        logger.debug(f"Sending Limitless extraction prompt: {contextualized_message[:200]}...")
+        
+        # Track API request timing
+        start_time = time.time()
+        
+        response = model.generate_content(
+            contextualized_message,
+            generation_config={
+                'temperature': 0.1,  # Lower temperature for more consistent JSON
+                'max_output_tokens': 800,  # Higher limit for complex JSON structures
+                'candidate_count': 1
+            }
+        )
+        
+        # Track response time
+        response_time = time.time() - start_time
+        MetricsTracker.track_ai_request("chat", response_time)
+        
+        if not response.text:
+            raise ValueError("Empty response from Gemini API")
+            
+        result = response.text.strip()
+        logger.debug(f"Limitless extraction response length: {len(result)} chars")
+        return result
+        
+    except ValueError as e:
+        logger.error(f"Error in Limitless extraction request: {e}")
+        return "{}"  # Return empty JSON on error
+    except Exception as e:
+        logger.error(f"Unexpected error in Limitless extraction request: {e}")
+        return "{}"  # Return empty JSON on error
+
 def generate_google_search_query(user_input: str) -> str:
     """
     Generate an optimized search query from user input.

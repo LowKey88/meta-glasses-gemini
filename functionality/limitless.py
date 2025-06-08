@@ -11,7 +11,7 @@ import asyncio
 from utils.limitless_api import LimitlessAPIClient
 from utils.redis_utils import r as redis_client
 from utils.memory_manager import MemoryManager
-from utils.gemini import simple_prompt_request
+from utils.gemini import simple_prompt_request, limitless_extraction_request
 from utils.whatsapp import send_whatsapp_threaded
 from functionality.task import create_task, get_task_lists
 from functionality.calendar import create_google_calendar_event
@@ -391,7 +391,7 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
             # ✅ ENHANCED: Use speaker-aware Gemini prompt with fallback
             extraction_prompt = get_enhanced_extraction_prompt(title, summary, transcript)
 
-            response = simple_prompt_request(extraction_prompt, phone_number)
+            response = limitless_extraction_request(extraction_prompt, phone_number)
             
             # Parse the response
             try:
