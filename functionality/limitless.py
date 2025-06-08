@@ -395,17 +395,33 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
             
             # Parse the response
             try:
+                # Clean and extract JSON from response
+                cleaned_response = response.strip()
+                
                 # Handle markdown-wrapped JSON
-                if "```json" in response:
-                    json_match = re.search(r'```json\s*(.*?)\s*```', response, re.DOTALL)
+                if "```json" in cleaned_response:
+                    json_match = re.search(r'```json\s*(.*?)\s*```', cleaned_response, re.DOTALL)
                     if json_match:
-                        response = json_match.group(1)
-                elif "```" in response:
-                    json_match = re.search(r'```\s*(.*?)\s*```', response, re.DOTALL)
+                        cleaned_response = json_match.group(1).strip()
+                elif "```" in cleaned_response:
+                    json_match = re.search(r'```\s*(.*?)\s*```', cleaned_response, re.DOTALL)
                     if json_match:
-                        response = json_match.group(1)
+                        cleaned_response = json_match.group(1).strip()
+                
+                # Try to find JSON object if no code blocks
+                if not cleaned_response.startswith('{'):
+                    json_match = re.search(r'\{.*\}', cleaned_response, re.DOTALL)
+                    if json_match:
+                        cleaned_response = json_match.group(0)
+                    else:
+                        raise json.JSONDecodeError("No JSON object found in response", cleaned_response, 0)
+                
+                # Additional cleaning for common issues
+                cleaned_response = cleaned_response.replace('\n', ' ')  # Remove newlines that might break parsing
+                cleaned_response = re.sub(r',\s*}', '}', cleaned_response)  # Remove trailing commas
+                cleaned_response = re.sub(r',\s*]', ']', cleaned_response)  # Remove trailing commas in arrays
                         
-                extracted_ai = json.loads(response)
+                extracted_ai = json.loads(cleaned_response)
                 
                 # ✅ ENHANCED: Merge AI extraction with speaker data
                 extracted['facts'] = extracted_ai.get('facts', [])
@@ -498,8 +514,11 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
                     if not task.get('assigned_by'):
                         task['assigned_by'] = 'You'  # Default to user
                 
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as e:
                 logger.error(f"Failed to parse Gemini response for Lifelog {log_id}")
+                logger.error(f"JSON Decode Error: {str(e)}")
+                logger.error(f"Raw Gemini response (first 500 chars): {response[:500]}")
+                logger.debug(f"Full Gemini response for {log_id[:8]}: {response}")
                 # Continue with speaker data only
                 extracted['people'] = speakers_identified
             
