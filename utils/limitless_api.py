@@ -28,6 +28,48 @@ class LimitlessAPIClient:
             "Content-Type": "application/json"
         }
         
+        # Retry configuration
+        self.max_retries = 3
+        self.retry_backoff_base = 2
+        
+    async def _is_retryable_error(self, error: Exception) -> bool:
+        """Check if an error is retryable (5xx errors, timeouts)."""
+        error_str = str(error).lower()
+        return (
+            '504' in error_str or 
+            '502' in error_str or 
+            '503' in error_str or
+            'timeout' in error_str or
+            'gateway' in error_str or
+            isinstance(error, asyncio.TimeoutError)
+        )
+    
+    async def _make_request_with_retry(self, url: str) -> Dict[str, Any]:
+        """Make HTTP request with retry logic for timeouts and 5xx errors."""
+        for attempt in range(self.max_retries):
+            try:
+                # Configure timeout - 30s total, 10s connect
+                timeout = aiohttp.ClientTimeout(total=30, connect=10)
+                
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+                    async with session.get(url, headers=self.headers) as response:
+                        response.raise_for_status()
+                        data = await response.json()
+                        return data
+                        
+            except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                is_last_attempt = attempt == self.max_retries - 1
+                is_retryable = await self._is_retryable_error(e)
+                
+                if not is_retryable or is_last_attempt:
+                    logger.error(f"Error fetching Lifelogs: {str(e)}")
+                    raise
+                
+                # Calculate exponential backoff delay
+                wait_time = self.retry_backoff_base ** attempt
+                logger.warning(f"Retryable error (attempt {attempt + 1}/{self.max_retries}), retrying in {wait_time}s: {str(e)}")
+                await asyncio.sleep(wait_time)
+        
     async def list_lifelogs(
         self,
         start_time: Optional[datetime] = None,
@@ -90,23 +132,17 @@ class LimitlessAPIClient:
         # Only log params in debug mode, not the full URL
         logger.debug(f"API request with params: {params}")
         
-        async with aiohttp.ClientSession() as session:
-            try:
-                async with session.get(url, headers=self.headers) as response:
-                    response.raise_for_status()
-                    data = await response.json()
-                    
-                    # Extract lifelogs from the correct response structure
-                    lifelogs = data.get('data', {}).get('lifelogs', [])
-                    # Only log if we got data
-                    if lifelogs:
-                        logger.debug(f"Retrieved {len(lifelogs)} entries")
-                    
-                    # Return in expected format for compatibility
-                    return {"items": lifelogs, "meta": data.get('meta', {})}
-            except aiohttp.ClientError as e:
-                logger.error(f"Error fetching Lifelogs: {str(e)}")
-                raise
+        # Make request with retry logic
+        data = await self._make_request_with_retry(url)
+        
+        # Extract lifelogs from the correct response structure
+        lifelogs = data.get('data', {}).get('lifelogs', [])
+        # Only log if we got data
+        if lifelogs:
+            logger.debug(f"Retrieved {len(lifelogs)} entries")
+        
+        # Return in expected format for compatibility
+        return {"items": lifelogs, "meta": data.get('meta', {})}
                 
     async def get_all_lifelogs(
         self,
@@ -137,6 +173,7 @@ class LimitlessAPIClient:
         cursor = None
         max_pages = 20  # Safety limit to prevent infinite loops
         page_count = 0
+        timeout_occurred = False
         
         while page_count < max_pages:
             try:
@@ -181,15 +218,23 @@ class LimitlessAPIClient:
                 await asyncio.sleep(0.5)
                 
             except Exception as e:
-                logger.error(f"Error in pagination with cursor {cursor}: {str(e)}")
+                error_str = str(e).lower()
+                if any(term in error_str for term in ['504', '502', '503', 'timeout', 'gateway']):
+                    timeout_occurred = True
+                    logger.warning(f"Timeout/Gateway error in pagination with cursor {cursor}: {str(e)}")
+                    logger.warning(f"Returning partial results: {len(all_entries)} entries from {page_count} pages")
+                else:
+                    logger.error(f"Error in pagination with cursor {cursor}: {str(e)}")
                 break
         
+        # Enhanced logging based on completion status
         if page_count >= max_pages:
-            logger.warning(f"Hit maximum page limit of {max_pages}, may not have retrieved all entries")
-                
-        # Only log summary if we got entries
-        if all_entries:
+            logger.warning(f"⚠️ Hit maximum page limit of {max_pages}, may not have retrieved all entries")
+        elif timeout_occurred:
+            logger.warning(f"⚠️ Retrieved {len(all_entries)} entries ({page_count} pages) - incomplete due to timeouts")
+        elif all_entries:
             logger.info(f"✅ Retrieved {len(all_entries)} total entries ({page_count} pages)")
+        
         return all_entries
     
     async def get_lifelogs_by_date(
