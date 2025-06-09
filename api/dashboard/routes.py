@@ -47,12 +47,11 @@ class MemoryCreate(BaseModel):
     content: str
     type: str
     tags: List[str] = []
-    importance: int = 5
+    importance: Optional[int] = None
 
 class MemoryUpdate(BaseModel):
     content: str
     memory_type: str
-    importance: int = 5
 
 class DashboardStats(BaseModel):
     total_memories: int
@@ -200,12 +199,16 @@ async def get_memories(
 async def create_memory(memory: MemoryCreate):
     """Create a new memory"""
     try:
+        # Use default importance of 6 for manual memories if not specified
+        importance = memory.importance if memory.importance is not None else 6
+        
         memory_id = MemoryManager.create_memory(
             user_id=memory.user_id,
             content=memory.content,
             memory_type=memory.type,
             tags=memory.tags,
-            importance=memory.importance
+            importance=importance,
+            extracted_from="manual"
         )
         
         if memory_id == "duplicate":
@@ -229,8 +232,7 @@ async def update_memory(
             memory_id,
             {
                 "content": update.content,
-                "type": update.memory_type,
-                "importance": update.importance
+                "type": update.memory_type
             }
         )
         

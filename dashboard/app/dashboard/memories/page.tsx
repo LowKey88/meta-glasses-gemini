@@ -198,7 +198,6 @@ export default function MemoriesPage() {
     setEditForm({
       content: memory.content,
       type: memory.type,
-      importance: memory.importance,
     });
   };
 
@@ -218,7 +217,6 @@ export default function MemoriesPage() {
       const updateData = {
         content: editForm.content.trim(),
         memory_type: editForm.type || 'general', // Backend expects 'memory_type', not 'type'
-        importance: editForm.importance || 5
         // Note: tags are not supported in the backend update API
       };
       
@@ -911,7 +909,6 @@ export default function MemoriesPage() {
                   setEditForm({
                     content: memory.content,
                     type: memory.type,
-                    importance: memory.importance,
                   });
                 }}
                 width={1200}

@@ -17,7 +17,6 @@ export interface Memory {
   type: string;
   content: string;
   tags: string[];
-  importance?: number;
   created_at: string;
   updated_at: string;
   extracted_from?: string;
@@ -32,7 +31,6 @@ export interface CreateMemoryRequest {
   type: string;
   content: string;
   tags: string[];
-  importance?: number;
 }
 
 export interface RedisKey {
