@@ -47,7 +47,6 @@ class MemoryCreate(BaseModel):
     content: str
     type: str
     tags: List[str] = []
-    importance: Optional[int] = None
 
 class MemoryUpdate(BaseModel):
     content: str
@@ -199,15 +198,13 @@ async def get_memories(
 async def create_memory(memory: MemoryCreate):
     """Create a new memory"""
     try:
-        # Use default importance of 6 for manual memories if not specified
-        importance = memory.importance if memory.importance is not None else 6
-        
+        # Use default importance of 6 for manual memories created via dashboard
         memory_id = MemoryManager.create_memory(
             user_id=memory.user_id,
             content=memory.content,
             memory_type=memory.type,
             tags=memory.tags,
-            importance=importance,
+            importance=6,  # Fixed default for manual memories
             extracted_from="manual"
         )
         
