@@ -10,7 +10,7 @@ import uuid
 import asyncio
 from typing import List, Dict, Optional, Any
 
-from api.dashboard.config import JWT_SECRET
+from api.dashboard.config import get_secure_jwt_secret
 from utils.redis_utils import r as redis_client
 from utils.redis_key_builder import RedisKeyBuilder
 from functionality.limitless import sync_recent_lifelogs, limitless_client, standardize_cached_speakers
@@ -23,7 +23,8 @@ def verify_dashboard_token(authorization: Optional[str] = Header(None)):
     
     token = authorization.split(" ")[1]
     try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+        secret = get_secure_jwt_secret()
+        payload = jwt.decode(token, secret, algorithms=["HS256"])
         return payload.get("user", "admin")
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")

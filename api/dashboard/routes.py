@@ -4,7 +4,7 @@ import json
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, Optional, Any, List
-from fastapi import APIRouter, HTTPException, Depends, Header
+from fastapi import APIRouter, HTTPException, Depends, Header, Request
 from pydantic import BaseModel
 import jwt
 from utils.redis_utils import r
@@ -19,7 +19,7 @@ from .config import (
     JWT_SECRET, DASHBOARD_PASSWORD, TOKEN_EXPIRY_HOURS,
     API_PREFIX, DEFAULT_USER_ID, DEFAULT_LIMIT, MAX_LIMIT
 )
-from .auth import verify_token
+from .auth import verify_token, authenticate_user, create_access_token
 from utils.redis_key_builder import redis_keys
 
 logger = logging.getLogger("uvicorn")
@@ -70,20 +70,29 @@ class DashboardStats(BaseModel):
     whatsapp_token_info: Dict[str, Any]  # Token status and expiry info
 
 @dashboard_router.post("/login")
-async def dashboard_login(request: LoginRequest):
-    """Login to dashboard with password"""
-    # Simple password check (should be hashed in production)
-    if request.password != DASHBOARD_PASSWORD:
-        raise HTTPException(status_code=401, detail="Invalid password")
+async def dashboard_login(request: LoginRequest, http_request: Request):
+    """Login to dashboard with enhanced security"""
+    try:
+        # Get client IP for rate limiting
+        client_ip = http_request.client.host if http_request.client else "unknown"
+        
+        # Authenticate user with rate limiting and security checks
+        if not authenticate_user(request.password, client_ip):
+            raise HTTPException(status_code=401, detail="Invalid password")
+        
+        # Create secure JWT token
+        user_data = {"user": "admin"}
+        token = create_access_token(user_data, timedelta(hours=TOKEN_EXPIRY_HOURS))
+        
+        logger.info(f"Successful login from IP: {client_ip}")
+        return {"token": token, "user": "admin"}
     
-    # Create JWT token
-    payload = {
-        "user": "admin",
-        "exp": datetime.now() + timedelta(hours=TOKEN_EXPIRY_HOURS)
-    }
-    token = jwt.encode(payload, JWT_SECRET, algorithm="HS256")
-    
-    return {"token": token, "user": "admin"}
+    except HTTPException:
+        # Re-raise HTTP exceptions (like rate limiting)
+        raise
+    except Exception as e:
+        logger.error(f"Login error: {e}")
+        raise HTTPException(status_code=500, detail="Login failed")
 
 @dashboard_router.get("/stats", dependencies=[Depends(verify_token)])
 async def get_dashboard_stats(user_id: str = "60122873632"):

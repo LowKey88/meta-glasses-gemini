@@ -40,6 +40,7 @@ from utils.memory_manager import MemoryManager
 from utils.metrics import MetricsTracker
 from utils.performance_tracker import PerformanceTracker
 from api.dashboard import dashboard_router
+from api.dashboard.security_middleware import SecurityMiddleware, IPWhitelistMiddleware
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("uvicorn")
@@ -73,6 +74,15 @@ COMMON_RESPONSES = {
    "ok": "Got it! Let me know if you need anything.",
    "okay": "Got it! Let me know if you need anything."
 }
+
+# Add security middleware
+app.add_middleware(SecurityMiddleware, rate_limit_requests=100, rate_limit_window=300)
+
+# Add IP whitelist middleware (disabled by default for development)
+# Enable in production by setting allowed IPs
+ip_whitelist_enabled = os.getenv('IP_WHITELIST_ENABLED', 'false').lower() == 'true'
+allowed_ips = set(filter(None, os.getenv('ALLOWED_IPS', '').split(',')))
+app.add_middleware(IPWhitelistMiddleware, allowed_ips=allowed_ips, enabled=ip_whitelist_enabled)
 
 app.add_middleware(
    CORSMiddleware,

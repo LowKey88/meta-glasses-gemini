@@ -10,8 +10,9 @@ from pydantic import BaseModel, validator
 import requests
 from utils.redis_utils import r
 from utils.redis_key_builder import redis_keys
+from utils.encryption import encrypt_value, decrypt_value, is_encrypted_value, secure_store, secure_retrieve
 from .config import DEFAULT_USER_ID
-from .auth import verify_token
+from .auth import verify_token, update_admin_password
 
 logger = logging.getLogger("uvicorn")
 
@@ -38,6 +39,10 @@ class SettingsBackup(BaseModel):
     settings: Dict[str, Any]
     timestamp: datetime
     version: str = "1.0"
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str
 
 # Settings Schema Definition
 SETTINGS_SCHEMA = {
@@ -169,6 +174,20 @@ def get_setting_redis_key(key: str) -> str:
     """Get Redis key for a setting"""
     return f"meta-glasses:settings:global:{key}"
 
+# Define sensitive settings that should be encrypted
+SENSITIVE_SETTINGS = {
+    "dashboard_password",
+    "gemini_api_key", 
+    "limitless_api_key",
+    "whatsapp_auth_token",
+    "whatsapp_webhook_verification_token",
+    "notion_integration_secret",
+    "home_assistant_token",
+    "serper_dev_api_key",
+    "crawlbase_api_key",
+    "oauth_credentials_encoded"
+}
+
 def mask_sensitive_value(value: str, is_sensitive: bool) -> str:
     """Mask sensitive values for display"""
     if not is_sensitive or not value:
@@ -217,7 +236,9 @@ async def get_all_settings(user: dict = Depends(verify_token)):
             redis_value = r.get(redis_key)
             
             if redis_value:
-                value = redis_value.decode('utf-8')
+                encrypted_value = redis_value.decode('utf-8')
+                # Decrypt if the value is encrypted
+                value = secure_retrieve(encrypted_value)
                 source = "redis"
             else:
                 value = get_current_env_value(key)
@@ -255,7 +276,9 @@ async def get_setting(key: str, user: dict = Depends(verify_token)):
         redis_value = r.get(redis_key)
         
         if redis_value:
-            value = redis_value.decode('utf-8')
+            encrypted_value = redis_value.decode('utf-8')
+            # Decrypt if the value is encrypted
+            value = secure_retrieve(encrypted_value)
             source = "redis"
         else:
             value = get_current_env_value(key)
@@ -291,9 +314,10 @@ async def update_setting(key: str, setting_update: SettingUpdate, user: dict = D
             if not schema["validation"](value):
                 raise HTTPException(status_code=400, detail=f"Invalid value format for {key}")
         
-        # Store in Redis
+        # Store in Redis with encryption for sensitive settings
         redis_key = get_setting_redis_key(key)
-        r.set(redis_key, value)
+        stored_value = secure_store(key, value, SENSITIVE_SETTINGS)
+        r.set(redis_key, stored_value)
         
         # Log the change
         logger.info(f"Setting {key} updated by user {user.get('user', 'unknown')}")
@@ -479,3 +503,33 @@ async def test_home_assistant_connection(token: str, url: str) -> Dict[str, Any]
             "success": False,
             "message": f"Failed to connect to Home Assistant: {str(e)}"
         }
+
+@router.post("/change-password")
+async def change_admin_password(password_change: PasswordChange, user: dict = Depends(verify_token)):
+    """Change the admin dashboard password"""
+    try:
+        from .auth import authenticate_user
+        
+        # Verify current password
+        if not authenticate_user(password_change.current_password, "localhost"):
+            raise HTTPException(status_code=401, detail="Current password is incorrect")
+        
+        # Validate new password strength
+        if len(password_change.new_password) < 8:
+            raise HTTPException(status_code=400, detail="New password must be at least 8 characters long")
+        
+        # Update password
+        if update_admin_password(password_change.new_password):
+            logger.info(f"Admin password changed by user {user.get('user', 'unknown')}")
+            return {
+                "success": True,
+                "message": "Password changed successfully. Please log in again with your new password."
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to update password")
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error changing password: {e}")
+        raise HTTPException(status_code=500, detail="Failed to change password")

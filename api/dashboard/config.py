@@ -1,11 +1,22 @@
 """Dashboard configuration and constants"""
 import os
+import secrets
 from typing import List
 
 # Authentication
 JWT_SECRET = os.getenv("DASHBOARD_JWT_SECRET", "your-dashboard-secret-key")
 DASHBOARD_PASSWORD = os.getenv("DASHBOARD_PASSWORD", "meta-admin-2024")
 TOKEN_EXPIRY_HOURS = 24
+
+def get_secure_jwt_secret() -> str:
+    """Get a secure JWT secret, either from environment or use consistent fallback."""
+    env_secret = os.getenv("DASHBOARD_JWT_SECRET")
+    if env_secret and len(env_secret) >= 32:
+        return env_secret
+    
+    # Use a consistent fallback for development (instead of random generation)
+    development_secret = "meta-glasses-development-jwt-secret-key-12345678"
+    return development_secret
 
 # API Settings
 API_PREFIX = "/api/dashboard"
