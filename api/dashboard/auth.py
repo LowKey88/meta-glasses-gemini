@@ -73,6 +73,7 @@ class AuthManager:
             
             # If no stored hash, create one from environment password and store it
             from .config import DASHBOARD_PASSWORD
+            logger.info(f"Creating password hash from environment variable (first 4 chars: {DASHBOARD_PASSWORD[:4]}...)")
             hashed_password = self.hash_password(DASHBOARD_PASSWORD)
             
             # Store the hashed password (encrypted)
@@ -86,6 +87,7 @@ class AuthManager:
             logger.error(f"Error getting stored password hash: {e}")
             # Fallback to hashing the environment password
             from .config import DASHBOARD_PASSWORD
+            logger.error(f"Fallback: using environment password (first 4 chars: {DASHBOARD_PASSWORD[:4]}...)")
             return self.hash_password(DASHBOARD_PASSWORD)
     
     def update_password(self, new_password: str) -> bool:
@@ -112,11 +114,16 @@ class AuthManager:
         # Get stored password hash
         stored_hash = self.get_stored_password_hash()
         
+        # Debug logging for password verification
+        logger.info(f"Authentication attempt from {client_ip} with password (first 4 chars: {password[:4]}...)")
+        
         # Verify password
         if self.verify_password(password, stored_hash):
+            logger.info(f"Password verification successful for {client_ip}")
             self.reset_failed_attempts(client_ip)
             return True
         else:
+            logger.info(f"Password verification failed for {client_ip}")
             self.record_failed_attempt(client_ip)
             return False
     
