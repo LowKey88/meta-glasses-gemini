@@ -16,7 +16,6 @@ import {
   ChevronDown,
   AlertCircle,
   User,
-  Star,
   Hash,
   Grid3X3,
   Network,
@@ -26,7 +25,13 @@ import {
   Clock,
   Info,
   AlertTriangle,
-  StickyNote
+  StickyNote,
+  MoreHorizontal,
+  RefreshCw,
+  List,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import MemoryGraph from '@/components/MemoryGraph';
 
@@ -35,7 +40,7 @@ type MemoryType = 'all' | 'fact' | 'preference' | 'relationship' | 'routine' | '
 // Memory type icon map (matching backend MEMORY_TYPES)
 const memoryTypeIcons = {
   fact: Info,
-  preference: Star,
+  preference: Heart,
   relationship: Users,
   routine: Clock,
   important_date: Calendar,
@@ -44,16 +49,25 @@ const memoryTypeIcons = {
   note: StickyNote,
 };
 
-// Memory type colors with better contrast for dark mode
+// Memory type colors with modern vibrant styling
 const memoryTypeColors = {
-  fact: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-  preference: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-  relationship: 'bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-300',
-  routine: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
-  important_date: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
-  personal_info: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300',
-  allergy: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
-  note: 'bg-gray-100 text-gray-800 dark:bg-gray-800/50 dark:text-gray-300',
+  fact: 'bg-blue-500 text-white',
+  preference: 'bg-green-500 text-white', 
+  relationship: 'bg-red-500 text-white',
+  routine: 'bg-purple-500 text-white',
+  important_date: 'bg-orange-500 text-white',
+  personal_info: 'bg-indigo-500 text-white',
+  allergy: 'bg-red-600 text-white',
+  note: 'bg-gray-500 text-white',
+};
+
+// Source type styling with improved dark mode support
+const sourceColors = {
+  manual: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-600 dark:text-white',
+  whatsapp: 'bg-green-100 text-green-800 dark:bg-green-600 dark:text-white',
+  limitless: 'bg-purple-100 text-purple-800 dark:bg-purple-500 dark:text-white',
+  ai: 'bg-pink-100 text-pink-800 dark:bg-pink-600 dark:text-white',
+  auto: 'bg-orange-100 text-orange-800 dark:bg-orange-600 dark:text-white'
 };
 
 // Skeleton loader for memory cards
@@ -90,12 +104,13 @@ export default function MemoriesPage() {
   const [filterType, setFilterType] = useState<MemoryType>('all');
   const [showFilters, setShowFilters] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'grid' | 'graph'>('grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'table' | 'graph'>('table');
+  const [sortBy, setSortBy] = useState<'created_at' | 'type' | 'content'>('created_at');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [newForm, setNewForm] = useState({
     user_id: '60122873632', // Default user ID matching backend
     type: 'note',
     content: '',
-    importance: 5,
   });
   const { toast } = useToast();
 
@@ -115,7 +130,7 @@ export default function MemoriesPage() {
     fetchMemories();
   }, []);
 
-  // Filter and search memories
+  // Filter, search, and sort memories
   useEffect(() => {
     let filtered = memories;
 
@@ -132,8 +147,51 @@ export default function MemoriesPage() {
       );
     }
 
+    // Sort memories
+    filtered.sort((a, b) => {
+      let aValue, bValue;
+      
+      switch (sortBy) {
+        case 'created_at':
+          aValue = new Date(a.created_at).getTime();
+          bValue = new Date(b.created_at).getTime();
+          break;
+        case 'type':
+          aValue = a.type;
+          bValue = b.type;
+          break;
+        case 'content':
+          aValue = a.content.toLowerCase();
+          bValue = b.content.toLowerCase();
+          break;
+        default:
+          aValue = a.created_at;
+          bValue = b.created_at;
+      }
+
+      if (sortOrder === 'desc') {
+        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+      } else {
+        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+      }
+    });
+
     setFilteredMemories(filtered);
-  }, [memories, filterType, searchTerm]);
+  }, [memories, filterType, searchTerm, sortBy, sortOrder]);
+
+  const handleSort = (column: 'created_at' | 'type' | 'content') => {
+    if (sortBy === column) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(column);
+      setSortOrder('desc');
+    }
+  };
+
+  const getSortIcon = (column: 'created_at' | 'type' | 'content') => {
+    if (sortBy !== column) return ArrowUpDown;
+    return sortOrder === 'asc' ? ArrowUp : ArrowDown;
+  };
 
   const handleEdit = (memory: Memory) => {
     setEditingId(memory.id);
@@ -220,7 +278,6 @@ export default function MemoriesPage() {
         user_id: newForm.user_id,
         type: newForm.type,
         content: newForm.content,
-        importance: newForm.importance,
         tags: [], // Empty array since tags are not used
       });
       await fetchMemories();
@@ -229,7 +286,6 @@ export default function MemoriesPage() {
         user_id: '60122873632',
         type: 'note',
         content: '',
-        importance: 5,
       });
       
       toast({
@@ -278,8 +334,19 @@ export default function MemoriesPage() {
               {/* View Toggle */}
               <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
                 <button
-                  onClick={() => setViewMode('grid')}
+                  onClick={() => setViewMode('table')}
                   className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-l-lg transition-all duration-200 ${
+                    viewMode === 'table'
+                      ? 'bg-purple-600 text-white'
+                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  <List className="h-4 w-4 mr-2" />
+                  Table View
+                </button>
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`inline-flex items-center px-3 py-2 text-sm font-medium transition-all duration-200 ${
                     viewMode === 'grid'
                       ? 'bg-purple-600 text-white'
                       : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
@@ -301,13 +368,22 @@ export default function MemoriesPage() {
                 </button>
               </div>
               
-              <button
-                onClick={() => setShowNewForm(true)}
-                className="inline-flex items-center justify-center rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white shadow-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-all duration-200"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add Memory
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={fetchMemories}
+                  className="inline-flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh
+                </button>
+                <button
+                  onClick={() => setShowNewForm(true)}
+                  className="inline-flex items-center justify-center rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white shadow-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-all duration-200"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Memory
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -418,19 +494,6 @@ export default function MemoriesPage() {
                   <option value="note">Note</option>
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Importance (1-10)
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  max="10"
-                  className="w-full rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200"
-                  value={newForm.importance}
-                  onChange={(e) => setNewForm({ ...newForm, importance: parseInt(e.target.value) })}
-                />
-              </div>
               <div className="sm:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Content
@@ -463,7 +526,203 @@ export default function MemoriesPage() {
         )}
 
         {/* Content Views */}
-        {viewMode === 'grid' ? (
+        {viewMode === 'table' ? (
+          /* Table View */
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+            {loading ? (
+              <div className="p-8 text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-4"></div>
+                <p className="text-gray-500 dark:text-gray-400">Loading memories...</p>
+              </div>
+            ) : filteredMemories.length === 0 ? (
+              <div className="p-12 text-center">
+                <Brain className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                  {searchTerm || filterType !== 'all' ? 'No memories found' : 'No memories yet'}
+                </h3>
+                <p className="text-gray-500 dark:text-gray-400">
+                  {searchTerm || filterType !== 'all' 
+                    ? 'Try adjusting your search or filters'
+                    : 'Create your first memory to get started'
+                  }
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* Table Header */}
+                <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                  <div className="grid grid-cols-12 gap-4">
+                    <div className="col-span-6">
+                      <button
+                        onClick={() => handleSort('content')}
+                        className="flex items-center space-x-1 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                      >
+                        <span>Memory</span>
+                        {(() => {
+                          const SortIcon = getSortIcon('content');
+                          return <SortIcon className="h-4 w-4" />;
+                        })()}
+                      </button>
+                    </div>
+                    <div className="col-span-2">
+                      <button
+                        onClick={() => handleSort('type')}
+                        className="flex items-center space-x-1 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                      >
+                        <span>Category</span>
+                        {(() => {
+                          const SortIcon = getSortIcon('type');
+                          return <SortIcon className="h-4 w-4" />;
+                        })()}
+                      </button>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Source</span>
+                    </div>
+                    <div className="col-span-2">
+                      <button
+                        onClick={() => handleSort('created_at')}
+                        className="flex items-center space-x-1 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                      >
+                        <span>Created On</span>
+                        {(() => {
+                          const SortIcon = getSortIcon('created_at');
+                          return <SortIcon className="h-4 w-4" />;
+                        })()}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Table Body */}
+                <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {filteredMemories.map((memory) => {
+                    const Icon = memoryTypeIcons[memory.type as keyof typeof memoryTypeIcons] || Hash;
+                    const isEditing = editingId === memory.id;
+                    const isDeleting = deleteConfirmId === memory.id;
+
+                    return (
+                      <div key={memory.id} className="group px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                        <div className="grid grid-cols-12 gap-4 items-center">
+                          {/* Memory Content */}
+                          <div className="col-span-6">
+                            {isEditing ? (
+                              <textarea
+                                className="w-full rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200"
+                                rows={3}
+                                value={editForm.content}
+                                onChange={(e) => setEditForm({ ...editForm, content: e.target.value })}
+                              />
+                            ) : (
+                              <div>
+                                <p className="text-gray-900 dark:text-white font-medium leading-6 line-clamp-2">
+                                  {memory.content}
+                                </p>
+                                <div className="flex items-center mt-2 space-x-2">
+                                  <div className="flex items-center space-x-1 text-xs text-gray-500 dark:text-gray-400">
+                                    <User className="h-3 w-3" />
+                                    <span className="truncate max-w-[120px]">{memory.user_id}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Category */}
+                          <div className="col-span-2">
+                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${memoryTypeColors[memory.type as keyof typeof memoryTypeColors]}`}>
+                              <Icon className="h-3.5 w-3.5 mr-1" />
+                              {memory.type.charAt(0).toUpperCase() + memory.type.slice(1)}
+                            </span>
+                          </div>
+
+                          {/* Source */}
+                          <div className="col-span-2">
+                            {(() => {
+                              const source = memory.extracted_from || memory.metadata?.source || 'manual';
+                              return (
+                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                                  sourceColors[source as keyof typeof sourceColors] || sourceColors.manual
+                                }`}>
+                                  {source.charAt(0).toUpperCase() + source.slice(1)}
+                                </span>
+                              );
+                            })()}
+                          </div>
+
+                          {/* Created On */}
+                          <div className="col-span-2 flex items-center justify-between">
+                            <div className="text-sm text-gray-500 dark:text-gray-400">
+                              {new Date(memory.created_at).toLocaleDateString(undefined, { 
+                                month: 'short', 
+                                day: 'numeric', 
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </div>
+                            
+                            {/* Actions */}
+                            <div className="flex items-center space-x-1">
+                              {isEditing ? (
+                                <>
+                                  <button
+                                    onClick={() => handleSave(memory.id)}
+                                    className="p-1.5 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/20 transition-colors"
+                                  >
+                                    <Save className="h-4 w-4 text-green-600 dark:text-green-400" />
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingId(null)}
+                                    className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                  >
+                                    <X className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                                  </button>
+                                </>
+                              ) : isDeleting ? (
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() => handleDelete(memory.id)}
+                                    className="inline-flex items-center justify-center px-2 py-1 text-xs font-medium rounded bg-red-600 text-white hover:bg-red-700 transition-colors"
+                                    title="Confirm delete"
+                                  >
+                                    ✓
+                                  </button>
+                                  <button
+                                    onClick={() => setDeleteConfirmId(null)}
+                                    className="inline-flex items-center justify-center px-2 py-1 text-xs font-medium rounded bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-400 dark:hover:bg-gray-500 transition-colors"
+                                    title="Cancel delete"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    onClick={() => handleEdit(memory)}
+                                    className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                  >
+                                    <Edit3 className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                                  </button>
+                                  <button
+                                    onClick={() => setDeleteConfirmId(memory.id)}
+                                    className="p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors"
+                                  >
+                                    <Trash2 className="h-4 w-4 text-red-500 dark:text-red-400" />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        ) : viewMode === 'grid' ? (
           <>
             {/* Memories Grid */}
             {loading ? (
@@ -505,10 +764,16 @@ export default function MemoriesPage() {
                           <Icon className="h-3.5 w-3.5 mr-1" />
                           {memory.type}
                         </span>
-                        <span className="inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
-                          <Star className="h-3.5 w-3.5 mr-1" />
-                          {memory.importance}/10
-                        </span>
+                        {(() => {
+                          const source = memory.extracted_from || memory.metadata?.source || 'manual';
+                          return (
+                            <span className={`inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium ${
+                              sourceColors[source as keyof typeof sourceColors] || sourceColors.manual
+                            }`}>
+                              {source.charAt(0).toUpperCase() + source.slice(1)}
+                            </span>
+                          );
+                        })()}
                       </div>
                       <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                         {!isEditing && !isDeleting && (
@@ -555,7 +820,13 @@ export default function MemoriesPage() {
                       </div>
                       <div className="flex items-center space-x-1">
                         <Calendar className="h-4 w-4" />
-                        <span>{new Date(memory.created_at).toLocaleDateString()}</span>
+                        <span>{new Date(memory.created_at).toLocaleDateString(undefined, { 
+                          month: 'short', 
+                          day: 'numeric', 
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}</span>
                       </div>
                     </div>
 
