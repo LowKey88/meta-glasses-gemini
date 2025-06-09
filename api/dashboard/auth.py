@@ -63,24 +63,37 @@ class AuthManager:
             del self.failed_attempts[client_ip]
     
     def get_stored_password_hash(self) -> str:
-        """Get the stored password hash from Redis or return default."""
+        """Get the stored password hash from Redis, auto-updating if environment changed."""
         try:
-            # Try to get hashed password from Redis
-            stored_hash = r.get('meta-glasses:auth:password_hash')
-            if stored_hash:
-                decrypted_hash = decrypt_value(stored_hash.decode('utf-8'))
-                return decrypted_hash
-            
-            # If no stored hash, create one from environment password and store it
             from .config import DASHBOARD_PASSWORD
+            
+            # Check if we have a stored password hash and environment hash
+            stored_hash = r.get('meta-glasses:auth:password_hash')
+            stored_env_hash = r.get('meta-glasses:auth:env_password_hash')
+            
+            # Calculate current environment password hash (for comparison)
+            current_env_hash = self.hash_password(DASHBOARD_PASSWORD)[:32]  # First 32 chars as fingerprint
+            
+            # If stored hash exists and environment hasn't changed, use it
+            if stored_hash and stored_env_hash:
+                stored_env_decoded = stored_env_hash.decode('utf-8') if isinstance(stored_env_hash, bytes) else stored_env_hash
+                if stored_env_decoded == current_env_hash:
+                    # Environment hasn't changed, use cached hash
+                    decrypted_hash = decrypt_value(stored_hash.decode('utf-8'))
+                    return decrypted_hash
+                else:
+                    logger.info(f"Environment password changed, updating stored hash (new first 4 chars: {DASHBOARD_PASSWORD[:4]}...)")
+            
+            # Create/update hash from current environment password
             logger.info(f"Creating password hash from environment variable (first 4 chars: {DASHBOARD_PASSWORD[:4]}...)")
             hashed_password = self.hash_password(DASHBOARD_PASSWORD)
             
-            # Store the hashed password (encrypted)
+            # Store both the password hash and environment fingerprint
             encrypted_hash = encrypt_value(hashed_password)
             r.set('meta-glasses:auth:password_hash', encrypted_hash)
+            r.set('meta-glasses:auth:env_password_hash', current_env_hash)
             
-            logger.info("Created initial password hash from environment variable")
+            logger.info("Updated password hash from environment variable")
             return hashed_password
             
         except Exception as e:
