@@ -141,6 +141,14 @@ class SecurityMiddleware(BaseHTTPMiddleware):
     async def check_rate_limit(self, client_ip: str, request: Request) -> bool:
         """Check if request is within rate limits."""
         try:
+            # Skip rate limiting for Docker internal IPs and local ranges
+            if self.is_docker_internal_ip(client_ip):
+                # Allow much higher limits for internal Docker traffic (dashboard, etc.)
+                internal_limit = self.rate_limit_requests * 10  # 10x higher limit for internal IPs
+                logger.debug(f"Using internal rate limit {internal_limit} for Docker IP: {client_ip}")
+            else:
+                internal_limit = self.rate_limit_requests
+            
             current_time = int(time.time())
             window_start = current_time - self.rate_limit_window
             
@@ -158,12 +166,13 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             current_requests = results[1]
             
             # Check if limit exceeded
-            if current_requests >= self.rate_limit_requests:
+            if current_requests >= internal_limit:
                 # Log the rate limit violation
-                logger.warning(f"Rate limit exceeded for {client_ip}: {current_requests} requests in {self.rate_limit_window}s")
+                logger.warning(f"Rate limit exceeded for {client_ip}: {current_requests} requests in {self.rate_limit_window}s (limit: {internal_limit})")
                 
-                # Block IP temporarily for repeat offenders
-                await self.handle_rate_limit_violation(client_ip)
+                # Block IP temporarily for repeat offenders (but only external IPs)
+                if not self.is_docker_internal_ip(client_ip):
+                    await self.handle_rate_limit_violation(client_ip)
                 return False
             
             return True

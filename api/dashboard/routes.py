@@ -14,7 +14,8 @@ from utils.reminder import ReminderManager
 from utils.gemini import GEMINI_VISION_MODEL, GEMINI_CHAT_MODEL
 from utils.metrics import MetricsTracker
 from utils.performance_tracker import PerformanceTracker
-from utils.whatsapp_status import check_whatsapp_token_status
+from utils.whatsapp_status import check_whatsapp_token_status_sync
+from utils.ai_status import check_gemini_api_status_sync, get_ai_usage_stats
 from .config import (
     JWT_SECRET, DASHBOARD_PASSWORD, TOKEN_EXPIRY_HOURS,
     API_PREFIX, DEFAULT_USER_ID, DEFAULT_LIMIT, MAX_LIMIT
@@ -68,6 +69,8 @@ class DashboardStats(BaseModel):
     today_vs_yesterday: Dict[str, Dict[str, int]]  # Hourly comparison
     whatsapp_status: str
     whatsapp_token_info: Dict[str, Any]  # Token status and expiry info
+    ai_status: Dict[str, Any]  # AI API status and rate limits
+    ai_usage_stats: Dict[str, Any]  # AI usage statistics
 
 @dashboard_router.post("/login")
 async def dashboard_login(request: LoginRequest, http_request: Request):
@@ -142,9 +145,13 @@ async def get_dashboard_stats(user_id: str = "60122873632"):
         weekly_activity = MetricsTracker.get_weekly_message_activity()  # Last 7 days
         today_vs_yesterday = MetricsTracker.get_today_vs_yesterday_hourly()  # Comparison
         
-        # Get WhatsApp status
-        whatsapp_token_info = check_whatsapp_token_status()
+        # Get WhatsApp status (non-blocking with cache)
+        whatsapp_token_info = check_whatsapp_token_status_sync()
         whatsapp_status = whatsapp_token_info.get('status', 'unknown')
+        
+        # Get AI status and usage stats
+        ai_status_info = check_gemini_api_status_sync()
+        ai_usage_stats = get_ai_usage_stats()
         
         return DashboardStats(
             total_memories=len(memories),
@@ -160,7 +167,9 @@ async def get_dashboard_stats(user_id: str = "60122873632"):
             weekly_activity=weekly_activity,
             today_vs_yesterday=today_vs_yesterday,
             whatsapp_status=whatsapp_status,
-            whatsapp_token_info=whatsapp_token_info
+            whatsapp_token_info=whatsapp_token_info,
+            ai_status=ai_status_info,
+            ai_usage_stats=ai_usage_stats
         )
     except Exception as e:
         logger.error(f"Error getting dashboard stats: {e}")

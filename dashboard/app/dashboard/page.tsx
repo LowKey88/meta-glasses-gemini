@@ -4,9 +4,62 @@ import { useEffect, useState } from 'react';
 import { api, SystemStats } from '@/lib/api';
 import { MessageActivityChart, WeeklyActivityChart, ComparisonChart } from '@/components/charts';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Clock, MessageCircle, Brain, Bell, Server, Wifi, Cpu, Database } from 'lucide-react';
+import { Clock, MessageCircle, Brain, Bell, Server, Wifi, Cpu, Database, Activity, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
 
 type ChartView = 'message-activity' | 'weekly-activity' | 'comparison';
+
+// Helper function to get AI status styling
+function getAIStatusConfig(status: string) {
+  switch (status) {
+    case 'active':
+      return {
+        color: 'green',
+        bgColor: 'bg-green-100 dark:bg-green-900/20',
+        textColor: 'text-green-800 dark:text-green-200',
+        borderColor: 'border-green-400 dark:border-green-600',
+        icon: CheckCircle,
+        dotColor: 'bg-green-400'
+      };
+    case 'rate_limited':
+      return {
+        color: 'yellow',
+        bgColor: 'bg-yellow-100 dark:bg-yellow-900/20',
+        textColor: 'text-yellow-800 dark:text-yellow-200',
+        borderColor: 'border-yellow-400 dark:border-yellow-600',
+        icon: AlertCircle,
+        dotColor: 'bg-yellow-400'
+      };
+    case 'degraded':
+      return {
+        color: 'orange',
+        bgColor: 'bg-orange-100 dark:bg-orange-900/20',
+        textColor: 'text-orange-800 dark:text-orange-200',
+        borderColor: 'border-orange-400 dark:border-orange-600',
+        icon: AlertCircle,
+        dotColor: 'bg-orange-400'
+      };
+    case 'error':
+    case 'timeout':
+    case 'unauthorized':
+      return {
+        color: 'red',
+        bgColor: 'bg-red-100 dark:bg-red-900/20',
+        textColor: 'text-red-800 dark:text-red-200',
+        borderColor: 'border-red-400 dark:border-red-600',
+        icon: XCircle,
+        dotColor: 'bg-red-400'
+      };
+    default:
+      return {
+        color: 'gray',
+        bgColor: 'bg-gray-100 dark:bg-gray-900/20',
+        textColor: 'text-gray-800 dark:text-gray-200',
+        borderColor: 'border-gray-400 dark:border-gray-600',
+        icon: Activity,
+        dotColor: 'bg-gray-400'
+      };
+  }
+}
 
 // Skeleton loader component
 function StatCardSkeleton() {
@@ -251,33 +304,106 @@ export default function DashboardPage() {
         {/* Secondary Charts Grid */}
         {!loading && stats && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            {/* AI Model Information */}
+            {/* AI Status Monitoring */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-lg transition-shadow duration-200">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  AI Model Information
+                  AI Status Monitoring
                 </h2>
-                <Cpu className="h-5 w-5 text-gray-400" />
+                <Activity className="h-5 w-5 text-gray-400" />
               </div>
               <div className="space-y-4">
-                <div className="flex justify-between items-center p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50">
-                  <span className="text-sm text-gray-500 dark:text-gray-400">Vision Model</span>
-                  <span className="text-sm font-mono text-gray-900 dark:text-white">
-                    {stats.ai_model_vision}
-                  </span>
+                {/* AI Status Indicator */}
+                <div className={`p-4 rounded-lg border ${getAIStatusConfig(stats.ai_status.status).bgColor} ${getAIStatusConfig(stats.ai_status.status).borderColor}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      {(() => {
+                        const StatusIcon = getAIStatusConfig(stats.ai_status.status).icon;
+                        return <StatusIcon className={`h-5 w-5 ${getAIStatusConfig(stats.ai_status.status).textColor}`} />;
+                      })()}
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <span className={`font-medium ${getAIStatusConfig(stats.ai_status.status).textColor}`}>
+                            {stats.ai_status.status.toUpperCase().replace('_', ' ')}
+                          </span>
+                          <span className={`h-2 w-2 rounded-full animate-pulse ${getAIStatusConfig(stats.ai_status.status).dotColor}`} />
+                        </div>
+                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                          {stats.ai_status.message}
+                        </p>
+                      </div>
+                    </div>
+                    {stats.ai_status.response_time_ms && (
+                      <div className="text-right">
+                        <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                          {stats.ai_status.response_time_ms.toFixed(0)}ms
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          Response Time
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="flex justify-between items-center p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50">
-                  <span className="text-sm text-gray-500 dark:text-gray-400">Chat Model</span>
-                  <span className="text-sm font-mono text-gray-900 dark:text-white">
-                    {stats.ai_model_chat}
-                  </span>
+
+                {/* AI Usage Statistics */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20">
+                    <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                      {stats.ai_usage_stats.requests_today}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      Requests Today
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20">
+                    <div className="text-2xl font-bold text-red-600 dark:text-red-400">
+                      {stats.ai_usage_stats.errors_last_hour}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      Errors (1h)
+                    </div>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20">
-                  <span className="text-sm text-gray-500 dark:text-gray-400">AI Requests Today</span>
-                  <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">
-                    {stats.total_ai_requests_today}
-                  </span>
+
+                {/* Model Configuration */}
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center p-2 rounded bg-gray-50 dark:bg-gray-700/50">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">Vision Model</span>
+                    <span className="text-xs font-mono text-gray-900 dark:text-white">
+                      {stats.ai_model_vision}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center p-2 rounded bg-gray-50 dark:bg-gray-700/50">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">Chat Model</span>
+                    <span className="text-xs font-mono text-gray-900 dark:text-white">
+                      {stats.ai_model_chat}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center p-2 rounded bg-blue-50 dark:bg-blue-900/20">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">AI Requests Today</span>
+                    <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+                      {stats.total_ai_requests_today}
+                    </span>
+                  </div>
                 </div>
+
+                {/* Last Checked */}
+                <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    Last checked: {new Date(stats.ai_status.last_checked).toLocaleString()}
+                  </div>
+                </div>
+
+                {/* Error Display */}
+                {stats.ai_status.error && (
+                  <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                    <div className="text-xs font-medium text-red-800 dark:text-red-200 mb-1">Error Details</div>
+                    <div className="text-xs text-red-600 dark:text-red-400">
+                      {stats.ai_status.error}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

@@ -1,58 +1,66 @@
 """WhatsApp API status and token validation utilities"""
 import os
-import requests
 import logging
+import asyncio
+import json
 from datetime import datetime
 from typing import Dict, Optional
+import httpx
+from utils.redis_utils import r
 
 logger = logging.getLogger("uvicorn")
 
-def check_whatsapp_token_status() -> Dict[str, any]:
+async def check_whatsapp_token_status() -> Dict[str, any]:
     """
-    Check WhatsApp token status and get token information
+    Check WhatsApp token status and get token information with caching
     Returns dict with status, expiry, and other token details
     """
+    # Check cache first
+    cache_key = "meta-glasses:whatsapp:status_cache"
+    cached_status = r.get(cache_key)
+    
+    if cached_status:
+        try:
+            return json.loads(cached_status.decode('utf-8'))
+        except Exception:
+            pass  # Fall through to fresh check
+    
     try:
-        # WhatsApp tokens are typically long-lived (60+ days)
-        # We'll check the token by making a test API call
         token = os.getenv("WHATSAPP_AUTH_TOKEN")
         phone_id = os.getenv("WHATSAPP_PHONE_ID")
         
         if not token or not phone_id:
-            return {
+            status = {
                 "status": "error",
                 "message": "Missing WhatsApp credentials",
                 "is_valid": False,
                 "token_present": bool(token),
-                "phone_id_present": bool(phone_id)
+                "phone_id_present": bool(phone_id),
+                "last_checked": datetime.now().isoformat()
             }
+            # Cache error status for 1 minute
+            r.setex(cache_key, 60, json.dumps(status))
+            return status
         
-        # Make a test API call to check token validity
-        # Using the /phone_numbers endpoint which doesn't send messages
+        # Make async API call with timeout
         test_url = f"https://graph.facebook.com/v21.0/{phone_id}"
-        headers = {
-            'Authorization': f'Bearer {token}',
-        }
+        headers = {'Authorization': f'Bearer {token}'}
         
-        response = requests.get(test_url, headers=headers)
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            response = await client.get(test_url, headers=headers)
         
         if response.status_code == 200:
-            # Token is valid
-            # WhatsApp tokens don't return expiry info directly
-            # They typically last 60 days from creation
-            return {
+            status = {
                 "status": "active",
                 "is_valid": True,
                 "message": "Token is valid and active",
                 "api_version": "v21.0",
                 "phone_id": phone_id,
-                # WhatsApp tokens are typically valid for 60 days
-                # We can't get exact expiry without storing creation date
                 "token_type": "Long-lived token (60+ days typical validity)",
                 "last_checked": datetime.now().isoformat()
             }
         elif response.status_code == 401:
-            return {
+            status = {
                 "status": "expired",
                 "is_valid": False,
                 "message": "Token is expired or invalid",
@@ -60,29 +68,85 @@ def check_whatsapp_token_status() -> Dict[str, any]:
                 "last_checked": datetime.now().isoformat()
             }
         else:
-            return {
+            status = {
                 "status": "error",
                 "is_valid": False,
                 "message": f"API returned status {response.status_code}",
                 "error": response.text,
                 "last_checked": datetime.now().isoformat()
             }
+        
+        # Cache successful responses for 5 minutes, errors for 1 minute
+        cache_ttl = 300 if status["status"] == "active" else 60
+        r.setex(cache_key, cache_ttl, json.dumps(status))
+        return status
             
-    except requests.exceptions.RequestException as e:
+    except httpx.TimeoutException:
+        # Return cached status on timeout, or default
+        status = {
+            "status": "timeout",
+            "is_valid": False,
+            "message": "WhatsApp API timeout (>3s)",
+            "error": "Request timeout",
+            "last_checked": datetime.now().isoformat()
+        }
+        r.setex(cache_key, 60, json.dumps(status))
+        return status
+        
+    except Exception as e:
         logger.error(f"Error checking WhatsApp token: {e}")
-        return {
+        status = {
             "status": "error",
             "is_valid": False,
             "message": "Network error checking token",
             "error": str(e),
             "last_checked": datetime.now().isoformat()
         }
+        r.setex(cache_key, 60, json.dumps(status))
+        return status
+
+def check_whatsapp_token_status_sync() -> Dict[str, any]:
+    """Synchronous wrapper for async WhatsApp status check"""
+    try:
+        # Try to get current event loop
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # If loop is already running, we can't use run_until_complete
+            # Create a new thread to run the async function
+            import concurrent.futures
+            import threading
+            
+            def run_in_thread():
+                new_loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(new_loop)
+                try:
+                    return new_loop.run_until_complete(check_whatsapp_token_status())
+                finally:
+                    new_loop.close()
+            
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(run_in_thread)
+                return future.result(timeout=10)  # 10 second timeout
+        else:
+            return loop.run_until_complete(check_whatsapp_token_status())
+    except RuntimeError:
+        # No event loop running, create one
+        return asyncio.run(check_whatsapp_token_status())
     except Exception as e:
-        logger.error(f"Unexpected error checking WhatsApp token: {e}")
+        logger.error(f"Error in sync wrapper: {e}")
+        # Return cached status or error status
+        cache_key = "meta-glasses:whatsapp:status_cache"
+        cached = r.get(cache_key)
+        if cached:
+            try:
+                return json.loads(cached.decode('utf-8'))
+            except Exception:
+                pass
+        
         return {
             "status": "error",
             "is_valid": False,
-            "message": "Unexpected error",
+            "message": "Failed to check WhatsApp status",
             "error": str(e),
             "last_checked": datetime.now().isoformat()
         }

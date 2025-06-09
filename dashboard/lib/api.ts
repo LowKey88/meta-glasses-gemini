@@ -55,6 +55,29 @@ export interface SystemStats {
     last_checked: string;
     error?: string;
   };
+  ai_status: {
+    status: string;
+    is_available: boolean;
+    message: string;
+    response_time_ms?: number;
+    rate_limit?: {
+      requests_per_minute?: string | null;
+      remaining_requests?: string | null;
+      reset_time?: string | null;
+    };
+    available_models?: number;
+    api_key_present?: boolean;
+    last_checked: string;
+    error?: string;
+  };
+  ai_usage_stats: {
+    requests_today: number;
+    errors_last_hour: number;
+    models_configured: {
+      vision_model?: string;
+      chat_model?: string;
+    };
+  };
 }
 
 class ApiClient {
