@@ -38,6 +38,9 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             # Get client IP
             client_ip = self.get_client_ip(request)
             
+            # Log the detected IP for debugging
+            logger.debug(f"Request from IP: {client_ip}")
+            
             # Check if IP is blocked
             if await self.is_ip_blocked(client_ip):
                 logger.warning(f"Blocked request from IP: {client_ip}")
@@ -94,10 +97,12 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             
             # Define Docker and internal IP ranges
             internal_ranges = [
-                ipaddress.ip_network('172.16.0.0/12'),   # Docker default bridge networks
+                ipaddress.ip_network('172.16.0.0/12'),   # Docker default bridge networks (172.16.0.0 - 172.31.255.255)
                 ipaddress.ip_network('192.168.0.0/16'), # Private networks
                 ipaddress.ip_network('10.0.0.0/8'),     # Private networks
                 ipaddress.ip_network('127.0.0.0/8'),    # Localhost
+                ipaddress.ip_network('::1/128'),        # IPv6 localhost
+                ipaddress.ip_network('fc00::/7'),       # IPv6 private ranges
             ]
             
             # Check if IP falls within any internal range
@@ -117,6 +122,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         try:
             # Skip blocking for Docker internal IPs and local ranges
             if self.is_docker_internal_ip(client_ip):
+                logger.debug(f"IP {client_ip} identified as Docker internal, not blocking")
                 return False
             
             # Check local blocked set
