@@ -514,3 +514,53 @@ async def get_performance_metrics(range: str = "24h"):
     except Exception as e:
         logger.error(f"Error getting performance metrics: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@dashboard_router.delete("/security/blocked-ips/{ip}", dependencies=[Depends(verify_token)])
+async def unblock_ip(ip: str):
+    """Unblock a specific IP address"""
+    try:
+        # Remove from Redis
+        block_key = f"meta-glasses:security:blocked_ip:{ip}"
+        violations_key = f"meta-glasses:security:violations:{ip}"
+        
+        deleted_block = r.delete(block_key)
+        deleted_violations = r.delete(violations_key)
+        
+        return {
+            "success": True,
+            "ip": ip,
+            "block_removed": bool(deleted_block),
+            "violations_cleared": bool(deleted_violations),
+            "message": f"IP {ip} has been unblocked"
+        }
+    except Exception as e:
+        logger.error(f"Error unblocking IP {ip}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@dashboard_router.get("/security/blocked-ips", dependencies=[Depends(verify_token)])
+async def get_blocked_ips():
+    """Get all currently blocked IPs"""
+    try:
+        # Find all blocked IP keys
+        blocked_keys = r.keys("meta-glasses:security:blocked_ip:*")
+        blocked_ips = []
+        
+        for key in blocked_keys:
+            ip = key.decode().split(":")[-1]
+            ttl = r.ttl(key)
+            reason = r.get(key)
+            
+            blocked_ips.append({
+                "ip": ip,
+                "reason": reason.decode() if reason else "unknown",
+                "ttl_seconds": ttl,
+                "expires_in": f"{ttl // 3600}h {(ttl % 3600) // 60}m" if ttl > 0 else "permanent"
+            })
+        
+        return {
+            "blocked_ips": blocked_ips,
+            "total": len(blocked_ips)
+        }
+    except Exception as e:
+        logger.error(f"Error getting blocked IPs: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

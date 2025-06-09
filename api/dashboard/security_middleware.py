@@ -74,6 +74,14 @@ class SecurityMiddleware(BaseHTTPMiddleware):
     
     def get_client_ip(self, request: Request) -> str:
         """Extract client IP from request, considering proxy headers."""
+        # For Docker/internal requests, prioritize the direct connection
+        if request.client and request.client.host:
+            direct_ip = request.client.host
+            # If it's a Docker internal IP, use it directly
+            if self.is_docker_internal_ip(direct_ip):
+                logger.debug(f"Using direct Docker IP: {direct_ip}")
+                return direct_ip
+        
         # Check for common proxy headers
         forwarded_for = request.headers.get("X-Forwarded-For")
         if forwarded_for:
