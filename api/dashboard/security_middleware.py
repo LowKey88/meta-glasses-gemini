@@ -5,6 +5,7 @@ Provides rate limiting, IP filtering, and security headers.
 
 import logging
 import time
+import ipaddress
 from typing import Dict, Optional, Set
 from fastapi import Request, Response, HTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -86,9 +87,38 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         
         return "unknown"
     
+    def is_docker_internal_ip(self, ip: str) -> bool:
+        """Check if IP is from Docker internal networks or local ranges."""
+        try:
+            ip_obj = ipaddress.ip_address(ip)
+            
+            # Define Docker and internal IP ranges
+            internal_ranges = [
+                ipaddress.ip_network('172.16.0.0/12'),   # Docker default bridge networks
+                ipaddress.ip_network('192.168.0.0/16'), # Private networks
+                ipaddress.ip_network('10.0.0.0/8'),     # Private networks
+                ipaddress.ip_network('127.0.0.0/8'),    # Localhost
+            ]
+            
+            # Check if IP falls within any internal range
+            for network in internal_ranges:
+                if ip_obj in network:
+                    return True
+                    
+            return False
+            
+        except Exception as e:
+            logger.debug(f"Error checking IP range for {ip}: {e}")
+            # If we can't parse the IP, assume it's external for safety
+            return False
+    
     async def is_ip_blocked(self, client_ip: str) -> bool:
         """Check if an IP address is blocked."""
         try:
+            # Skip blocking for Docker internal IPs and local ranges
+            if self.is_docker_internal_ip(client_ip):
+                return False
+            
             # Check local blocked set
             if client_ip in self.blocked_ips:
                 return True
