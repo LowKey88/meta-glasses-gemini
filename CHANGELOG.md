@@ -2,6 +2,146 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.1] - 2025-06-09
+
+### Major Feature: Memory Management UI Overhaul
+
+#### Comprehensive Interface Redesign
+- **Modern Table View Implementation**:
+  * Completely redesigned memory management interface with table view as default
+  * Added sortable columns: memory content, category, source, and creation date
+  * Responsive grid layout optimized for desktop, tablet, and mobile devices
+  * Real-time sorting (ascending/descending) with visual sort indicators
+  * Hover states and smooth transitions throughout the interface
+
+- **Memory Source Tracking System**:
+  * Implemented comprehensive source detection: Manual, WhatsApp, Limitless
+  * Color-coded badges with improved dark mode support and better contrast
+  * Backward compatibility with both `extracted_from` and `metadata.source` fields
+  * Visual distinction between user-created and AI-extracted memories
+  * Automatic source assignment in backend for all memory creation points
+
+- **Enhanced Grid View**:
+  * Added time display alongside dates for better chronological context
+  * Source indicators with modern vibrant color scheme
+  * Improved card layout with better spacing and typography
+  * Mobile-optimized touch targets and responsive design
+
+- **Streamlined User Experience**:
+  * Removed importance rating system from UI (preserved in backend for ranking)
+  * Simplified create memory form focused on essential fields only
+  * Added refresh functionality for real-time data updates
+  * Compact delete confirmation with checkmark (✓) and X (✕) buttons
+
+#### Technical Implementation
+- **Backend Source Integration**:
+  * Updated `api/dashboard/routes.py` to set `extracted_from="manual"` for dashboard memories
+  * Enhanced `functionality/limitless.py` to mark memories with `extracted_from="limitless"`
+  * Modified `main.py` to tag WhatsApp memories with `extracted_from="whatsapp"`
+  * Implemented newest-first sorting in `utils/memory_manager.py`
+
+- **UI Component Enhancements**:
+  * Updated memory type icons (Heart for preferences instead of Star)
+  * Modern vibrant color scheme replacing muted colors for better visibility
+  * Comprehensive dark mode support with improved contrast ratios
+  * Responsive design patterns optimized for all screen sizes
+
+- **Delete Confirmation UX**:
+  * Replaced large confirmation dialogs with space-efficient inline confirmation
+  * Universal checkmark and X symbols with tooltips for accessibility
+  * Mobile-optimized design that doesn't break table layout
+  * Proper hover states and focus management
+
+#### Code Quality Improvements
+- **Import Optimization**: Consolidated Lucide icon imports for better tree-shaking
+- **Styling Consistency**: Uniform Tailwind CSS class usage throughout components
+- **State Management**: Enhanced sorting and view mode state management
+- **TypeScript**: Improved interfaces with optional importance and metadata fields
+- **Error Handling**: Better loading states and error boundaries
+
+#### User Experience Improvements
+- **Professional Table View**: Clean data table with sortable columns and intuitive navigation
+- **Visual Hierarchy**: Clear distinction between memory sources with color coding
+- **Mobile Optimization**: Touch-friendly interface with appropriate spacing and sizing
+- **Accessibility**: Proper focus states, tooltips, and keyboard navigation support
+- **Performance**: Efficient sorting and filtering with smooth animations
+
+#### Files Modified
+- `dashboard/app/dashboard/memories/page.tsx` - Complete UI overhaul (316 insertions, 45 deletions)
+- `dashboard/lib/api.ts` - Updated Memory interface with optional fields and metadata
+- `api/dashboard/routes.py` - Added source tracking for manual memories
+- `functionality/limitless.py` - Enhanced source tracking for Limitless memories
+- `main.py` - Added source tracking for WhatsApp memories
+- `utils/memory_manager.py` - Implemented newest-first sorting
+
+#### Impact & Benefits
+- **Enhanced User Experience**: Modern, intuitive interface matching contemporary design standards
+- **Better Data Organization**: Clear visual indicators for memory sources and types
+- **Mobile-First Design**: Responsive interface that works seamlessly across all devices
+- **Improved Accessibility**: WCAG-compliant design with proper contrast and navigation
+- **Maintainable Codebase**: Clean, well-organized code with consistent patterns
+
+## [1.2.0] - 2025-06-09
+
+### Major Feature: AI Status Monitoring & Enhanced Security
+
+#### AI Status Monitoring Implementation
+- **Real-time AI Health Dashboard**:
+  * Added comprehensive AI status monitoring with visual indicators
+  * Dual endpoint testing (models API + generation API) for accurate status
+  * Rate limit detection with color-coded status (green/orange/yellow/red)
+  * Response time tracking and error reporting
+  * 5-minute caching for successful checks, 1-minute for errors
+
+- **Usage Statistics Display**:
+  * AI requests today counter (replaced less useful model count)
+  * Errors in last hour tracking
+  * Current model configuration display (gemini-2.0-flash)
+  * Last checked timestamp for transparency
+
+- **Status Types Supported**:
+  * 🟢 ACTIVE - Everything working perfectly
+  * 🟠 DEGRADED - Models API works, generation has issues
+  * 🟡 RATE_LIMITED - Generation endpoint rate limited
+  * 🔴 ERROR - API key issues, timeouts, or major failures
+
+#### Security & Authentication Enhancements
+- **Dynamic Password Management**:
+  * Automatic detection of DASHBOARD_PASSWORD environment changes
+  * Bcrypt hashing with secure salt generation
+  * Redis-based encrypted storage with environment fingerprinting
+  * No manual intervention required for password updates
+
+- **Enhanced Security Middleware**:
+  * Docker internal IP whitelisting (172.16.0.0/12, 10.0.0.0/8, etc.)
+  * Improved rate limiting (60 req/5min external, 600 req/5min internal)
+  * Proxy/load balancer support with proper IP detection
+  * IPv6 support for localhost and private ranges
+
+- **VPS Deployment Fixes**:
+  * Fixed 403 Forbidden errors on VPS deployments
+  * Added blocked IP management API endpoints
+  * Improved handling of reverse proxy headers
+  * Prevents Docker internal traffic from being blocked
+
+#### API Endpoints Added
+- `GET /api/dashboard/security/blocked-ips` - View all blocked IPs
+- `DELETE /api/dashboard/security/blocked-ips/{ip}` - Unblock specific IP
+- Enhanced `/api/dashboard/stats` with AI status and usage data
+
+#### Performance Improvements
+- **Async WhatsApp Status Checks**:
+  * Converted blocking requests to async httpx calls
+  * Added Redis caching to prevent dashboard freezing
+  * Improved timeout handling (3s for WhatsApp, 5s for AI)
+  * Dashboard remains responsive during API checks
+
+#### Technical Implementation
+- New files: `utils/ai_status.py` for AI monitoring logic
+- Enhanced: `dashboard/app/dashboard/page.tsx` with AI status UI
+- Updated: `api/dashboard/security_middleware.py` with better IP handling
+- Modified: `utils/whatsapp_status.py` to use async/await pattern
+
 ## [1.1.8] - 2025-06-08
 
 ### Critical Bug Fix: Limitless Speaker Identification System
