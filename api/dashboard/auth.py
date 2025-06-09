@@ -71,21 +71,22 @@ class AuthManager:
                 decrypted_hash = decrypt_value(stored_hash.decode('utf-8'))
                 return decrypted_hash
             
-            # If no stored hash, create one from default password and store it
-            default_password = "meta-admin-2024"  # This will be migrated
-            hashed_password = self.hash_password(default_password)
+            # If no stored hash, create one from environment password and store it
+            from .config import DASHBOARD_PASSWORD
+            hashed_password = self.hash_password(DASHBOARD_PASSWORD)
             
             # Store the hashed password (encrypted)
             encrypted_hash = encrypt_value(hashed_password)
             r.set('meta-glasses:auth:password_hash', encrypted_hash)
             
-            logger.info("Created initial password hash from default password")
+            logger.info("Created initial password hash from environment variable")
             return hashed_password
             
         except Exception as e:
             logger.error(f"Error getting stored password hash: {e}")
-            # Fallback to hashing the default password
-            return self.hash_password("meta-admin-2024")
+            # Fallback to hashing the environment password
+            from .config import DASHBOARD_PASSWORD
+            return self.hash_password(DASHBOARD_PASSWORD)
     
     def update_password(self, new_password: str) -> bool:
         """Update the stored password hash."""
