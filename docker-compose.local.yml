@@ -1,0 +1,87 @@
+services:
+  redis:
+    image: redis:7.2.5
+    container_name: redismeta
+    restart: unless-stopped
+    command: redis-server --appendonly yes --port 6378
+    ports:
+      - "6378:6378"
+    volumes:
+      - redis_data:/data
+    networks:
+      - meta-network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: raybanmeta
+    restart: unless-stopped
+    ports:
+      - "8111:8080"
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6378
+      - REDIS_DB_HOST=redis
+      - REDIS_DB_PORT=6378
+      - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD:-meta-admin-2024}
+      - LIMITLESS_API_KEY=${LIMITLESS_API_KEY}
+      - LIMITLESS_LOG_LEVEL=${LIMITLESS_LOG_LEVEL:-WARNING}
+      # Add all other environment variables from .env
+      - WHATSAPP_AUTH_TOKEN=${WHATSAPP_AUTH_TOKEN}
+      - WHATSAPP_PHONE_NUMBER=${WHATSAPP_PHONE_NUMBER}
+      - WHATSAPP_WEBHOOK_VERIFICATION_TOKEN=${WHATSAPP_WEBHOOK_VERIFICATION_TOKEN}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - CLOUD_STORAGE_BUCKET_NAME=${CLOUD_STORAGE_BUCKET_NAME}
+      - NOTION_INTEGRATION_SECRET=${NOTION_INTEGRATION_SECRET}
+      - NOTION_DATABASE_ID=${NOTION_DATABASE_ID}
+      - SERPER_DEV_API_KEY=${SERPER_DEV_API_KEY}
+      - CRAWLBASE_API_KEY=${CRAWLBASE_API_KEY}
+      - OAUTH_CREDENTIALS_ENCODED=${OAUTH_CREDENTIALS_ENCODED}
+      - HOME_ASSISTANT_TOKEN=${HOME_ASSISTANT_TOKEN}
+      - HOME_ASSISTANT_URL=${HOME_ASSISTANT_URL}
+      - HOME_ASSISTANT_AGENT_ID=${HOME_ASSISTANT_AGENT_ID}
+    depends_on:
+      - redis
+    networks:
+      - meta-network
+    volumes:
+      - ./media:/app/media
+      - ./logs:/app/logs
+      # Add source code mount for development hot-reload
+      - .:/app
+    # Use reload flag for development
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
+
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    container_name: metadashboard
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=${DASHBOARD_SECRET:-your-secret-key-here}
+      - NODE_ENV=development
+    depends_on:
+      - app
+      - redis
+    networks:
+      - meta-network
+    volumes:
+      # Mount source for hot-reloading
+      - ./dashboard:/app
+      # Preserve node_modules in container
+      - /app/node_modules
+      - /app/.next
+    # Run in development mode
+    command: ["npm", "run", "dev"]
+
+networks:
+  meta-network:
+    driver: bridge
+
+volumes:
+  redis_data:
