@@ -17,9 +17,22 @@ export interface Memory {
   type: string;
   content: string;
   tags: string[];
-  importance: number;
+  importance?: number;
   created_at: string;
   updated_at: string;
+  extracted_from?: string;
+  metadata?: {
+    source?: string;
+    log_id?: string;
+  };
+}
+
+export interface CreateMemoryRequest {
+  user_id: string;
+  type: string;
+  content: string;
+  tags: string[];
+  importance?: number;
 }
 
 export interface RedisKey {
@@ -158,7 +171,7 @@ class ApiClient {
     return this.request<Memory>(`/api/dashboard/memories/${id}`);
   }
 
-  async createMemory(memory: Omit<Memory, 'id' | 'created_at' | 'updated_at'>): Promise<Memory> {
+  async createMemory(memory: CreateMemoryRequest): Promise<Memory> {
     return this.request<Memory>('/api/dashboard/memories', {
       method: 'POST',
       body: JSON.stringify(memory),
