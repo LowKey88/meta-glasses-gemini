@@ -19,6 +19,7 @@ from .config import (
     JWT_SECRET, DASHBOARD_PASSWORD, TOKEN_EXPIRY_HOURS,
     API_PREFIX, DEFAULT_USER_ID, DEFAULT_LIMIT, MAX_LIMIT
 )
+from .auth import verify_token
 from utils.redis_key_builder import redis_keys
 
 logger = logging.getLogger("uvicorn")
@@ -32,6 +33,10 @@ dashboard_router = APIRouter(prefix=API_PREFIX, tags=["dashboard"])
 # Import Limitless router
 from .limitless_routes import router as limitless_router
 dashboard_router.include_router(limitless_router)
+
+# Import Settings router
+from .settings_routes import router as settings_router
+dashboard_router.include_router(settings_router)
 
 class LoginRequest(BaseModel):
     password: str
@@ -63,18 +68,6 @@ class DashboardStats(BaseModel):
     today_vs_yesterday: Dict[str, Dict[str, int]]  # Hourly comparison
     whatsapp_status: str
     whatsapp_token_info: Dict[str, Any]  # Token status and expiry info
-
-def verify_token(authorization: Optional[str] = Header(None)):
-    """Verify JWT token for dashboard access"""
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    token = authorization.split(" ")[1]
-    try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-        return payload
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid token")
 
 @dashboard_router.post("/login")
 async def dashboard_login(request: LoginRequest):

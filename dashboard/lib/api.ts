@@ -264,6 +264,73 @@ class ApiClient {
   }> {
     return this.request(`/api/dashboard/limitless/sync/status/${taskId}`);
   }
+
+  // Settings endpoints
+  async getSettingsSchema(): Promise<{
+    schema: Record<string, any>;
+    categories: Record<string, string>;
+  }> {
+    return this.request('/api/dashboard/settings/schema');
+  }
+
+  async getSettings(): Promise<{
+    settings: Record<string, {
+      value: string;
+      source: string;
+      has_value: boolean;
+      category: string;
+      description: string;
+      is_sensitive: boolean;
+      requires_restart: boolean;
+      options?: string[];
+    }>;
+  }> {
+    return this.request('/api/dashboard/settings/');
+  }
+
+  async getSetting(key: string): Promise<{
+    key: string;
+    value: string;
+    source: string;
+    has_value: boolean;
+    category: string;
+    description: string;
+    is_sensitive: boolean;
+    requires_restart: boolean;
+    options?: string[];
+  }> {
+    return this.request(`/api/dashboard/settings/${key}`);
+  }
+
+  async updateSetting(key: string, value: string): Promise<{
+    success: boolean;
+    message: string;
+    requires_restart: boolean;
+  }> {
+    return this.request(`/api/dashboard/settings/${key}`, {
+      method: 'PUT',
+      body: JSON.stringify({ value }),
+    });
+  }
+
+  async deleteSetting(key: string): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    return this.request(`/api/dashboard/settings/${key}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async testSettingConnection(key: string, value: string): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    return this.request(`/api/dashboard/settings/test/${key}`, {
+      method: 'POST',
+      body: JSON.stringify({ key, value }),
+    });
+  }
 }
 
 export const api = new ApiClient();

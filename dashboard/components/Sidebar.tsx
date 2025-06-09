@@ -10,7 +10,8 @@ import {
   LogOut,
   Glasses,
   Activity,
-  Mic
+  Mic,
+  Settings
 } from 'lucide-react';
 
 const navigation = [
@@ -19,6 +20,7 @@ const navigation = [
   { name: 'Performance', href: '/dashboard/performance', icon: Activity },
   { name: 'Limitless', href: '/dashboard/limitless', icon: Mic },
   { name: 'Redis Monitor', href: '/dashboard/redis', icon: Database },
+  { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];
 
 interface SidebarProps {
