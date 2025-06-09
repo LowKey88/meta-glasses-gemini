@@ -82,10 +82,9 @@ class AuthManager:
                     decrypted_hash = decrypt_value(stored_hash.decode('utf-8'))
                     return decrypted_hash
                 else:
-                    logger.info(f"Environment password changed, updating stored hash (new first 4 chars: {DASHBOARD_PASSWORD[:4]}...)")
+                    logger.info("Environment password changed, updating stored hash")
             
             # Create/update hash from current environment password
-            logger.info(f"Creating password hash from environment variable (first 4 chars: {DASHBOARD_PASSWORD[:4]}...)")
             hashed_password = self.hash_password(DASHBOARD_PASSWORD)
             
             # Store both the password hash and environment fingerprint
@@ -93,14 +92,13 @@ class AuthManager:
             r.set('meta-glasses:auth:password_hash', encrypted_hash)
             r.set('meta-glasses:auth:env_password_hash', current_env_hash)
             
-            logger.info("Updated password hash from environment variable")
+            logger.info("Password hash updated from environment variable")
             return hashed_password
             
         except Exception as e:
             logger.error(f"Error getting stored password hash: {e}")
             # Fallback to hashing the environment password
             from .config import DASHBOARD_PASSWORD
-            logger.error(f"Fallback: using environment password (first 4 chars: {DASHBOARD_PASSWORD[:4]}...)")
             return self.hash_password(DASHBOARD_PASSWORD)
     
     def update_password(self, new_password: str) -> bool:
@@ -127,16 +125,11 @@ class AuthManager:
         # Get stored password hash
         stored_hash = self.get_stored_password_hash()
         
-        # Debug logging for password verification
-        logger.info(f"Authentication attempt from {client_ip} with password (first 4 chars: {password[:4]}...)")
-        
         # Verify password
         if self.verify_password(password, stored_hash):
-            logger.info(f"Password verification successful for {client_ip}")
             self.reset_failed_attempts(client_ip)
             return True
         else:
-            logger.info(f"Password verification failed for {client_ip}")
             self.record_failed_attempt(client_ip)
             return False
     
