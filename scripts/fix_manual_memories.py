@@ -35,8 +35,8 @@ def fix_manual_memories():
         if raw_data:
             try:
                 memory_data = json.loads(raw_data)
-                extracted_from = memory_data.get('extracted_from', '')
-                content = memory_data.get('content', '')
+                extracted_from = memory_data.get('extracted_from', '') or ''
+                content = memory_data.get('content', '') or ''
                 
                 # Check if this looks like a manual memory with content in extracted_from
                 manual_indicators = [
