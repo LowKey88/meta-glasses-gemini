@@ -177,7 +177,7 @@ def process_text_message(text: str, message_data: dict):
                     user_id=user_id,
                     content=content,
                     memory_type=memory_type,
-                    extracted_from=source,
+                    extracted_from='whatsapp',
                     importance=8
                 )
                 logger.info(f"Auto-extracted {memory_type} memory: {content}")
@@ -415,7 +415,8 @@ def process_text_message(text: str, message_data: dict):
                 user_id=user_id,
                 content=memory_content,
                 memory_type='note',
-                importance=7
+                importance=7,
+                extracted_from='whatsapp'
             )
             response = f"I'll remember that for you. You can ask me about it anytime!"
             send_response_with_context(user_id, text, response, 'other')

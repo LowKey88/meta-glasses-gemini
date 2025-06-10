@@ -231,7 +231,7 @@ class MemoryManager:
     @staticmethod
     @try_catch_decorator
     def get_all_memories(user_id: str) -> List[Dict]:
-        """Get all memories for a user."""
+        """Get all memories for a user, sorted by creation date (newest first)."""
         index_key = MemoryManager.get_index_key(user_id)
         memory_ids = monitored_smembers(index_key)
         
@@ -241,6 +241,9 @@ class MemoryManager:
             memory = MemoryManager.get_memory(user_id, memory_id)
             if memory and memory.get('status') == 'active':
                 memories.append(memory)
+        
+        # Sort by created_at timestamp, newest first
+        memories.sort(key=lambda x: x.get('created_at', ''), reverse=True)
         
         return memories
     
@@ -354,6 +357,13 @@ class MemoryManager:
             if text.lower().startswith('remember'):
                 memory_type = 'note'
                 content = text.replace('remember that', '').replace('remember', '').strip()
+            
+            # Clean up AI extraction artifacts if present
+            if content.startswith('From ') and ':' in content:
+                # Extract just the actual content after the colon
+                parts = content.split(':', 1)
+                if len(parts) == 2:
+                    content = parts[1].strip()
             
             logger.info(f"AI extracted memory - Type: {memory_type}, Content: {content}")
             return [(memory_type, content, text)]

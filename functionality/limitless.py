@@ -561,7 +561,8 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
                     memory_id = memory_manager.create_memory(
                         user_id=phone_number,
                         content=memory_text,
-                        memory_type='fact'
+                        memory_type='fact',
+                        extracted_from='limitless'
                     )
                     
                     # Add Limitless source metadata for dashboard stats
@@ -690,7 +691,8 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
                     memory_id = memory_manager.create_memory(
                         user_id=phone_number,
                         content=memory_text,
-                        memory_type='relationship'
+                        memory_type='relationship',
+                        extracted_from='limitless'
                     )
                     
                     # Add Limitless source metadata for dashboard stats

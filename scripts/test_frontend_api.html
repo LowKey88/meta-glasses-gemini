@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Memory API</title>
+</head>
+<body>
+    <h1>Memory API Test</h1>
+    <div id="status">Testing...</div>
+    <div id="results"></div>
+
+    <script>
+        const API_URL = 'http://localhost:8111';
+        const PASSWORD = 'syam2020'; // Use the actual password from env
+        
+        async function testAPI() {
+            const statusDiv = document.getElementById('status');
+            const resultsDiv = document.getElementById('results');
+            
+            try {
+                // 1. Login
+                statusDiv.innerHTML = 'Step 1: Logging in...';
+                const loginResponse = await fetch(`${API_URL}/api/dashboard/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ password: PASSWORD })
+                });
+                
+                if (!loginResponse.ok) {
+                    throw new Error(`Login failed: ${loginResponse.status}`);
+                }
+                
+                const loginData = await loginResponse.json();
+                const token = loginData.token;
+                
+                // 2. Get memories
+                statusDiv.innerHTML = 'Step 2: Fetching memories...';
+                const memoriesResponse = await fetch(`${API_URL}/api/dashboard/memories`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (!memoriesResponse.ok) {
+                    throw new Error(`Failed to fetch memories: ${memoriesResponse.status}`);
+                }
+                
+                const memoriesData = await memoriesResponse.json();
+                
+                // Display results
+                statusDiv.innerHTML = 'Test completed successfully!';
+                
+                let html = '<h2>Results:</h2>';
+                html += `<p>Total memories: ${memoriesData.total}</p>`;
+                html += `<p>Memories in array: ${memoriesData.memories.length}</p>`;
+                
+                if (memoriesData.memories.length > 0) {
+                    html += '<h3>First 5 memories:</h3>';
+                    html += '<table border="1" cellpadding="5">';
+                    html += '<tr><th>ID</th><th>Type</th><th>Content</th><th>Created</th></tr>';
+                    
+                    memoriesData.memories.slice(0, 5).forEach(memory => {
+                        html += '<tr>';
+                        html += `<td>${memory.id}</td>`;
+                        html += `<td>${memory.type}</td>`;
+                        html += `<td>${memory.content.substring(0, 50)}...</td>`;
+                        html += `<td>${new Date(memory.created_at).toLocaleString()}</td>`;
+                        html += '</tr>';
+                    });
+                    
+                    html += '</table>';
+                }
+                
+                // Check console for full data
+                console.log('Full response:', memoriesData);
+                
+                resultsDiv.innerHTML = html;
+                
+            } catch (error) {
+                statusDiv.innerHTML = `Error: ${error.message}`;
+                console.error('Full error:', error);
+            }
+        }
+        
+        // Run test on page load
+        testAPI();
+    </script>
+</body>
+</html>
