@@ -1,130 +1,195 @@
 #!/usr/bin/env python3
-"""Debug memory creation and display issues"""
-
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+"""
+Debug script to investigate memory creation and display issues on VPS.
+"""
 
 import json
-import logging
-from utils.redis_utils import r
+import sys
 from utils.memory_manager import MemoryManager
-from utils.redis_key_builder import redis_keys
+from utils.redis_utils import r
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-def debug_memory_issues():
-    """Debug memory creation and retrieval issues"""
+def debug_memories():
+    """Debug memory issues by checking Redis directly."""
+    user_id = "60122873632"
     
-    # Common user IDs to check
-    user_ids = ["60122873632", "60122873632@s.whatsapp.net", "unknown"]
+    print("🔍 Debugging Memory Issues")
+    print("=" * 50)
     
-    print("\n=== DEBUGGING MEMORY ISSUES ===\n")
+    # 1. Check memory index
+    index_key = MemoryManager.get_index_key(user_id)
+    print(f"📋 Memory index key: {index_key}")
     
-    # 1. Check memory indexes for all possible user IDs
-    print("1. Checking memory indexes:")
-    for user_id in user_ids:
-        index_key = redis_keys.get_user_memory_index_key(user_id)
-        memory_ids = r.smembers(index_key)
-        print(f"   User ID: {user_id}")
-        print(f"   Index key: {index_key}")
-        print(f"   Number of memories in index: {len(memory_ids)}")
-        if memory_ids:
-            print(f"   Sample memory IDs: {list(memory_ids)[:3]}")
-        print()
+    memory_ids = r.smembers(index_key)
+    print(f"📊 Found {len(memory_ids)} memory IDs in index")
     
-    # 2. Check all memory keys in Redis
-    print("\n2. Checking all memory keys in Redis:")
-    memory_pattern = redis_keys._build_key(redis_keys.USER, "memory", "*")
-    all_memory_keys = r.keys(memory_pattern)
-    print(f"   Pattern: {memory_pattern}")
-    print(f"   Total memory keys found: {len(all_memory_keys)}")
-    
-    # Group by user ID
-    user_memories = {}
-    for key in all_memory_keys[:10]:  # Check first 10
-        key_str = key.decode() if isinstance(key, bytes) else key
-        parts = key_str.split(":")
-        if len(parts) >= 5:  # meta-glasses:user:memory:user_id:memory_id
-            user_id = parts[3]
-            if user_id not in user_memories:
-                user_memories[user_id] = []
-            user_memories[user_id].append(key_str)
-    
-    print(f"   Unique user IDs found: {list(user_memories.keys())}")
-    for user_id, keys in user_memories.items():
-        print(f"   User {user_id}: {len(keys)} memories")
-    
-    # 3. Check a sample memory for data integrity
-    print("\n3. Checking sample memories for data integrity:")
-    for key in all_memory_keys[:3]:  # Check first 3 memories
-        key_str = key.decode() if isinstance(key, bytes) else key
-        memory_data = r.get(key_str)
-        if memory_data:
+    # 2. Check each memory
+    memories_data = []
+    for i, memory_id in enumerate(memory_ids, 1):
+        memory_id_str = memory_id.decode() if isinstance(memory_id, bytes) else memory_id
+        print(f"\n📝 Memory {i}: {memory_id_str}")
+        
+        memory_key = MemoryManager.get_memory_key(user_id, memory_id_str)
+        raw_data = r.get(memory_key)
+        
+        if raw_data:
             try:
-                memory = json.loads(memory_data)
-                print(f"\n   Key: {key_str}")
-                print(f"   ID: {memory.get('id')}")
-                print(f"   User ID: {memory.get('user_id')}")
-                print(f"   Type: {memory.get('type')}")
-                print(f"   Status: {memory.get('status')}")
-                print(f"   Content: {memory.get('content', '')[:100]}...")
-                print(f"   Created: {memory.get('created_at')}")
-                print(f"   Extracted from: {memory.get('extracted_from')}")
+                memory_data = json.loads(raw_data)
+                memories_data.append(memory_data)
+                
+                print(f"   Status: {memory_data.get('status', 'MISSING')}")
+                print(f"   Type: {memory_data.get('type', 'MISSING')}")
+                print(f"   Source: {memory_data.get('extracted_from', 'MISSING')}")
+                print(f"   Created: {memory_data.get('created_at', 'MISSING')}")
+                print(f"   Content preview: {memory_data.get('content', 'MISSING')[:100]}...")
+                
+                # Check for corrupted content
+                content = memory_data.get('content', '')
+                if 'From ' in content and ': ' in content:
+                    print(f"   ⚠️  POTENTIAL CORRUPTION: Content has 'From X:' prefix")
+                
             except json.JSONDecodeError as e:
-                print(f"   ERROR: Failed to decode JSON for key {key_str}: {e}")
-                print(f"   Raw data: {memory_data[:200]}...")
+                print(f"   ❌ JSON decode error: {e}")
+        else:
+            print(f"   ❌ No data found for key: {memory_key}")
     
-    # 4. Test memory retrieval using MemoryManager
-    print("\n4. Testing MemoryManager.get_all_memories():")
-    for user_id in user_ids:
-        memories = MemoryManager.get_all_memories(user_id)
-        print(f"   User ID: {user_id}")
-        print(f"   Memories retrieved: {len(memories)}")
-        if memories:
-            sample = memories[0]
-            print(f"   Sample memory: {sample.get('content', '')[:100]}...")
+    # 3. Test get_all_memories function
+    print(f"\n🔍 Testing get_all_memories function...")
+    api_memories = MemoryManager.get_all_memories(user_id)
+    print(f"📊 get_all_memories returned {len(api_memories)} memories")
     
-    # 5. Check for encoding issues
-    print("\n5. Checking for encoding issues:")
-    for key in all_memory_keys[:5]:
-        key_str = key.decode() if isinstance(key, bytes) else key
-        memory_data = r.get(key_str)
-        if memory_data:
-            # Check if it's bytes or string
-            print(f"\n   Key: {key_str}")
-            print(f"   Data type: {type(memory_data)}")
-            if isinstance(memory_data, bytes):
-                print("   Attempting decode...")
-                try:
-                    decoded = memory_data.decode('utf-8')
-                    print("   UTF-8 decode successful")
-                except UnicodeDecodeError as e:
-                    print(f"   UTF-8 decode failed: {e}")
-                    # Try other encodings
-                    for encoding in ['latin-1', 'cp1252', 'ascii']:
-                        try:
-                            decoded = memory_data.decode(encoding)
-                            print(f"   {encoding} decode successful")
-                            break
-                        except:
-                            print(f"   {encoding} decode failed")
+    # 4. Check for filtering issues
+    active_memories = [m for m in memories_data if m.get('status') == 'active']
+    inactive_memories = [m for m in memories_data if m.get('status') != 'active']
     
-    # 6. Check Redis key consistency
-    print("\n6. Checking Redis key consistency:")
-    # Check if old key patterns exist
-    old_patterns = [
-        "memory:*",
-        "josancamon:*memory*",
-        "whatsapp:*:memory:*"
-    ]
+    print(f"✅ Active memories: {len(active_memories)}")
+    print(f"❌ Inactive/missing status: {len(inactive_memories)}")
     
-    for pattern in old_patterns:
-        keys = r.keys(pattern)
-        if keys:
-            print(f"   Found {len(keys)} keys matching old pattern: {pattern}")
-            print(f"   Sample keys: {[k.decode() if isinstance(k, bytes) else k for k in keys[:3]]}")
+    if inactive_memories:
+        print("\n🔍 Inactive memories:")
+        for mem in inactive_memories:
+            print(f"   - {mem.get('id', 'no-id')}: status='{mem.get('status', 'MISSING')}'")
+    
+    # 5. Check for recent creation issues
+    print(f"\n🕐 Checking recent memories (last 24 hours)...")
+    from datetime import datetime, timedelta
+    now = datetime.now()
+    recent_cutoff = now - timedelta(hours=24)
+    
+    recent_memories = []
+    for mem in memories_data:
+        created_str = mem.get('created_at', '')
+        if created_str:
+            try:
+                created_dt = datetime.fromisoformat(created_str.replace('Z', '+00:00'))
+                # Remove timezone info for comparison
+                created_dt = created_dt.replace(tzinfo=None)
+                if created_dt > recent_cutoff:
+                    recent_memories.append(mem)
+            except:
+                pass
+    
+    print(f"📅 Recent memories found: {len(recent_memories)}")
+    for mem in recent_memories:
+        print(f"   - {mem.get('created_at')}: {mem.get('content', '')[:50]}...")
+    
+    # 6. Check for content corruption patterns
+    print(f"\n🔍 Checking for content corruption patterns...")
+    corrupted_count = 0
+    for mem in memories_data:
+        content = mem.get('content', '')
+        # Look for common corruption patterns
+        if any(pattern in content for pattern in ['From ', ': ']):
+            corrupted_count += 1
+            print(f"   ⚠️  Corrupted: {mem.get('id')}: {content[:100]}...")
+    
+    print(f"❌ Total corrupted memories: {corrupted_count}")
+    
+    return {
+        'total_in_redis': len(memories_data),
+        'total_in_api': len(api_memories),
+        'active_memories': len(active_memories),
+        'recent_memories': len(recent_memories),
+        'corrupted_memories': corrupted_count
+    }
+
+def fix_memory_status():
+    """Fix memories that might be missing the status field."""
+    user_id = "60122873632"
+    
+    print("\n🔧 Fixing memory status fields...")
+    
+    index_key = MemoryManager.get_index_key(user_id)
+    memory_ids = r.smembers(index_key)
+    
+    fixed_count = 0
+    for memory_id in memory_ids:
+        memory_id_str = memory_id.decode() if isinstance(memory_id, bytes) else memory_id
+        memory_key = MemoryManager.get_memory_key(user_id, memory_id_str)
+        raw_data = r.get(memory_key)
+        
+        if raw_data:
+            try:
+                memory_data = json.loads(raw_data)
+                
+                # Fix missing status
+                if 'status' not in memory_data or not memory_data['status']:
+                    memory_data['status'] = 'active'
+                    r.set(memory_key, json.dumps(memory_data))
+                    fixed_count += 1
+                    print(f"   ✅ Fixed status for memory: {memory_id_str}")
+                    
+            except json.JSONDecodeError:
+                print(f"   ❌ Could not parse memory: {memory_id_str}")
+    
+    print(f"🔧 Fixed {fixed_count} memories")
+
+def clean_corrupted_content():
+    """Clean up corrupted memory content."""
+    user_id = "60122873632"
+    
+    print("\n🧹 Cleaning corrupted memory content...")
+    
+    index_key = MemoryManager.get_index_key(user_id)
+    memory_ids = r.smembers(index_key)
+    
+    cleaned_count = 0
+    for memory_id in memory_ids:
+        memory_id_str = memory_id.decode() if isinstance(memory_id, bytes) else memory_id
+        memory_key = MemoryManager.get_memory_key(user_id, memory_id_str)
+        raw_data = r.get(memory_key)
+        
+        if raw_data:
+            try:
+                memory_data = json.loads(raw_data)
+                content = memory_data.get('content', '')
+                
+                # Clean content that starts with "From X: "
+                if content.startswith('From ') and ': ' in content:
+                    # Extract the actual content after "From X: "
+                    colon_index = content.find(': ')
+                    if colon_index > 0:
+                        clean_content = content[colon_index + 2:].strip()
+                        if clean_content:
+                            memory_data['content'] = clean_content
+                            r.set(memory_key, json.dumps(memory_data))
+                            cleaned_count += 1
+                            print(f"   🧹 Cleaned: {memory_id_str}")
+                            print(f"      Before: {content[:100]}...")
+                            print(f"      After:  {clean_content[:100]}...")
+                    
+            except json.JSONDecodeError:
+                print(f"   ❌ Could not parse memory: {memory_id_str}")
+    
+    print(f"🧹 Cleaned {cleaned_count} corrupted memories")
 
 if __name__ == "__main__":
-    debug_memory_issues()
+    if len(sys.argv) > 1 and sys.argv[1] == "fix":
+        fix_memory_status()
+        clean_corrupted_content()
+    else:
+        result = debug_memories()
+        print(f"\n📊 Summary:")
+        for key, value in result.items():
+            print(f"   {key}: {value}")
+        
+        print(f"\n💡 To fix issues, run: python debug_memory_issues.py fix")

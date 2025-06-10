@@ -13,3 +13,9 @@ __pycache__/
 *__pycache__/*
 CLAUDE.md
 .clineignore
+
+# Dashboard build artifacts
+dashboard/node_modules/
+dashboard/.next/
+dashboard/package-lock.json
+dashboard/tsconfig.tsbuildinfo
