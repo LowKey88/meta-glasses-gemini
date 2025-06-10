@@ -1,9 +1,9 @@
 const getApiUrl = () => {
   if (typeof window !== 'undefined') {
     const origin = window.location.origin;
-    return origin.replace(':3000', ':8111');
+    return origin.replace(':3000', ':8080');
   }
-  return 'http://localhost:8111';
+  return 'http://localhost:8080';
 };
 
 export interface LoginResponse {
