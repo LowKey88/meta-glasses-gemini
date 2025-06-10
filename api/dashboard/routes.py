@@ -178,7 +178,7 @@ async def get_memories(
     user_id: str = "60122873632",
     memory_type: Optional[str] = None,
     search: Optional[str] = None,
-    limit: int = 50
+    limit: int = 1000  # Increased default limit to show all memories
 ):
     """Get user memories with optional filtering"""
     try:
