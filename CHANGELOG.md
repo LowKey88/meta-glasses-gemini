@@ -2,6 +2,62 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.2] - 2025-06-10
+
+### Critical Fix: Memory Display Issues Resolution
+
+#### Comprehensive Dashboard Memory System Restoration
+- **Root Cause Investigation**: 
+  * Dashboard showing "No memories found" despite 497+ memories in backend
+  * API port mismatch (frontend: 8111, backend: 8080)
+  * Memory content corruption with AI extraction artifacts ("From X:" prefixes)
+  * API hardcoded 50-memory limit hiding manual memories
+
+- **Memory Content Cleanup**:
+  * Fixed 325+ corrupted memories with "From [context]:" prefixes
+  * Restored clean, readable memory content preserving actual information
+  * Implemented robust content cleaning in `scripts/debug_memory_issues.py fix`
+
+- **Manual Memory Recovery**:
+  * Corrected 13 manual memories with content stored in wrong field
+  * Fixed field mapping: content moved from `extracted_from` to `content` field
+  * Restored proper source tracking with `extracted_from='manual'`
+  * Personal information now properly displayed in dashboard
+
+- **API Configuration Fixes**:
+  * **Frontend**: Updated API URL from port 8111 to correct port 8080 in `dashboard/lib/api.ts`
+  * **Backend**: Increased memory limit from 50 to 1000 in `api/dashboard/routes.py`
+  * Restored frontend-backend communication for all memory operations
+
+#### Comprehensive Debugging Tools Suite
+- **`scripts/debug_memory_issues.py`** - Main diagnostic and content cleanup tool
+- **`scripts/diagnose_missing_memories.py`** - Detailed memory source analysis
+- **`scripts/fix_manual_memories.py`** - Fix content field misplacement issues
+- **`scripts/verify_memory_fix.py`** - Verify fix completion and results
+- **`scripts/test_api_ports.py`** - Automatic API port detection
+- **`scripts/test_specific_api.py`** - Test exact dashboard API endpoints
+- **`scripts/debug_manual_memory_ordering.py`** - Memory sorting and ordering analysis
+
+#### Results Achieved
+- ✅ **All 497+ memories now visible** in dashboard "All Types" view
+- ✅ **Manual memories properly displayed** with correct "Manual" source badges
+- ✅ **Personal Info filter functional** showing user's personal information
+- ✅ **Clean, readable content** without AI extraction artifacts
+- ✅ **Proper source tracking** for Manual, WhatsApp, and Limitless memories
+- ✅ **Full dashboard functionality restored** with correct API communication
+
+### Files Modified
+- `dashboard/lib/api.ts` - API port configuration fix
+- `api/dashboard/routes.py` - Memory limit increase from 50 to 1000
+- `utils/memory_manager.py` - Enhanced memory sorting and content cleanup
+- Multiple diagnostic and repair scripts in `scripts/` directory
+
+### Technical Notes
+- **Port Configuration**: Production deployments may use different ports than development
+- **Memory Limits**: Default API limits can hide existing data in large datasets
+- **Field Validation**: Content corruption can occur during data migration or AI processing
+- **Debugging Strategy**: Comprehensive diagnostic tools essential for complex data issues
+
 ## [1.2.1] - 2025-06-09
 
 ### Major Feature: Memory Management UI Overhaul
