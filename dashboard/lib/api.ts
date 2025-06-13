@@ -33,6 +33,27 @@ export interface CreateMemoryRequest {
   tags: string[];
 }
 
+export interface PaginationParams {
+  page?: number;
+  page_size?: number;
+  sort_by?: 'created_at' | 'type' | 'content';
+  sort_order?: 'asc' | 'desc';
+  memory_type?: string;
+  search?: string;
+}
+
+export interface PaginatedMemoriesResponse {
+  memories: Memory[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  has_next: boolean;
+  has_prev: boolean;
+  sort_by: string;
+  sort_order: string;
+}
+
 export interface RedisKey {
   key: string;
   type: string;
@@ -163,6 +184,20 @@ class ApiClient {
   async getMemories(): Promise<Memory[]> {
     const response = await this.request<{memories: Memory[], total: number}>('/api/dashboard/memories');
     return response.memories;
+  }
+
+  async getMemoriesPaginated(params: PaginationParams = {}): Promise<PaginatedMemoriesResponse> {
+    const searchParams = new URLSearchParams();
+    
+    if (params.page) searchParams.append('page', params.page.toString());
+    if (params.page_size) searchParams.append('page_size', params.page_size.toString());
+    if (params.sort_by) searchParams.append('sort_by', params.sort_by);
+    if (params.sort_order) searchParams.append('sort_order', params.sort_order);
+    if (params.memory_type) searchParams.append('memory_type', params.memory_type);
+    if (params.search) searchParams.append('search', params.search);
+    
+    const url = `/api/dashboard/memories${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
+    return this.request<PaginatedMemoriesResponse>(url);
   }
 
   async getMemory(id: string): Promise<Memory> {

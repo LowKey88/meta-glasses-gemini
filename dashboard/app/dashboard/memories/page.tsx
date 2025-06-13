@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { api, Memory } from '@/lib/api';
+import { useEffect, useState, useCallback } from 'react';
+import { api, Memory, PaginatedMemoriesResponse, PaginationParams } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Search, 
@@ -31,7 +31,11 @@ import {
   List,
   ArrowUpDown,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight
 } from 'lucide-react';
 import MemoryGraph from '@/components/MemoryGraph';
 
@@ -94,7 +98,7 @@ function MemoryCardSkeleton() {
 
 export default function MemoriesPage() {
   const [memories, setMemories] = useState<Memory[]>([]);
-  const [filteredMemories, setFilteredMemories] = useState<Memory[]>([]);
+  const [paginationData, setPaginationData] = useState<PaginatedMemoriesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -107,6 +111,8 @@ export default function MemoriesPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'table' | 'graph'>('table');
   const [sortBy, setSortBy] = useState<'created_at' | 'type' | 'content'>('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
   const [newForm, setNewForm] = useState({
     user_id: '60122873632', // Default user ID matching backend
     type: 'note',
@@ -114,70 +120,55 @@ export default function MemoriesPage() {
   });
   const { toast } = useToast();
 
-  const fetchMemories = async () => {
+  const fetchMemories = useCallback(async () => {
     try {
-      const data = await api.getMemories();
-      setMemories(data);
-      setFilteredMemories(data);
+      setLoading(true);
+      const params: PaginationParams = {
+        page: currentPage,
+        page_size: pageSize,
+        sort_by: sortBy,
+        sort_order: sortOrder,
+        memory_type: filterType !== 'all' ? filterType : undefined,
+        search: searchTerm || undefined
+      };
+      
+      const data = await api.getMemoriesPaginated(params);
+      setMemories(data.memories);
+      setPaginationData(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load memories');
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, pageSize, sortBy, sortOrder, filterType, searchTerm]);
 
   useEffect(() => {
     fetchMemories();
-  }, []);
+  }, [fetchMemories]);
 
-  // Filter, search, and sort memories
+  // Reset to page 1 when filters change
   useEffect(() => {
-    let filtered = memories;
-
-    // Type filter
-    if (filterType !== 'all') {
-      filtered = filtered.filter(m => m.type === filterType);
-    }
-
-    // Search filter
-    if (searchTerm) {
-      filtered = filtered.filter(m => 
-        m.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        m.user_id.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    // Sort memories
-    filtered.sort((a, b) => {
-      let aValue, bValue;
-      
-      switch (sortBy) {
-        case 'created_at':
-          aValue = new Date(a.created_at).getTime();
-          bValue = new Date(b.created_at).getTime();
-          break;
-        case 'type':
-          aValue = a.type;
-          bValue = b.type;
-          break;
-        case 'content':
-          aValue = a.content.toLowerCase();
-          bValue = b.content.toLowerCase();
-          break;
-        default:
-          aValue = a.created_at;
-          bValue = b.created_at;
+    if (currentPage !== 1) {
+      setCurrentPage(1);
+    } else {
+      // If already on page 1, trigger fetch immediately for filter type changes
+      if (filterType !== 'all') {
+        fetchMemories();
       }
+    }
+  }, [filterType]);
 
-      if (sortOrder === 'desc') {
-        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+  // Debounce search input
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (currentPage !== 1) {
+        setCurrentPage(1);
       } else {
-        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+        fetchMemories();
       }
-    });
-
-    setFilteredMemories(filtered);
-  }, [memories, filterType, searchTerm, sortBy, sortOrder]);
+    }, 300);
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm]);
 
   const handleSort = (column: 'created_at' | 'type' | 'content') => {
     if (sortBy === column) {
@@ -192,6 +183,21 @@ export default function MemoriesPage() {
     if (sortBy !== column) return ArrowUpDown;
     return sortOrder === 'asc' ? ArrowUp : ArrowDown;
   };
+
+  // Pagination functions
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
+    setCurrentPage(1); // Reset to first page when changing page size
+  };
+
+  const goToFirstPage = () => setCurrentPage(1);
+  const goToLastPage = () => paginationData && setCurrentPage(paginationData.total_pages);
+  const goToPrevPage = () => currentPage > 1 && setCurrentPage(currentPage - 1);
+  const goToNextPage = () => paginationData && currentPage < paginationData.total_pages && setCurrentPage(currentPage + 1);
 
   const handleEdit = (memory: Memory) => {
     setEditingId(memory.id);
@@ -325,7 +331,10 @@ export default function MemoriesPage() {
                 <span>Memory Management</span>
               </h1>
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Manage and organize your AI assistant's knowledge base
+                {paginationData ? 
+                  `Manage and organize your AI assistant's knowledge base (${paginationData.total} total memories)` :
+                  'Manage and organize your AI assistant\'s knowledge base'
+                }
               </p>
             </div>
             <div className="mt-4 sm:mt-0 flex items-center gap-3">
@@ -532,7 +541,7 @@ export default function MemoriesPage() {
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-4"></div>
                 <p className="text-gray-500 dark:text-gray-400">Loading memories...</p>
               </div>
-            ) : filteredMemories.length === 0 ? (
+            ) : memories.length === 0 ? (
               <div className="p-12 text-center">
                 <Brain className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
@@ -594,7 +603,7 @@ export default function MemoriesPage() {
 
                 {/* Table Body */}
                 <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {filteredMemories.map((memory) => {
+                  {memories.map((memory) => {
                     const Icon = memoryTypeIcons[memory.type as keyof typeof memoryTypeIcons] || Hash;
                     const isEditing = editingId === memory.id;
                     const isDeleting = deleteConfirmId === memory.id;
@@ -729,7 +738,7 @@ export default function MemoriesPage() {
                   <MemoryCardSkeleton key={i} />
                 ))}
               </div>
-            ) : filteredMemories.length === 0 ? (
+            ) : memories.length === 0 ? (
               <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-12 text-center">
                 <Brain className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
@@ -744,7 +753,7 @@ export default function MemoriesPage() {
               </div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-            {filteredMemories.map((memory) => {
+            {memories.map((memory) => {
               const Icon = memoryTypeIcons[memory.type as keyof typeof memoryTypeIcons] || Hash;
               const isEditing = editingId === memory.id;
               const isDeleting = deleteConfirmId === memory.id;
@@ -886,7 +895,7 @@ export default function MemoriesPage() {
                   <p className="text-gray-500 dark:text-gray-400">Loading knowledge graph...</p>
                 </div>
               </div>
-            ) : filteredMemories.length === 0 ? (
+            ) : memories.length === 0 ? (
               <div className="flex items-center justify-center h-full bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
                 <div className="text-center">
                   <Network className="h-16 w-16 text-gray-400 mx-auto mb-4" />
@@ -903,7 +912,7 @@ export default function MemoriesPage() {
               </div>
             ) : (
               <MemoryGraph 
-                memories={filteredMemories} 
+                memories={memories} 
                 onNodeClick={(memory) => {
                   setEditingId(memory.id);
                   setEditForm({
@@ -915,6 +924,133 @@ export default function MemoriesPage() {
                 height={800}
               />
             )}
+          </div>
+        )}
+
+        {/* Pagination Controls */}
+        {!loading && paginationData && paginationData.total > 0 && (
+          <div className="mt-8 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              {/* Page Info */}
+              <div className="flex items-center gap-4">
+                <div className="text-sm text-gray-700 dark:text-gray-300">
+                  Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, paginationData.total)} of {paginationData.total} memories
+                </div>
+                
+                {/* Page Size Selector */}
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-gray-700 dark:text-gray-300">Per page:</label>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                    className="rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 px-3 py-1 text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  >
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Navigation Controls */}
+              <div className="flex items-center gap-2">
+                {/* First Page */}
+                <button
+                  onClick={goToFirstPage}
+                  disabled={currentPage === 1}
+                  className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  title="First page"
+                >
+                  <ChevronsLeft className="h-4 w-4" />
+                </button>
+
+                {/* Previous Page */}
+                <button
+                  onClick={goToPrevPage}
+                  disabled={!paginationData.has_prev}
+                  className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  title="Previous page"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+
+                {/* Page Numbers */}
+                <div className="flex items-center gap-1">
+                  {(() => {
+                    const totalPages = paginationData.total_pages;
+                    const current = currentPage;
+                    const pages = [];
+                    
+                    // Always show first page
+                    if (totalPages > 0) {
+                      pages.push(1);
+                    }
+                    
+                    // Add ellipsis if needed
+                    if (current > 4) {
+                      pages.push('...');
+                    }
+                    
+                    // Add pages around current
+                    for (let i = Math.max(2, current - 1); i <= Math.min(totalPages - 1, current + 1); i++) {
+                      if (!pages.includes(i)) {
+                        pages.push(i);
+                      }
+                    }
+                    
+                    // Add ellipsis if needed
+                    if (current < totalPages - 3) {
+                      pages.push('...');
+                    }
+                    
+                    // Always show last page
+                    if (totalPages > 1 && !pages.includes(totalPages)) {
+                      pages.push(totalPages);
+                    }
+                    
+                    return pages.map((page, index) => (
+                      page === '...' ? (
+                        <span key={`ellipsis-${index}`} className="px-3 py-2 text-gray-500">
+                          ...
+                        </span>
+                      ) : (
+                        <button
+                          key={page}
+                          onClick={() => handlePageChange(page as number)}
+                          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                            page === current
+                              ? 'bg-purple-600 text-white'
+                              : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-300 dark:border-gray-600'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      )
+                    ));
+                  })()}
+                </div>
+
+                {/* Next Page */}
+                <button
+                  onClick={goToNextPage}
+                  disabled={!paginationData.has_next}
+                  className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  title="Next page"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+
+                {/* Last Page */}
+                <button
+                  onClick={goToLastPage}
+                  disabled={currentPage === paginationData.total_pages}
+                  className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  title="Last page"
+                >
+                  <ChevronsRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

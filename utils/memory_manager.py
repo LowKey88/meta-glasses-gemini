@@ -276,6 +276,94 @@ class MemoryManager:
     
     @staticmethod
     @try_catch_decorator
+    def get_memories_paginated(
+        user_id: str,
+        page: int = 1,
+        page_size: int = 50,
+        sort_by: str = 'created_at',
+        sort_order: str = 'desc',
+        memory_type: str = None,
+        search_query: str = None
+    ) -> Tuple[List[Dict], int]:
+        """Get paginated memories with filtering and sorting - much more efficient for large datasets."""
+        try:
+            # Get all memory IDs first
+            index_key = MemoryManager.get_index_key(user_id)
+            memory_ids = monitored_smembers(index_key)
+            
+            # Load and filter memories
+            valid_memories = []
+            for memory_id in memory_ids:
+                memory_id = memory_id.decode() if isinstance(memory_id, bytes) else memory_id
+                memory_key = MemoryManager.get_memory_key(user_id, memory_id)
+                
+                try:
+                    memory_data = monitored_get(memory_key)
+                    if not memory_data:
+                        continue
+                        
+                    memory = json.loads(memory_data)
+                    
+                    # Skip inactive memories
+                    if memory.get('status') != 'active':
+                        continue
+                    
+                    # Apply type filter
+                    if memory_type and memory.get('type') != memory_type:
+                        continue
+                    
+                    # Apply search filter
+                    if search_query:
+                        search_lower = search_query.lower()
+                        content_lower = memory.get('content', '').lower()
+                        user_id_lower = memory.get('user_id', '').lower()
+                        
+                        if not (search_lower in content_lower or search_lower in user_id_lower):
+                            continue
+                    
+                    valid_memories.append(memory)
+                    
+                except (json.JSONDecodeError, KeyError, TypeError):
+                    continue
+            
+            # Sort memories
+            def get_sort_value(memory):
+                if sort_by == 'created_at':
+                    return memory.get('created_at', '')
+                elif sort_by == 'type':
+                    return memory.get('type', '')
+                elif sort_by == 'content':
+                    return memory.get('content', '').lower()
+                else:
+                    return memory.get('created_at', '')
+            
+            reverse_sort = sort_order == 'desc'
+            valid_memories.sort(key=get_sort_value, reverse=reverse_sort)
+            
+            # Calculate pagination
+            total_count = len(valid_memories)
+            start_idx = (page - 1) * page_size
+            end_idx = start_idx + page_size
+            
+            # Get current page memories
+            page_memories = valid_memories[start_idx:end_idx]
+            
+            # Update access stats for retrieved memories
+            for memory in page_memories:
+                memory['last_accessed'] = datetime.now().isoformat()
+                memory['access_count'] = memory.get('access_count', 0) + 1
+                # Note: We're not updating Redis here for performance reasons
+                # Consider updating only when memories are actually viewed/edited
+            
+            logger.debug(f"Retrieved page {page} ({len(page_memories)} memories) from {total_count} total for user {user_id}")
+            return page_memories, total_count
+            
+        except Exception as e:
+            logger.error(f"Error in get_memories_paginated: {e}")
+            return [], 0
+    
+    @staticmethod
+    @try_catch_decorator
     def update_memory(user_id: str, memory_id: str, updates: Dict) -> bool:
         """Update an existing memory."""
         memory = MemoryManager.get_memory(user_id, memory_id)

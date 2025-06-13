@@ -173,18 +173,73 @@ async def get_memories(
     user_id: str = "60122873632",
     memory_type: Optional[str] = None,
     search: Optional[str] = None,
-    limit: int = 1000  # Increased default limit to show all memories
+    page: int = 1,
+    page_size: int = 50,
+    sort_by: str = "created_at",
+    sort_order: str = "desc",
+    # Legacy parameters for backward compatibility
+    limit: Optional[int] = None
 ):
-    """Get user memories with optional filtering"""
+    """Get user memories with pagination, filtering, and sorting"""
     try:
-        if search:
-            memories = MemoryManager.search_memories(user_id, search, memory_type, limit)
-        elif memory_type:
-            memories = MemoryManager.get_memories_by_type(user_id, memory_type)[:limit]
-        else:
-            memories = MemoryManager.get_all_memories(user_id)[:limit]
+        # Validate parameters
+        if page < 1:
+            page = 1
+        if page_size < 1 or page_size > 100:
+            page_size = 50
+        if sort_by not in ["created_at", "type", "content"]:
+            sort_by = "created_at"
+        if sort_order not in ["asc", "desc"]:
+            sort_order = "desc"
         
-        return {"memories": memories, "total": len(memories)}
+        # Use legacy behavior if limit is specified (for backward compatibility)
+        if limit is not None:
+            logger.warning("Using legacy limit parameter - consider switching to pagination")
+            if search:
+                memories = MemoryManager.search_memories(user_id, search, memory_type, limit)
+            elif memory_type:
+                memories = MemoryManager.get_memories_by_type(user_id, memory_type)[:limit]
+            else:
+                memories = MemoryManager.get_all_memories(user_id)[:limit]
+            
+            return {
+                "memories": memories, 
+                "total": len(memories),
+                "page": 1,
+                "page_size": len(memories),
+                "total_pages": 1,
+                "has_next": False,
+                "has_prev": False
+            }
+        
+        # Use new pagination method
+        memories, total_count = MemoryManager.get_memories_paginated(
+            user_id=user_id,
+            page=page,
+            page_size=page_size,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            memory_type=memory_type,
+            search_query=search
+        )
+        
+        # Calculate pagination metadata
+        total_pages = (total_count + page_size - 1) // page_size
+        has_next = page < total_pages
+        has_prev = page > 1
+        
+        return {
+            "memories": memories,
+            "total": total_count,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": total_pages,
+            "has_next": has_next,
+            "has_prev": has_prev,
+            "sort_by": sort_by,
+            "sort_order": sort_order
+        }
+        
     except Exception as e:
         logger.error(f"Error getting memories: {e}")
         raise HTTPException(status_code=500, detail=str(e))
