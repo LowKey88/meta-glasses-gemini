@@ -315,7 +315,7 @@ async def sync_recent_lifelogs(phone_number: str, sync_mode: str = "today") -> s
         
         # Build response with time range info
         time_range_str = ""
-        if start_time and end_time:
+        if start_time and end_time and hasattr(start_time, 'strftime') and hasattr(end_time, 'strftime'):
             start_str = start_time.strftime('%b %d, %I:%M %p')
             end_str = end_time.strftime('%I:%M %p')
             time_range_str = f"📅 Time Range: {start_str} - {end_str}\n"
