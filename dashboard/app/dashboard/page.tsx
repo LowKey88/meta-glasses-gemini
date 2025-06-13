@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { api, SystemStats } from '@/lib/api';
 import { MessageActivityChart, WeeklyActivityChart, ComparisonChart } from '@/components/charts';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Clock, MessageCircle, Brain, Bell, Server, Wifi, Cpu, Database, Activity, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
+import { Clock, MessageCircle, Brain, Bell, Server, Wifi, Cpu, Database, Activity, AlertCircle, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
 
 type ChartView = 'message-activity' | 'weekly-activity' | 'comparison';
 
@@ -74,6 +74,35 @@ function StatCardSkeleton() {
   );
 }
 
+function AIStatusSkeleton() {
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+      <div className="animate-pulse">
+        <div className="flex items-center justify-between mb-4">
+          <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded w-32"></div>
+          <div className="h-4 w-4 bg-gray-200 dark:bg-gray-700 rounded"></div>
+        </div>
+        <div className="space-y-4">
+          <div className="p-4 rounded-lg bg-gray-100 dark:bg-gray-700/50">
+            <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-24 mb-2"></div>
+            <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-48"></div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="p-3 rounded-lg bg-gray-100 dark:bg-gray-700/50">
+              <div className="h-6 bg-gray-200 dark:bg-gray-600 rounded w-8 mb-1"></div>
+              <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-20"></div>
+            </div>
+            <div className="p-3 rounded-lg bg-gray-100 dark:bg-gray-700/50">
+              <div className="h-6 bg-gray-200 dark:bg-gray-600 rounded w-8 mb-1"></div>
+              <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-16"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ChartSkeleton() {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
@@ -90,37 +119,34 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeChart, setActiveChart] = useState<ChartView>('message-activity');
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const data = await api.getSystemStats();
-        setStats(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load stats');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchStats();
-    const interval = setInterval(fetchStats, 5000); // Refresh every 5 seconds
-
-    return () => clearInterval(interval);
+  const fetchStats = useCallback(async () => {
+    try {
+      const data = await api.getSystemStats();
+      setStats(data);
+      setError('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load stats');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-50 to-gray-100 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800 flex items-center justify-center">
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 max-w-md">
-          <h3 className="text-lg font-semibold text-red-800 dark:text-red-200 mb-2">Error Loading Dashboard</h3>
-          <p className="text-red-600 dark:text-red-300">{error}</p>
-        </div>
-      </div>
-    );
-  }
+  const handleManualRefresh = async () => {
+    setRefreshing(true);
+    await fetchStats();
+  };
 
-  // Prepare chart data
+  useEffect(() => {
+    fetchStats();
+    const interval = setInterval(fetchStats, 30000); // Refresh every 30 seconds for better performance
+
+    return () => clearInterval(interval);
+  }, [fetchStats]);
+
+  // Prepare chart data (before early returns)
   const messageChartData = stats ? Object.entries(stats.message_activity).map(([hour, count]) => ({
     hour,
     messages: count,
@@ -142,16 +168,39 @@ export default function DashboardPage() {
     count
   })) : [];
 
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-50 to-gray-100 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800 flex items-center justify-center">
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 max-w-md">
+          <h3 className="text-lg font-semibold text-red-800 dark:text-red-200 mb-2">Error Loading Dashboard</h3>
+          <p className="text-red-600 dark:text-red-300">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-50 to-gray-100 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            System Overview
-          </h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Real-time monitoring and analytics for your AI assistant
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                System Overview
+              </h1>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Real-time monitoring and analytics for your AI assistant
+              </p>
+            </div>
+            <button
+              onClick={handleManualRefresh}
+              disabled={refreshing}
+              className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? 'Refreshing...' : 'Refresh'}
+            </button>
+          </div>
         </div>
 
         {/* Stats Cards */}
@@ -302,9 +351,11 @@ export default function DashboardPage() {
         )}
 
         {/* Secondary Charts Grid */}
-        {!loading && stats && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            {/* AI Status Monitoring */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {/* AI Status Monitoring */}
+          {loading ? (
+            <AIStatusSkeleton />
+          ) : stats ? (
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-lg transition-shadow duration-200">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -406,8 +457,12 @@ export default function DashboardPage() {
                 )}
               </div>
             </div>
+          ) : null}
 
-            {/* Memory Types Distribution */}
+          {/* Memory Types Distribution */}
+          {loading ? (
+            <ChartSkeleton />
+          ) : stats ? (
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-lg transition-shadow duration-200">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -448,8 +503,8 @@ export default function DashboardPage() {
                 </ResponsiveContainer>
               </div>
             </div>
-          </div>
-        )}
+          ) : null}
+        </div>
 
         {/* WhatsApp Status */}
         {!loading && stats && (

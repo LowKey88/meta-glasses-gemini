@@ -62,8 +62,9 @@ async def run_sync_in_background(task_id: str, phone_number: str, sync_mode: str
         
         # Update pending sync cache after completion
         try:
+            # Use same time range as the sync that just completed (today's window)
             end_time = datetime.now()
-            start_time = end_time - timedelta(hours=hours)
+            start_time = end_time.replace(hour=0, minute=0, second=0, microsecond=0)
             
             lifelogs = await limitless_client.get_all_lifelogs(
                 start_time=start_time,

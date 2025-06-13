@@ -15,7 +15,7 @@ async def check_gemini_api_status() -> Dict[str, any]:
     Check Gemini AI API status and rate limits with caching
     Returns dict with status, rate limits, response times, and error info
     """
-    # Check cache first (5-minute cache)
+    # Check cache first (15-minute cache for better performance)
     cache_key = "meta-glasses:ai:gemini_status_cache"
     cached_status = r.get(cache_key)
     
@@ -36,8 +36,8 @@ async def check_gemini_api_status() -> Dict[str, any]:
                 "api_key_present": False,
                 "last_checked": datetime.now().isoformat()
             }
-            # Cache error for 1 minute
-            r.setex(cache_key, 60, json.dumps(status))
+            # Cache error for 5 minutes (improved performance)
+            r.setex(cache_key, 300, json.dumps(status))
             return status
         
         # Test Gemini API with a minimal request (models endpoint)
@@ -149,8 +149,8 @@ async def check_gemini_api_status() -> Dict[str, any]:
                 "last_checked": datetime.now().isoformat()
             }
         
-        # Cache successful responses for 5 minutes, errors for 1 minute
-        cache_ttl = 300 if status["status"] == "active" else 60
+        # Cache successful responses for 15 minutes, errors for 5 minutes (improved performance)
+        cache_ttl = 900 if status["status"] == "active" else 300
         r.setex(cache_key, cache_ttl, json.dumps(status))
         return status
             
@@ -162,7 +162,7 @@ async def check_gemini_api_status() -> Dict[str, any]:
             "error": "Request timeout",
             "last_checked": datetime.now().isoformat()
         }
-        r.setex(cache_key, 60, json.dumps(status))
+        r.setex(cache_key, 300, json.dumps(status))
         return status
         
     except Exception as e:
@@ -174,7 +174,7 @@ async def check_gemini_api_status() -> Dict[str, any]:
             "error": str(e),
             "last_checked": datetime.now().isoformat()
         }
-        r.setex(cache_key, 60, json.dumps(status))
+        r.setex(cache_key, 300, json.dumps(status))
         return status
 
 def get_ai_usage_stats() -> Dict[str, any]:

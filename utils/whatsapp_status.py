@@ -38,8 +38,8 @@ async def check_whatsapp_token_status() -> Dict[str, any]:
                 "phone_id_present": bool(phone_id),
                 "last_checked": datetime.now().isoformat()
             }
-            # Cache error status for 1 minute
-            r.setex(cache_key, 60, json.dumps(status))
+            # Cache error status for 5 minutes (improved performance)
+            r.setex(cache_key, 300, json.dumps(status))
             return status
         
         # Make async API call with timeout
@@ -76,8 +76,8 @@ async def check_whatsapp_token_status() -> Dict[str, any]:
                 "last_checked": datetime.now().isoformat()
             }
         
-        # Cache successful responses for 5 minutes, errors for 1 minute
-        cache_ttl = 300 if status["status"] == "active" else 60
+        # Cache successful responses for 15 minutes, errors for 5 minutes (improved performance)
+        cache_ttl = 900 if status["status"] == "active" else 300
         r.setex(cache_key, cache_ttl, json.dumps(status))
         return status
             
@@ -90,7 +90,7 @@ async def check_whatsapp_token_status() -> Dict[str, any]:
             "error": "Request timeout",
             "last_checked": datetime.now().isoformat()
         }
-        r.setex(cache_key, 60, json.dumps(status))
+        r.setex(cache_key, 300, json.dumps(status))
         return status
         
     except Exception as e:
@@ -102,7 +102,7 @@ async def check_whatsapp_token_status() -> Dict[str, any]:
             "error": str(e),
             "last_checked": datetime.now().isoformat()
         }
-        r.setex(cache_key, 60, json.dumps(status))
+        r.setex(cache_key, 300, json.dumps(status))
         return status
 
 def check_whatsapp_token_status_sync() -> Dict[str, any]:

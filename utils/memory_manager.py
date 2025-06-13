@@ -249,6 +249,33 @@ class MemoryManager:
     
     @staticmethod
     @try_catch_decorator
+    def get_memory_counts_by_type(user_id: str) -> Dict[str, int]:
+        """Get memory counts by type efficiently without loading all data."""
+        index_key = MemoryManager.get_index_key(user_id)
+        memory_ids = monitored_smembers(index_key)
+        
+        type_counts = {}
+        
+        # Only get the type field for each memory (much faster than loading full memory)
+        for memory_id in memory_ids:
+            memory_id = memory_id.decode() if isinstance(memory_id, bytes) else memory_id
+            memory_key = MemoryManager.get_memory_key(user_id, memory_id)
+            
+            try:
+                memory_data = monitored_get(memory_key)
+                if memory_data:
+                    memory = json.loads(memory_data)
+                    # Only count active memories
+                    if memory.get('status') == 'active':
+                        mem_type = memory.get('type', 'unknown')
+                        type_counts[mem_type] = type_counts.get(mem_type, 0) + 1
+            except (json.JSONDecodeError, KeyError):
+                continue
+        
+        return type_counts
+    
+    @staticmethod
+    @try_catch_decorator
     def update_memory(user_id: str, memory_id: str, updates: Dict) -> bool:
         """Update an existing memory."""
         memory = MemoryManager.get_memory(user_id, memory_id)

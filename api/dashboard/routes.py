@@ -99,24 +99,19 @@ async def dashboard_login(request: LoginRequest, http_request: Request):
 async def get_dashboard_stats(user_id: str = "60122873632"):
     """Get overall system statistics"""
     try:
-        # Get all memories
-        memories = MemoryManager.get_all_memories(user_id)
+        # Get memory counts efficiently without loading all data
+        memory_counts = MemoryManager.get_memory_counts_by_type(user_id)
+        total_memories = sum(memory_counts.values())
         
-        # Count by type
-        memory_by_type = {}
-        for memory in memories:
-            mem_type = memory.get('type', 'unknown')
-            memory_by_type[mem_type] = memory_by_type.get(mem_type, 0) + 1
-        
-        # Count Redis keys with monitoring
+        # Use DBSIZE instead of KEYS * for total count (much faster)
         from utils.redis_monitor import redis_monitor
-        all_keys = redis_monitor.execute_with_monitoring("KEYS", "*", r.keys, "*")
-        total_redis_keys = len(all_keys)
+        total_redis_keys = redis_monitor.execute_with_monitoring("DBSIZE", "db", r.dbsize)
         
-        # Count active reminders with monitoring
+        # Use scan with pattern for reminders (more efficient than KEYS)
         reminder_pattern = redis_keys.get_all_reminder_keys_pattern()
-        reminder_keys = redis_monitor.execute_with_monitoring("KEYS", reminder_pattern, r.keys, reminder_pattern)
-        active_reminders = len(reminder_keys)
+        active_reminders = 0
+        for key in r.scan_iter(match=reminder_pattern, count=100):
+            active_reminders += 1
         
         # Get today's message count from metrics
         recent_messages = MetricsTracker.get_messages_today()
@@ -152,8 +147,8 @@ async def get_dashboard_stats(user_id: str = "60122873632"):
         ai_usage_stats = get_ai_usage_stats()
         
         return DashboardStats(
-            total_memories=len(memories),
-            memory_by_type=memory_by_type,
+            total_memories=total_memories,
+            memory_by_type=memory_counts,
             redis_keys=total_redis_keys,
             active_reminders=active_reminders,
             recent_messages=recent_messages,
