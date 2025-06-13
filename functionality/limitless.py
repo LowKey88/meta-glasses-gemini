@@ -49,9 +49,19 @@ async def process_limitless_command(command: str, phone_number: str) -> str:
         
     # Route to appropriate handler
     if command == "sync" or command == "sync limitless":
-        return await sync_recent_lifelogs(phone_number)
+        return await sync_recent_lifelogs(phone_number, "today")  # Default to today
+    elif command == "sync today":
+        return await sync_recent_lifelogs(phone_number, "today")
+    elif command == "sync yesterday":
+        return await sync_recent_lifelogs(phone_number, "yesterday")
+    elif command == "sync all":
+        return await sync_recent_lifelogs(phone_number, "all")
+    elif command.startswith("sync ") and command.split()[-1].isdigit():
+        # Handle "sync 24" or "sync 48" for custom hours
+        hours = command.split()[-1]
+        return await sync_recent_lifelogs(phone_number, f"hours_{hours}")
     elif command == "force reprocess" or command == "reprocess":
-        return await force_reprocess_recent_tasks(phone_number)
+        return await force_reprocess_recent_tasks(phone_number, "today")
     elif command == "today":
         return await get_today_lifelogs(phone_number)
     elif command == "yesterday":
@@ -75,28 +85,55 @@ async def get_limitless_help() -> str:
     """Return help text for Limitless commands."""
     return """🎙️ *Limitless Commands:*
 
-• *sync limitless* - Sync recent recordings
-• *limitless reprocess* - Force reprocess recent recordings
+*Sync Options:*
+• *sync limitless* - Sync today's recordings (midnight to now)
+• *limitless sync today* - Same as above
+• *limitless sync yesterday* - Yesterday's full day
+• *limitless sync all* - Complete historical sync
+• *limitless sync 24* - Last 24 hours (legacy mode)
+
+*Browse:*
 • *limitless today* - Today's recordings
 • *limitless yesterday* - Yesterday's recordings  
 • *limitless search [query]* - Search transcripts
 • *limitless person [name]* - Find discussions with person
 • *limitless summary [date]* - Daily summary
+• *limitless reprocess* - Force reprocess today's recordings
 
 _Example: "limitless search project deadline"_"""
 
 
-async def force_reprocess_recent_tasks(phone_number: str, hours: int = 24) -> str:
+async def force_reprocess_recent_tasks(phone_number: str, sync_mode: str = "today") -> str:
     """
-    Force reprocessing of recent recordings to fix task counting issues.
-    Clears processed flags for recent recordings to ensure they get reprocessed.
+    Force reprocessing of recordings to fix task counting issues.
+    Clears processed flags for recordings to ensure they get reprocessed.
     """
     try:
-        logger.info(f"🔄 Force reprocessing recent tasks for last {hours} hours")
+        logger.info(f"🔄 Force reprocessing tasks with mode: {sync_mode}")
         
-        # Calculate time range
-        end_time = datetime.now()
-        start_time = end_time - timedelta(hours=hours)
+        # Calculate time range using same logic as sync_recent_lifelogs
+        start_time = None
+        end_time = None
+        
+        if sync_mode == "today":
+            end_time = datetime.now()
+            start_time = end_time.replace(hour=0, minute=0, second=0, microsecond=0)
+        elif sync_mode == "yesterday":
+            today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            start_time = today - timedelta(days=1)
+            end_time = today
+        elif sync_mode.startswith("hours_"):
+            try:
+                hours = int(sync_mode.split("_")[1])
+                end_time = datetime.now()
+                start_time = end_time - timedelta(hours=hours)
+            except (ValueError, IndexError):
+                end_time = datetime.now()
+                start_time = end_time.replace(hour=0, minute=0, second=0, microsecond=0)
+        else:
+            # Default to today
+            end_time = datetime.now()
+            start_time = end_time.replace(hour=0, minute=0, second=0, microsecond=0)
         
         # Get recent recordings
         lifelogs = await limitless_client.get_all_lifelogs(
@@ -133,33 +170,57 @@ async def force_reprocess_recent_tasks(phone_number: str, hours: int = 24) -> st
         logger.info(f"🧹 Cleared processed flags for {cleared_count} recordings")
         
         # Now run normal sync to reprocess
-        return await sync_recent_lifelogs(phone_number, hours)
+        return await sync_recent_lifelogs(phone_number, sync_mode)
         
     except Exception as e:
         logger.error(f"Error in force reprocessing: {str(e)}")
         return f"❌ Error force reprocessing: {str(e)}"
 
 
-async def sync_recent_lifelogs(phone_number: str, hours: Optional[int] = 24) -> str:
+async def sync_recent_lifelogs(phone_number: str, sync_mode: str = "today") -> str:
     """
-    Sync recent Lifelog entries from Limitless.
+    Sync Lifelog entries from Limitless with efficient daily window.
     
     Args:
         phone_number: User's phone number
-        hours: Number of hours to sync (default 24, None for all recordings)
+        sync_mode: Sync mode - "today" (default), "yesterday", "hours_N", or "all"
     """
     try:
-        # Calculate time range based on hours parameter
-        logger.info(f"Starting Limitless sync for user {phone_number}")
+        # Calculate time range based on sync mode
+        logger.info(f"Starting Limitless sync for user {phone_number} with mode: {sync_mode}")
         start_time = None
         end_time = None
         
-        if hours is not None:
+        if sync_mode == "today":
+            # Today from midnight to now - much more API efficient
             end_time = datetime.now()
-            start_time = end_time - timedelta(hours=hours)
-            logger.info(f"Fetching recordings from last {hours} hours ({start_time} to {end_time})")
-        else:
+            start_time = end_time.replace(hour=0, minute=0, second=0, microsecond=0)
+            logger.info(f"Fetching today's recordings ({start_time} to {end_time})")
+        elif sync_mode == "yesterday":
+            # Yesterday full day
+            today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            start_time = today - timedelta(days=1)
+            end_time = today
+            logger.info(f"Fetching yesterday's recordings ({start_time} to {end_time})")
+        elif sync_mode.startswith("hours_"):
+            # Legacy hours-based sync for special cases
+            try:
+                hours = int(sync_mode.split("_")[1])
+                end_time = datetime.now()
+                start_time = end_time - timedelta(hours=hours)
+                logger.info(f"Fetching recordings from last {hours} hours ({start_time} to {end_time})")
+            except (ValueError, IndexError):
+                # Fallback to today if invalid hours format
+                end_time = datetime.now()
+                start_time = end_time.replace(hour=0, minute=0, second=0, microsecond=0)
+                logger.warning(f"Invalid hours format '{sync_mode}', falling back to today")
+        elif sync_mode == "all":
             logger.info("Fetching ALL recordings without date filtering for initial sync")
+        else:
+            # Default to today for unknown modes
+            end_time = datetime.now()
+            start_time = end_time.replace(hour=0, minute=0, second=0, microsecond=0)
+            logger.warning(f"Unknown sync mode '{sync_mode}', falling back to today")
         
         # Fetch ALL Lifelogs with time restrictions if specified (no max_entries limit)
         lifelogs = await limitless_client.get_all_lifelogs(
@@ -252,10 +313,18 @@ async def sync_recent_lifelogs(phone_number: str, hours: Optional[int] = 24) -> 
         except Exception as e:
             logger.error(f"Error updating pending sync cache from sync: {str(e)}")
         
-        # Build response
+        # Build response with time range info
+        time_range_str = ""
+        if start_time and end_time:
+            start_str = start_time.strftime('%b %d, %I:%M %p')
+            end_str = end_time.strftime('%I:%M %p')
+            time_range_str = f"📅 Time Range: {start_str} - {end_str}\n"
+        elif sync_mode == "all":
+            time_range_str = "📅 Time Range: All recordings\n"
+        
         response = f"""✅ *Limitless Sync Complete*
 
-📝 Recordings processed: {processed_count}
+{time_range_str}📝 Recordings processed: {processed_count}
 🧠 Memories created: {memories_created}
 ✅ Tasks extracted: {tasks_created}
 

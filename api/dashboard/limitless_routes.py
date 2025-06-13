@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/limitless", tags=["limitless"])
 
 
-async def run_sync_in_background(task_id: str, phone_number: str, hours: int = 24):
+async def run_sync_in_background(task_id: str, phone_number: str, sync_mode: str = "today"):
     """Run Limitless sync in background and update status in Redis."""
     try:
         # Update status to running
@@ -42,12 +42,12 @@ async def run_sync_in_background(task_id: str, phone_number: str, hours: int = 2
         redis_client.setex(status_key, 3600, json.dumps({
             "status": "running",
             "progress": 0,
-            "message": "Starting sync...",
+            "message": f"Starting sync ({sync_mode})...",
             "started_at": datetime.now().isoformat()
         }))
         
-        # Run the actual sync
-        result = await sync_recent_lifelogs(phone_number, hours=hours)
+        # Run the actual sync with new daily window
+        result = await sync_recent_lifelogs(phone_number, sync_mode=sync_mode)
         
         # Update status to completed
         redis_client.setex(status_key, 3600, json.dumps({
@@ -439,8 +439,8 @@ async def sync_limitless(
         task_id = str(uuid.uuid4())
         phone_number = "60122873632"
         
-        # Start sync in background
-        background_tasks.add_task(run_sync_in_background, task_id, phone_number, 24)
+        # Start sync in background with today's window (much more efficient)
+        background_tasks.add_task(run_sync_in_background, task_id, phone_number, "today")
         
         logger.info(f"📋 Started background sync with task ID: {task_id}")
         

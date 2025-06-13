@@ -33,7 +33,8 @@ class LimitlessConfig:
     
     # Dashboard Configuration
     DASHBOARD_MAX_SEARCH_RESULTS = 20
-    DASHBOARD_DEFAULT_SYNC_HOURS = 24
+    DASHBOARD_DEFAULT_SYNC_HOURS = 24  # Legacy - kept for compatibility
+    DEFAULT_SYNC_MODE = "today"  # New default sync mode
     
     # Notification Configuration
     SEND_TASK_NOTIFICATIONS = True  # Send WhatsApp notifications for new tasks
@@ -51,8 +52,19 @@ class LimitlessConfig:
     
     @classmethod
     def get_sync_time_range(cls, hours: Optional[int] = None) -> int:
-        """Get the time range for syncing in hours."""
+        """Get the time range for syncing in hours. Legacy method."""
         return hours or cls.DASHBOARD_DEFAULT_SYNC_HOURS
+    
+    @classmethod
+    def get_default_sync_mode(cls) -> str:
+        """Get the default sync mode."""
+        return cls.DEFAULT_SYNC_MODE
+    
+    @classmethod
+    def is_valid_sync_mode(cls, mode: str) -> bool:
+        """Check if sync mode is valid."""
+        valid_modes = {"today", "yesterday", "all"}
+        return mode in valid_modes or mode.startswith("hours_")
 
 
 # Singleton instance

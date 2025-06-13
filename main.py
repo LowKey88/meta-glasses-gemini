@@ -1119,8 +1119,8 @@ async def check_limitless_sync_task():
             task_id = str(uuid.uuid4())
             phone_number = "60122873632"
             
-            # Run sync in background without blocking the event loop
-            await run_sync_in_background(task_id, phone_number, 24)
+            # Run sync in background with daily window (much more efficient)
+            await run_sync_in_background(task_id, phone_number, "today")
             logger.info(f"Scheduled Limitless sync completed with task ID: {task_id}")
             
         except Exception as e:

@@ -18,7 +18,7 @@ services:
     container_name: raybanmeta
     restart: unless-stopped
     ports:
-      - "8111:8080"
+      - "8080:8080"
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6378
