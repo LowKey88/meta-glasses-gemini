@@ -72,11 +72,59 @@ const EXPECTED_LATENCIES = {
   'Other': { min: 1, max: 3 }
 };
 
+interface LimitlessPerformanceData {
+  summary: {
+    total_records: number;
+    records_last_24h: number;
+    avg_processing_time: number;
+    min_processing_time: number;
+    max_processing_time: number;
+    current_status: 'optimal' | 'suboptimal' | 'issues_detected' | 'no_data';
+    performance_issues: string[];
+    timing_breakdown_avg: Record<string, number>;
+    bottleneck_analysis: Record<string, {
+      avg_time: number;
+      percentage: number;
+      is_bottleneck: boolean;
+    }>;
+  };
+  recent_records: Array<{
+    log_id: string;
+    title: string;
+    total_time: number;
+    timing_breakdown: Record<string, number>;
+    results: {
+      memories_created: number;
+      tasks_created: number;
+    };
+    processed_at: string;
+    has_transcript: boolean;
+    transcript_length: number;
+  }>;
+  hourlyData: Array<{
+    hour: string;
+    avgLatency: number;
+    requestCount: number;
+  }>;
+  categoryBreakdown: Array<{
+    category: string;
+    avgLatency: number;
+    count: number;
+    errorRate: number;
+  }>;
+  last_updated: string;
+}
+
 export default function PerformancePage() {
   const [metrics, setMetrics] = useState<PerformanceMetrics | null>(null);
+  const [limitlessMetrics, setLimitlessMetrics] = useState<LimitlessPerformanceData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [limitlessLoading, setLimitlessLoading] = useState(true);
   const [error, setError] = useState('');
+  const [limitlessError, setLimitlessError] = useState('');
   const [timeRange, setTimeRange] = useState('24h');
+  const [limitlessTimeRange, setLimitlessTimeRange] = useState('24h');
+  const [activeTab, setActiveTab] = useState<'general' | 'limitless'>('limitless');
 
   const fetchMetrics = async () => {
     try {
@@ -92,13 +140,37 @@ export default function PerformancePage() {
     }
   };
 
+  const fetchLimitlessMetrics = async () => {
+    try {
+      setLimitlessLoading(true);
+      const data = await api.getLimitlessPerformanceMetrics(20, limitlessTimeRange);
+      setLimitlessMetrics(data);
+      setLimitlessError('');
+    } catch (err: any) {
+      setLimitlessError(err.message || 'Failed to fetch Limitless performance metrics');
+      console.error('Error fetching Limitless performance metrics:', err);
+    } finally {
+      setLimitlessLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchMetrics();
-    const interval = setInterval(fetchMetrics, 60000); // Refresh every minute
+    const interval = setInterval(() => {
+      fetchMetrics();
+    }, 60000); // Refresh every minute
     return () => clearInterval(interval);
   }, [timeRange]);
 
-  if (loading) {
+  useEffect(() => {
+    fetchLimitlessMetrics();
+    const interval = setInterval(() => {
+      fetchLimitlessMetrics();
+    }, 60000); // Refresh every minute
+    return () => clearInterval(interval);
+  }, [limitlessTimeRange]);
+
+  if (loading && limitlessLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -109,15 +181,18 @@ export default function PerformancePage() {
     );
   }
 
-  if (error) {
+  if (error && limitlessError) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <AlertTriangle className="w-12 h-12 mx-auto mb-4 text-red-500" />
           <div className="text-xl font-medium text-gray-900 dark:text-white mb-2">Error Loading Metrics</div>
-          <div className="text-gray-600 dark:text-gray-300 mb-4">{error}</div>
+          <div className="text-gray-600 dark:text-gray-300 mb-4">{error || limitlessError}</div>
           <button 
-            onClick={fetchMetrics}
+            onClick={() => {
+              fetchMetrics();
+              fetchLimitlessMetrics();
+            }}
             className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
           >
             Retry
@@ -166,17 +241,33 @@ export default function PerformancePage() {
             </div>
             
             <div className="mt-4 sm:mt-0 flex items-center gap-3">
-              <select
-                value={timeRange}
-                onChange={(e) => setTimeRange(e.target.value)}
-                className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="1h">Last Hour</option>
-                <option value="24h">Last 24 Hours</option>
-                <option value="7d">Last 7 Days</option>
-              </select>
+              {activeTab === 'general' && (
+                <select
+                  value={timeRange}
+                  onChange={(e) => setTimeRange(e.target.value)}
+                  className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="1h">Last Hour</option>
+                  <option value="24h">Last 24 Hours</option>
+                  <option value="7d">Last 7 Days</option>
+                </select>
+              )}
+              
+              {activeTab === 'limitless' && (
+                <select
+                  value={limitlessTimeRange}
+                  onChange={(e) => setLimitlessTimeRange(e.target.value)}
+                  className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="24h">Last 24 Hours</option>
+                  <option value="7d">Last 7 Days</option>
+                </select>
+              )}
               <button
-                onClick={fetchMetrics}
+                onClick={() => {
+                  fetchMetrics();
+                  fetchLimitlessMetrics();
+                }}
                 className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200"
               >
                 <Activity className="h-4 w-4 mr-2" />
@@ -184,24 +275,574 @@ export default function PerformancePage() {
               </button>
             </div>
           </div>
+          
+          {/* Tabs */}
+          <div className="mt-6 border-b border-gray-200 dark:border-gray-700">
+            <nav className="-mb-px flex space-x-8">
+              <button
+                onClick={() => setActiveTab('limitless')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'limitless'
+                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                }`}
+              >
+                🎙️ Limitless Processing
+              </button>
+              <button
+                onClick={() => setActiveTab('general')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'general'
+                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                }`}
+              >
+                📊 Message Processing
+              </button>
+            </nav>
+          </div>
         </div>
 
-        {/* Alerts */}
-        {metrics?.alerts && metrics.alerts.length > 0 && (
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-6 mb-8">
-            <div className="flex items-center gap-2 mb-4">
-              <AlertTriangle className="w-5 h-5 text-red-500" />
-              <h3 className="text-lg font-semibold text-red-900 dark:text-red-100">Performance Alerts</h3>
+        {/* Tab Content */}
+        {activeTab === 'limitless' ? (
+          <LimitlessPerformanceContent 
+            metrics={limitlessMetrics} 
+            loading={limitlessLoading} 
+            error={limitlessError}
+            onRefresh={fetchLimitlessMetrics}
+          />
+        ) : (
+          <GeneralPerformanceContent 
+            metrics={metrics} 
+            loading={loading} 
+            error={error}
+            onRefresh={fetchMetrics}
+            timeRange={timeRange}
+            getLatencyStatus={getLatencyStatus}
+            getStatusIcon={getStatusIcon}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Separate component for Limitless performance content
+function LimitlessPerformanceContent({ 
+  metrics, 
+  loading, 
+  error, 
+  onRefresh 
+}: {
+  metrics: LimitlessPerformanceData | null;
+  loading: boolean;
+  error: string;
+  onRefresh: () => void;
+}) {
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <Activity className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-500" />
+          <div className="text-lg text-gray-600 dark:text-gray-300">Loading Limitless performance metrics...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <AlertTriangle className="w-12 h-12 mx-auto mb-4 text-red-500" />
+          <div className="text-xl font-medium text-gray-900 dark:text-white mb-2">Error Loading Limitless Metrics</div>
+          <div className="text-gray-600 dark:text-gray-300 mb-4">{error}</div>
+          <button 
+            onClick={onRefresh}
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'optimal': return 'text-green-600 dark:text-green-400';
+      case 'suboptimal': return 'text-yellow-600 dark:text-yellow-400';
+      case 'issues_detected': return 'text-red-600 dark:text-red-400';
+      default: return 'text-gray-600 dark:text-gray-400';
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'optimal': return '🟢';
+      case 'suboptimal': return '🟡';
+      case 'issues_detected': return '🔴';
+      default: return '⚪';
+    }
+  };
+
+  return (
+    <>
+      {/* Performance Issues Alert */}
+      {metrics?.summary.performance_issues && metrics.summary.performance_issues.length > 0 && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-6 mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <AlertTriangle className="w-5 h-5 text-red-500" />
+            <h3 className="text-lg font-semibold text-red-900 dark:text-red-100">Performance Issues Detected</h3>
+          </div>
+          <div className="space-y-2">
+            {metrics.summary.performance_issues.map((issue, index) => (
+              <div key={index} className="text-sm text-red-800 dark:text-red-200">
+                • {issue}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Overview Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="group bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-all duration-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                Avg Processing Time
+              </dt>
+              <dd className="mt-2 text-3xl font-semibold text-gray-900 dark:text-white">
+                {metrics?.summary.avg_processing_time?.toFixed(1) || '0.0'}s
+              </dd>
+              <dd className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Per recording
+              </dd>
             </div>
-            <div className="space-y-3">
-              {metrics.alerts.map((alert, index) => (
-                <div key={index} className="text-sm text-red-800 dark:text-red-200">
-                  <strong>{alert.category}:</strong> {alert.message}
-                </div>
-              ))}
+            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+              <Clock className="h-6 w-6 text-blue-600 dark:text-blue-400" />
             </div>
           </div>
+        </div>
+
+        <div className="group bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-all duration-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                Current Status
+              </dt>
+              <dd className={`mt-2 text-2xl font-semibold ${getStatusColor(metrics?.summary.current_status || 'no_data')}`}>
+                {getStatusIcon(metrics?.summary.current_status || 'no_data')} {metrics?.summary.current_status?.replace('_', ' ') || 'No Data'}
+              </dd>
+              <dd className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Performance status
+              </dd>
+            </div>
+            <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+              <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
+            </div>
+          </div>
+        </div>
+
+        <div className="group bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-all duration-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                Records Processed
+              </dt>
+              <dd className="mt-2 text-3xl font-semibold text-gray-900 dark:text-white">
+                {metrics?.summary.records_last_24h || 0}
+              </dd>
+              <dd className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Last 24 hours
+              </dd>
+            </div>
+            <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+              <TrendingUp className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+            </div>
+          </div>
+        </div>
+
+        <div className="group bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-all duration-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                Issues Detected
+              </dt>
+              <dd className="mt-2 text-3xl font-semibold text-gray-900 dark:text-white">
+                {metrics?.summary.performance_issues?.length || 0}
+              </dd>
+              <dd className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Active alerts
+              </dd>
+            </div>
+            <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+              <Zap className="h-6 w-6 text-red-600 dark:text-red-400" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Timing Breakdown Chart */}
+      {metrics?.summary.timing_breakdown_avg && Object.keys(metrics.summary.timing_breakdown_avg).length > 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">⏱️ Processing Time Breakdown</h3>
+          <div className="space-y-4">
+            {Object.entries(metrics.summary.timing_breakdown_avg)
+              .filter(([key]) => !key.endsWith('_count'))
+              .sort(([,a], [,b]) => b - a)
+              .map(([operation, avgTime]) => {
+                const totalTime = Object.values(metrics.summary.timing_breakdown_avg)
+                  .filter((_, index, arr) => !Object.keys(metrics.summary.timing_breakdown_avg)[index].endsWith('_count'))
+                  .reduce((sum, time) => sum + time, 0);
+                const percentage = totalTime > 0 ? (avgTime / totalTime) * 100 : 0;
+                const isBottleneck = percentage > 30;
+                
+                const operationIcons: Record<string, string> = {
+                  'speaker_identification': '🎭',
+                  'natural_language_tasks': '🧠',
+                  'gemini_extraction': '🤖',
+                  'memory_creation': '💾',
+                  'tasks_creation': '✅',
+                  'redis_caching': '🗄️'
+                };
+                
+                return (
+                  <div key={operation} className="flex items-center">
+                    <div className="w-48 flex items-center">
+                      <span className="mr-2">{operationIcons[operation] || '⚙️'}</span>
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        {operation.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                      </span>
+                      {isBottleneck && <span className="ml-2 text-xs bg-red-100 text-red-800 px-2 py-1 rounded">Bottleneck</span>}
+                    </div>
+                    <div className="flex-1 mx-4">
+                      <div className="bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                        <div 
+                          className={`h-3 rounded-full ${isBottleneck ? 'bg-red-500' : 'bg-blue-500'}`}
+                          style={{ width: `${Math.min(percentage, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                    <div className="w-24 text-right">
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">
+                        {avgTime.toFixed(1)}s
+                      </span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400 block">
+                        ({percentage.toFixed(1)}%)
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
+
+      {/* Recent Processing Records */}
+      {metrics?.recent_records && metrics.recent_records.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">📋 Recent Processing Records</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left border-b border-gray-200 dark:border-gray-700">
+                  <th className="pb-3 font-medium text-gray-600 dark:text-gray-300">Recording</th>
+                  <th className="pb-3 font-medium text-gray-600 dark:text-gray-300">Total Time</th>
+                  <th className="pb-3 font-medium text-gray-600 dark:text-gray-300">Primary Bottleneck</th>
+                  <th className="pb-3 font-medium text-gray-600 dark:text-gray-300">Results</th>
+                  <th className="pb-3 font-medium text-gray-600 dark:text-gray-300">Processed</th>
+                </tr>
+              </thead>
+              <tbody className="space-y-2">
+                {metrics.recent_records.slice(0, 10).map((record, index) => {
+                  const primaryBottleneck = Object.entries(record.timing_breakdown)
+                    .filter(([key]) => !key.endsWith('_count'))
+                    .sort(([,a], [,b]) => b - a)[0];
+                  
+                  return (
+                    <tr key={record.log_id} className="border-b border-gray-100 dark:border-gray-700">
+                      <td className="py-3 font-medium text-gray-900 dark:text-white max-w-xs">
+                        <div className="truncate" title={record.title}>
+                          {record.title || 'Untitled Recording'}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          ID: {record.log_id.slice(0, 8)}...
+                        </div>
+                      </td>
+                      <td className="py-3 text-gray-600 dark:text-gray-300">
+                        <span className={`font-medium ${record.total_time > 60 ? 'text-red-600 dark:text-red-400' : record.total_time > 30 ? 'text-yellow-600 dark:text-yellow-400' : 'text-green-600 dark:text-green-400'}`}>
+                          {record.total_time.toFixed(1)}s
+                        </span>
+                      </td>
+                      <td className="py-3 text-gray-600 dark:text-gray-300">
+                        {primaryBottleneck ? (
+                          <div>
+                            <div className="font-medium">
+                              {primaryBottleneck[0].replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {primaryBottleneck[1].toFixed(1)}s
+                            </div>
+                          </div>
+                        ) : (
+                          'N/A'
+                        )}
+                      </td>
+                      <td className="py-3 text-gray-600 dark:text-gray-300">
+                        <div className="text-xs">
+                          📝 {record.results.memories_created} memories
+                        </div>
+                        <div className="text-xs">
+                          ✅ {record.results.tasks_created} tasks
+                        </div>
+                      </td>
+                      <td className="py-3 text-gray-600 dark:text-gray-300 text-xs">
+                        {new Date(record.processed_at).toLocaleString()}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {metrics.recent_records.length === 0 && (
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+              No processing records available yet
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Processing Time Trend Chart */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">📈 Processing Time Trend</h3>
+        {metrics?.hourlyData && metrics.hourlyData.length > 0 ? (
+          <div className="h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={metrics.hourlyData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis 
+                  dataKey="hour" 
+                  stroke="#6B7280"
+                  fontSize={12}
+                />
+                <YAxis 
+                  stroke="#6B7280"
+                  fontSize={12}
+                  label={{ value: 'Processing Time (seconds)', angle: -90, position: 'insideLeft' }}
+                />
+                <Tooltip 
+                  contentStyle={{
+                    backgroundColor: '#1F2937',
+                    border: 'none',
+                    borderRadius: '8px',
+                    color: '#F9FAFB'
+                  }}
+                  formatter={(value: any, name: string) => [
+                    `${value}s`, 
+                    name === 'avgLatency' ? 'Avg Processing Time' : name
+                  ]}
+                  labelFormatter={(label: string) => `Time: ${label}`}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="avgLatency" 
+                  stroke="#3B82F6" 
+                  strokeWidth={2}
+                  dot={{ fill: '#3B82F6', r: 4 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+            No performance data available for the selected time range
+          </div>
         )}
+      </div>
+
+      {/* Operation Performance */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        {/* Operation Breakdown Table */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">⚙️ Performance by Operation</h3>
+          {metrics?.categoryBreakdown && metrics.categoryBreakdown.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left border-b border-gray-200 dark:border-gray-700">
+                    <th className="pb-3 font-medium text-gray-600 dark:text-gray-300">Operation</th>
+                    <th className="pb-3 font-medium text-gray-600 dark:text-gray-300">Avg Time</th>
+                    <th className="pb-3 font-medium text-gray-600 dark:text-gray-300">Count</th>
+                    <th className="pb-3 font-medium text-gray-600 dark:text-gray-300">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="space-y-2">
+                  {metrics.categoryBreakdown.map((category, index) => {
+                    const isBottleneck = category.avgLatency > 10; // Mark as bottleneck if >10s
+                    return (
+                      <tr key={index} className="border-b border-gray-100 dark:border-gray-700">
+                        <td className="py-3 font-medium text-gray-900 dark:text-white">
+                          {category.category}
+                        </td>
+                        <td className="py-3 text-gray-600 dark:text-gray-300">
+                          <span className={`font-medium ${category.avgLatency > 30 ? 'text-red-600 dark:text-red-400' : category.avgLatency > 10 ? 'text-yellow-600 dark:text-yellow-400' : 'text-green-600 dark:text-green-400'}`}>
+                            {category.avgLatency.toFixed(1)}s
+                          </span>
+                        </td>
+                        <td className="py-3 text-gray-600 dark:text-gray-300">
+                          {category.count}
+                        </td>
+                        <td className="py-3">
+                          {isBottleneck ? (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400">
+                              Bottleneck
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
+                              Good
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+              No operation data available
+            </div>
+          )}
+        </div>
+
+        {/* Processing Volume Distribution Chart */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">📊 Processing Volume Distribution</h3>
+          {metrics?.categoryBreakdown && metrics.categoryBreakdown.length > 0 ? (
+            <ResponsiveContainer width="100%" height={350}>
+              <PieChart>
+                <Pie
+                  data={metrics.categoryBreakdown}
+                  cx="50%"
+                  cy="45%"
+                  outerRadius={70}
+                  dataKey="count"
+                  nameKey="category"
+                >
+                  {metrics.categoryBreakdown.map((entry, index) => {
+                    const colors = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EF4444', '#06B6D4'];
+                    return (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={colors[index % colors.length]} 
+                      />
+                    );
+                  })}
+                </Pie>
+                <Tooltip 
+                  formatter={(value: any, name: string) => [value, name]}
+                  labelFormatter={(label: string) => `Operation: ${label}`}
+                  contentStyle={{
+                    backgroundColor: 'rgb(31 41 55)',
+                    border: 'none',
+                    borderRadius: '8px',
+                    color: 'rgb(249 250 251)',
+                    fontSize: '14px'
+                  }}
+                  itemStyle={{
+                    color: 'rgb(249 250 251)'
+                  }}
+                />
+                <Legend 
+                  verticalAlign="bottom" 
+                  height={36}
+                  wrapperStyle={{
+                    paddingTop: '20px',
+                    fontSize: '12px'
+                  }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              No distribution data available
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// Move the existing performance content to a separate component
+function GeneralPerformanceContent({ 
+  metrics, 
+  loading, 
+  error, 
+  onRefresh, 
+  timeRange,
+  getLatencyStatus,
+  getStatusIcon
+}: {
+  metrics: PerformanceMetrics | null;
+  loading: boolean;
+  error: string;
+  onRefresh: () => void;
+  timeRange: string;
+  getLatencyStatus: (category: string, avgLatency: number) => string;
+  getStatusIcon: (status: string) => JSX.Element;
+}) {
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <Activity className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-500" />
+          <div className="text-lg text-gray-600 dark:text-gray-300">Loading general performance metrics...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <AlertTriangle className="w-12 h-12 mx-auto mb-4 text-red-500" />
+          <div className="text-xl font-medium text-gray-900 dark:text-white mb-2">Error Loading General Metrics</div>
+          <div className="text-gray-600 dark:text-gray-300 mb-4">{error}</div>
+          <button 
+            onClick={onRefresh}
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {/* Alerts */}
+      {metrics?.alerts && metrics.alerts.length > 0 && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-6 mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <AlertTriangle className="w-5 h-5 text-red-500" />
+            <h3 className="text-lg font-semibold text-red-900 dark:text-red-100">Performance Alerts</h3>
+          </div>
+          <div className="space-y-3">
+            {metrics.alerts.map((alert, index) => (
+              <div key={index} className="text-sm text-red-800 dark:text-red-200">
+                <strong>{alert.category}:</strong> {alert.message}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
         {/* Overview Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
@@ -417,7 +1058,6 @@ export default function PerformancePage() {
             ))}
           </div>
         </div>
-      </div>
-    </div>
-  );
+      </>
+    );
 }

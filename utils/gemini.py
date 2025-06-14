@@ -255,6 +255,9 @@ def limitless_extraction_request(message: str, user_id: str = None) -> str:
 
 Return ONLY valid JSON without any explanatory text or markdown formatting.'''
         
+        # ⏱️ PERFORMANCE: Log input characteristics
+        input_length = len(contextualized_message)
+        logger.info(f"🤖 Gemini API Request - Input: {input_length} chars, Model: {GEMINI_CHAT_MODEL}")
         logger.debug(f"Sending Limitless extraction prompt: {contextualized_message[:200]}...")
         
         # Track API request timing
@@ -277,14 +280,31 @@ Return ONLY valid JSON without any explanatory text or markdown formatting.'''
             raise ValueError("Empty response from Gemini API")
             
         result = response.text.strip()
-        logger.debug(f"Limitless extraction response length: {len(result)} chars")
+        
+        # ⏱️ PERFORMANCE: Log response characteristics and timing
+        output_length = len(result)
+        tokens_per_second = output_length / response_time if response_time > 0 else 0
+        
+        # Check if response might be truncated (near token limit)
+        is_potentially_truncated = output_length > 3000 or (output_length > 2500 and not result.endswith('}'))
+        truncation_warning = " ⚠️ POTENTIALLY TRUNCATED" if is_potentially_truncated else ""
+        
+        logger.info(f"🤖 Gemini API Response - Time: {response_time:.1f}s, Output: {output_length} chars, "
+                   f"Speed: {tokens_per_second:.0f} chars/s{truncation_warning}")
+        
+        if is_potentially_truncated:
+            logger.warning(f"⚠️ Response may be truncated - Length: {output_length}, "
+                         f"Max tokens: 800, Ends with '}}': {result.endswith('}')}")
+        
+        logger.debug(f"Limitless extraction response preview: {result[:100]}...")
         return result
         
     except ValueError as e:
         logger.error(f"Error in Limitless extraction request: {e}")
         return "{}"  # Return empty JSON on error
     except Exception as e:
-        logger.error(f"Unexpected error in Limitless extraction request: {e}")
+        response_time = time.time() - start_time if 'start_time' in locals() else 0
+        logger.error(f"Unexpected error in Limitless extraction request after {response_time:.1f}s: {e}")
         return "{}"  # Return empty JSON on error
 
 def generate_google_search_query(user_input: str) -> str:

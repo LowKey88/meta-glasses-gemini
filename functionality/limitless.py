@@ -543,8 +543,16 @@ async def process_pending_recordings(phone_number: str) -> str:
     Detect and process recordings that were missed by incremental sync.
     This catches recordings with retroactive timestamps or out-of-order processing.
     """
+    import time
+    
+    # ⏱️ START: Overall pending processing timing
+    overall_start = time.time()
+    
     try:
         logger.info(f"🔍 Checking for pending recordings that may have been missed")
+        
+        # ⏱️ TIMING: API fetch for all recordings
+        api_fetch_start = time.time()
         
         # Use same time range as dashboard (today's window)
         end_time = datetime.now()
@@ -560,7 +568,11 @@ async def process_pending_recordings(phone_number: str) -> str:
             include_headings=True
         )
         
-        logger.info(f"📋 Checking {len(lifelogs)} recordings for gaps")
+        api_fetch_time = time.time() - api_fetch_start
+        logger.info(f"📋 API fetch completed in {api_fetch_time:.1f}s - Retrieved {len(lifelogs)} recordings")
+        
+        # ⏱️ TIMING: Gap detection
+        gap_detection_start = time.time()
         
         # Find unprocessed recordings
         pending_logs = []
@@ -570,29 +582,40 @@ async def process_pending_recordings(phone_number: str) -> str:
             if not redis_client.exists(processed_key):
                 pending_logs.append(log)
         
+        gap_detection_time = time.time() - gap_detection_start
+        logger.info(f"🔍 Gap detection completed in {gap_detection_time:.1f}s - Found {len(pending_logs)} pending")
+        
         if not pending_logs:
-            logger.info("✅ No pending recordings found - all recordings are processed")
+            total_time = time.time() - overall_start
+            logger.info(f"✅ No pending recordings found in {total_time:.1f}s - all recordings are processed")
             # Update cache to reflect 0 pending
             pending_sync_key = "meta-glasses:limitless:pending_sync_cache"
             redis_client.setex(pending_sync_key, 300, "0")
             return "No pending recordings found"
         
-        logger.info(f"🔄 Found {len(pending_logs)} pending recordings to process")
+        logger.info(f"🔄 Processing {len(pending_logs)} pending recordings (estimated time: {len(pending_logs) * 30}s)")
         
-        # Process the pending recordings
+        # Process the pending recordings with detailed timing
         processed_count = 0
         memories_created = 0
         tasks_created = 0
+        processing_times = []
         
         for i, log in enumerate(pending_logs, 1):
             try:
+                # ⏱️ TIMING: Individual recording processing
+                record_start = time.time()
+                
                 log_id = log.get('id', 'unknown')
                 log_title = log.get('title', 'Untitled')
                 
-                logger.info(f"⚙️ Processing pending recording {i}/{len(pending_logs)}: {log_title} (ID: {log_id})")
+                logger.info(f"⚙️ Processing pending recording {i}/{len(pending_logs)}: {log_title[:30]}... (ID: {log_id[:8]}...)")
                 
                 # Process the recording
                 results = await process_single_lifelog(log, phone_number)
+                
+                record_time = time.time() - record_start
+                processing_times.append(record_time)
                 
                 memories_created += results['memories_created']
                 tasks_created += results['tasks_created']
@@ -602,7 +625,12 @@ async def process_pending_recordings(phone_number: str) -> str:
                 processed_key = RedisKeyBuilder.build_limitless_processed_key(log_id)
                 redis_client.setex(processed_key, 86400 * 30, "1")  # 30 days
                 
-                logger.info(f"✅ Processed pending {log_id}: {results['memories_created']} memories, {results['tasks_created']} tasks")
+                # Calculate remaining time estimate
+                avg_time = sum(processing_times) / len(processing_times)
+                remaining_count = len(pending_logs) - i
+                estimated_remaining = remaining_count * avg_time
+                
+                logger.info(f"✅ Completed {i}/{len(pending_logs)} in {record_time:.1f}s (avg: {avg_time:.1f}s, remaining: ~{estimated_remaining:.0f}s)")
                 
                 # Rate limiting delay
                 await asyncio.sleep(0.5)
@@ -615,12 +643,29 @@ async def process_pending_recordings(phone_number: str) -> str:
         pending_sync_key = "meta-glasses:limitless:pending_sync_cache"
         redis_client.setex(pending_sync_key, 300, "0")
         
-        result_msg = f"✅ Processed {processed_count} pending recordings: {memories_created} memories, {tasks_created} tasks created"
+        # ⏱️ FINAL: Overall processing summary
+        total_time = time.time() - overall_start
+        
+        if processing_times:
+            avg_record_time = sum(processing_times) / len(processing_times)
+            min_record_time = min(processing_times)
+            max_record_time = max(processing_times)
+            
+            logger.info(f"📊 PENDING PROCESSING COMPLETE in {total_time:.1f}s:")
+            logger.info(f"├─ 📡 API fetch: {api_fetch_time:.1f}s ({api_fetch_time/total_time*100:.1f}%)")
+            logger.info(f"├─ 🔍 Gap detection: {gap_detection_time:.1f}s ({gap_detection_time/total_time*100:.1f}%)")
+            logger.info(f"├─ 🔄 Records processing: {total_time - api_fetch_time - gap_detection_time:.1f}s ({(total_time - api_fetch_time - gap_detection_time)/total_time*100:.1f}%)")
+            logger.info(f"├─ 📈 Records processed: {processed_count}/{len(pending_logs)}")
+            logger.info(f"├─ ⏱️ Average per record: {avg_record_time:.1f}s (min: {min_record_time:.1f}s, max: {max_record_time:.1f}s)")
+            logger.info(f"└─ 📝 Created: {memories_created} memories, {tasks_created} tasks")
+        
+        result_msg = f"✅ Processed {processed_count} pending recordings in {total_time:.1f}s: {memories_created} memories, {tasks_created} tasks created"
         logger.info(result_msg)
         return result_msg
         
     except Exception as e:
-        logger.error(f"❌ Error in process_pending_recordings: {str(e)}")
+        total_time = time.time() - overall_start if 'overall_start' in locals() else 0
+        logger.error(f"❌ Error in process_pending_recordings after {total_time:.1f}s: {str(e)}")
         return f"❌ Error processing pending recordings: {str(e)}"
 
 
@@ -632,22 +677,37 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
     Returns:
         Dict with counts of created items
     """
+    import time
+    
+    # ⏱️ START: Overall processing timing
+    start_time = time.time()
+    log_id = log.get('id', 'unknown')
+    title = log.get('title', 'Untitled Recording')
+    
     results = {
         'memories_created': 0,
         'tasks_created': 0,
         'events_created': 0
     }
     
+    # Performance tracking
+    timing_data = {}
+    
     try:
+        logger.info(f"📊 Processing recording {log_id[:8]}... - '{title[:50]}{'...' if len(title) > 50 else ''}'")
+        
         # Extract basic info
-        log_id = log.get('id')
-        title = log.get('title', 'Untitled Recording')
+        
+        # ⏱️ TIMING: Speaker identification
+        speaker_start = time.time()
         
         # ✅ NEW: Extract speakers from Limitless API data with fallbacks
         # Pass phone_number in log metadata for context generation
         log['_phone_number'] = phone_number
         speakers_identified = extract_speakers_from_contents(log)
-        logger.info(f"Identified speakers for log {log_id}: {[s['name'] for s in speakers_identified]}")
+        
+        timing_data['speaker_identification'] = time.time() - speaker_start
+        logger.info(f"🎭 Speaker identification: {timing_data['speaker_identification']:.1f}s - Found {len(speakers_identified)} speakers")
         
         # Extract transcript from contents array with speaker attribution
         transcript = ''
@@ -742,14 +802,26 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
         
         # Only process transcript if available
         if has_transcript:
+            # ⏱️ TIMING: Natural language task extraction
+            natural_tasks_start = time.time()
+            
             # First, extract natural language tasks and reminders
             natural_tasks_created, natural_tasks_data = extract_natural_language_tasks(transcript, log_id, phone_number, title)
             results['tasks_created'] += natural_tasks_created
+            
+            timing_data['natural_language_tasks'] = time.time() - natural_tasks_start
+            logger.info(f"🧠 Natural language tasks: {timing_data['natural_language_tasks']:.1f}s - Created {natural_tasks_created} tasks")
+            
+            # ⏱️ TIMING: Gemini AI extraction
+            gemini_start = time.time()
             
             # ✅ ENHANCED: Use speaker-aware Gemini prompt with fallback
             extraction_prompt = get_enhanced_extraction_prompt(title, summary, transcript)
 
             response = limitless_extraction_request(extraction_prompt, phone_number)
+            
+            timing_data['gemini_extraction'] = time.time() - gemini_start
+            logger.info(f"🤖 Gemini AI extraction: {timing_data['gemini_extraction']:.1f}s - Response length: {len(response)} chars")
             
             # Parse the response
             try:
@@ -890,6 +962,9 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
                     'role': 'primary_user'
                 }]
                 
+            # ⏱️ TIMING: Memory creation
+            memory_start = time.time()
+            
             # Create consolidated memory for this recording
             memory_created = create_consolidated_recording_memory(
                 log_id=log_id,
@@ -901,7 +976,14 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
             
             if memory_created:
                 results['memories_created'] += 1
+            
+            timing_data['memory_creation'] = time.time() - memory_start
+            logger.info(f"💾 Memory creation: {timing_data['memory_creation']:.1f}s - Created {results['memories_created']} memories")
                         
+            # ⏱️ TIMING: Google Tasks creation
+            tasks_start = time.time()
+            tasks_created_count = 0
+            
             # ✅ ENHANCED: Create tasks with speaker attribution and success validation
             validated_tasks = []  # Track only successfully created tasks
             
@@ -934,18 +1016,24 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
                             except:
                                 pass
                                 
+                        # ⏱️ Individual task creation timing
+                        task_creation_start = time.time()
                         success = create_task_from_limitless(task_data, phone_number)
+                        task_creation_time = time.time() - task_creation_start
+                        
                         if success:
                             results['tasks_created'] += 1
+                            tasks_created_count += 1
                             # FIXED: Only store successfully created tasks
                             task_with_success = task.copy()
                             task_with_success['created_successfully'] = True
                             task_with_success['google_task_created'] = True
                             task_with_success['source'] = 'ai_extracted'
                             validated_tasks.append(task_with_success)
+                            logger.debug(f"✅ Created task '{task_title[:30]}...' in {task_creation_time:.1f}s")
                         else:
                             # Mark as failed but still log for debugging
-                            logger.warning(f"Failed to create Google Task: {task_title}")
+                            logger.warning(f"❌ Failed to create Google Task: {task_title} ({task_creation_time:.1f}s)")
                             # Don't add to validated_tasks - this excludes it from counts
                 
                 # Mark AI tasks as processed to prevent duplicate creation
@@ -974,6 +1062,10 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
             
             # Update extracted data with only successful tasks
             extracted['tasks'] = validated_tasks
+            
+            # ⏱️ Complete tasks timing
+            timing_data['tasks_creation'] = time.time() - tasks_start
+            logger.info(f"✅ Google Tasks creation: {timing_data['tasks_creation']:.1f}s - Created {tasks_created_count} tasks")
             
             # DIAGNOSTIC: Log final task count for this recording
             if validated_tasks:
@@ -1009,6 +1101,9 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
             'processed_at': datetime.now().isoformat()
         }
         
+        # ⏱️ TIMING: Redis caching
+        cache_start = time.time()
+        
         logger.info(f"Caching Lifelog {log_id} with start_time: {start_time} and {len(speakers_identified)} speakers to key: {cache_key}")
         redis_client.setex(
             cache_key,
@@ -1016,8 +1111,42 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
             json.dumps(cache_data)
         )
         
+        timing_data['redis_caching'] = time.time() - cache_start
+        
+        # ⏱️ FINAL: Overall processing summary
+        total_time = time.time() - start_time
+        timing_data['total_processing'] = total_time
+        
+        # Log detailed timing breakdown
+        logger.info(f"📊 COMPLETED recording {log_id[:8]}... in {total_time:.1f}s:")
+        logger.info(f"├─ 🎭 Speaker identification: {timing_data.get('speaker_identification', 0):.1f}s ({timing_data.get('speaker_identification', 0)/total_time*100:.1f}%)")
+        
+        if has_transcript:
+            logger.info(f"├─ 🧠 Natural language tasks: {timing_data.get('natural_language_tasks', 0):.1f}s ({timing_data.get('natural_language_tasks', 0)/total_time*100:.1f}%)")
+            logger.info(f"├─ 🤖 Gemini AI extraction: {timing_data.get('gemini_extraction', 0):.1f}s ({timing_data.get('gemini_extraction', 0)/total_time*100:.1f}%)")
+            logger.info(f"├─ 💾 Memory creation: {timing_data.get('memory_creation', 0):.1f}s ({timing_data.get('memory_creation', 0)/total_time*100:.1f}%)")
+            logger.info(f"├─ ✅ Tasks creation: {timing_data.get('tasks_creation', 0):.1f}s ({timing_data.get('tasks_creation', 0)/total_time*100:.1f}%)")
+        
+        logger.info(f"├─ 💾 Redis caching: {timing_data.get('redis_caching', 0):.1f}s ({timing_data.get('redis_caching', 0)/total_time*100:.1f}%)")
+        logger.info(f"└─ 📈 Created: {results['memories_created']} memories, {results['tasks_created']} tasks")
+        
+        # Store performance data in Redis for dashboard monitoring
+        performance_key = f"meta-glasses:limitless:performance:{log_id}"
+        performance_data = {
+            'log_id': log_id,
+            'title': title[:50],
+            'total_time': total_time,
+            'timing_breakdown': timing_data,
+            'results': results,
+            'processed_at': datetime.now().isoformat(),
+            'has_transcript': has_transcript,
+            'transcript_length': len(transcript) if has_transcript else 0
+        }
+        redis_client.setex(performance_key, 3600, json.dumps(performance_data))  # 1 hour TTL
+        
     except Exception as e:
-        logger.error(f"Error processing Lifelog {log.get('id')}: {str(e)}")
+        total_time = time.time() - start_time
+        logger.error(f"❌ Error processing Lifelog {log.get('id', 'unknown')[:8]}... after {total_time:.1f}s: {str(e)}")
         
     return results
 

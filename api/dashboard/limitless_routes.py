@@ -523,6 +523,254 @@ async def get_sync_efficiency(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/performance-metrics")
+async def get_performance_metrics(
+    limit: int = Query(10, description="Number of recent performance records to return"),
+    range: str = Query("24h", description="Time range for metrics (24h, 7d)"),
+    user: str = Depends(verify_dashboard_token)
+) -> Dict[str, Any]:
+    """Get performance metrics for Limitless processing operations."""
+    try:
+        # Parse time range
+        if range == "24h":
+            hours_back = 24
+        elif range == "7d":
+            hours_back = 24 * 7
+        else:
+            hours_back = 24  # Default to 24 hours
+            
+        # Calculate time window
+        now = datetime.now()
+        start_time = now - timedelta(hours=hours_back)
+        
+        # Get recent performance data from Redis
+        pattern = "meta-glasses:limitless:performance:*"
+        performance_records = []
+        
+        for key in redis_client.scan_iter(match=pattern):
+            data = redis_client.get(key)
+            if data:
+                try:
+                    record = json.loads(data.decode() if isinstance(data, bytes) else data)
+                    # Filter by time range
+                    record_time = datetime.fromisoformat(record.get('processed_at', '').replace('Z', '+00:00'))
+                    if record_time >= start_time:
+                        performance_records.append(record)
+                except (json.JSONDecodeError, ValueError):
+                    continue
+        
+        # Sort by processed_at timestamp (most recent first)
+        performance_records.sort(key=lambda x: x.get('processed_at', ''), reverse=True)
+        
+        # Limit results
+        recent_records = performance_records[:limit]
+        
+        # Calculate summary statistics
+        if performance_records:
+            total_times = [r.get('total_time', 0) for r in performance_records]
+            avg_total_time = sum(total_times) / len(total_times)
+            min_total_time = min(total_times)
+            max_total_time = max(total_times)
+            
+            # Get timing breakdown averages
+            timing_breakdowns = [r.get('timing_breakdown', {}) for r in performance_records if r.get('timing_breakdown')]
+            avg_breakdown = {}
+            
+            if timing_breakdowns:
+                # Calculate average for each operation
+                for operation in ['speaker_identification', 'natural_language_tasks', 'gemini_extraction', 'memory_creation', 'tasks_creation', 'redis_caching']:
+                    times = [breakdown.get(operation, 0) for breakdown in timing_breakdowns if breakdown.get(operation, 0) > 0]
+                    if times:
+                        avg_breakdown[operation] = sum(times) / len(times)
+                        avg_breakdown[f"{operation}_count"] = len(times)
+            
+            # Identify bottlenecks
+            bottleneck_analysis = {}
+            if avg_breakdown:
+                total_avg = sum(avg_breakdown.get(op, 0) for op in ['speaker_identification', 'natural_language_tasks', 'gemini_extraction', 'memory_creation', 'tasks_creation', 'redis_caching'])
+                if total_avg > 0:
+                    for operation in ['speaker_identification', 'natural_language_tasks', 'gemini_extraction', 'memory_creation', 'tasks_creation', 'redis_caching']:
+                        if operation in avg_breakdown:
+                            percentage = (avg_breakdown[operation] / total_avg) * 100
+                            bottleneck_analysis[operation] = {
+                                'avg_time': avg_breakdown[operation],
+                                'percentage': percentage,
+                                'is_bottleneck': percentage > 30  # Mark as bottleneck if >30% of total time
+                            }
+            
+            # Check for performance issues
+            performance_issues = []
+            if avg_total_time > 60:  # Over 1 minute average
+                performance_issues.append(f"High average processing time: {avg_total_time:.1f}s")
+            if max_total_time > 300:  # Over 5 minutes max
+                performance_issues.append(f"Very slow processing detected: {max_total_time:.1f}s max")
+            
+            # Check for specific operation bottlenecks
+            for operation, analysis in bottleneck_analysis.items():
+                if analysis['is_bottleneck'] and analysis['avg_time'] > 30:
+                    performance_issues.append(f"{operation.replace('_', ' ').title()} is a bottleneck: {analysis['avg_time']:.1f}s ({analysis['percentage']:.1f}%)")
+            
+            # Get processing trends (last 24 hours)
+            twenty_four_hours_ago = datetime.now() - timedelta(hours=24)
+            recent_performance = [
+                r for r in performance_records 
+                if datetime.fromisoformat(r.get('processed_at', '').replace('Z', '+00:00')) > twenty_four_hours_ago
+            ]
+            
+            current_status = "optimal"
+            if performance_issues:
+                current_status = "issues_detected"
+            elif avg_total_time > 30:
+                current_status = "suboptimal"
+            
+            summary = {
+                'total_records': len(performance_records),
+                'records_last_24h': len(recent_performance),
+                'avg_processing_time': avg_total_time,
+                'min_processing_time': min_total_time,
+                'max_processing_time': max_total_time,
+                'current_status': current_status,
+                'performance_issues': performance_issues,
+                'timing_breakdown_avg': avg_breakdown,
+                'bottleneck_analysis': bottleneck_analysis
+            }
+        else:
+            summary = {
+                'total_records': 0,
+                'records_last_24h': 0,
+                'avg_processing_time': 0,
+                'min_processing_time': 0,
+                'max_processing_time': 0,
+                'current_status': 'no_data',
+                'performance_issues': [],
+                'timing_breakdown_avg': {},
+                'bottleneck_analysis': {}
+            }
+        
+        # Generate hourly data for time-based charts
+        hourly_data = []
+        category_breakdown = []
+        
+        if performance_records:
+            # Create hourly buckets
+            hourly_buckets = {}
+            category_stats = {}
+            
+            # Define operation categories for breakdown
+            operation_categories = [
+                'speaker_identification',
+                'natural_language_tasks', 
+                'gemini_extraction',
+                'memory_creation',
+                'tasks_creation',
+                'redis_caching'
+            ]
+            
+            # Initialize category stats
+            for category in operation_categories:
+                category_stats[category] = {
+                    'times': [],
+                    'count': 0
+                }
+            
+            # Process each performance record
+            for record in performance_records:
+                try:
+                    record_time = datetime.fromisoformat(record.get('processed_at', '').replace('Z', '+00:00'))
+                    timing_breakdown = record.get('timing_breakdown', {})
+                    total_time = record.get('total_time', 0)
+                    
+                    # Create hour bucket key
+                    if range == "7d":
+                        # For 7 days, group by day
+                        hour_key = record_time.strftime('%Y-%m-%d')
+                        hour_label = record_time.strftime('%a %m/%d')
+                    else:
+                        # For 24h, group by hour
+                        hour_key = record_time.strftime('%Y-%m-%d %H')
+                        if record_time.date() == now.date():
+                            hour_label = record_time.strftime('%H:00')
+                        else:
+                            hour_label = f"Y-{record_time.strftime('%H:00')}"
+                    
+                    # Add to hourly bucket
+                    if hour_key not in hourly_buckets:
+                        hourly_buckets[hour_key] = {
+                            'label': hour_label,
+                            'times': [],
+                            'count': 0
+                        }
+                    
+                    hourly_buckets[hour_key]['times'].append(total_time)
+                    hourly_buckets[hour_key]['count'] += 1
+                    
+                    # Add to category stats
+                    for category in operation_categories:
+                        if category in timing_breakdown:
+                            category_stats[category]['times'].append(timing_breakdown[category])
+                            category_stats[category]['count'] += 1
+                            
+                except (ValueError, KeyError):
+                    continue
+            
+            # Generate hourly data points
+            for hour_key in sorted(hourly_buckets.keys()):
+                bucket = hourly_buckets[hour_key]
+                if bucket['times']:
+                    avg_latency = sum(bucket['times']) / len(bucket['times'])
+                else:
+                    avg_latency = 0
+                    
+                hourly_data.append({
+                    'hour': bucket['label'],
+                    'avgLatency': round(avg_latency, 2),
+                    'requestCount': bucket['count']
+                })
+            
+            # Generate category breakdown
+            for category in operation_categories:
+                stats = category_stats[category]
+                if stats['times']:
+                    avg_time = sum(stats['times']) / len(stats['times'])
+                    
+                    # Convert category name to display format
+                    display_name = category.replace('_', ' ').title()
+                    if category == 'gemini_extraction':
+                        display_name = 'Gemini AI Extraction'
+                    elif category == 'speaker_identification':
+                        display_name = 'Speaker Identification'
+                    elif category == 'natural_language_tasks':
+                        display_name = 'Natural Language Tasks'
+                    elif category == 'memory_creation':
+                        display_name = 'Memory Creation'
+                    elif category == 'tasks_creation':
+                        display_name = 'Task Creation'
+                    elif category == 'redis_caching':
+                        display_name = 'Redis Caching'
+                    
+                    category_breakdown.append({
+                        'category': display_name,
+                        'avgLatency': round(avg_time, 2),
+                        'count': stats['count'],
+                        'errorRate': 0  # For future use
+                    })
+            
+            # Sort category breakdown by average latency (highest first)
+            category_breakdown.sort(key=lambda x: x['avgLatency'], reverse=True)
+        
+        return {
+            'summary': summary,
+            'recent_records': recent_records,
+            'hourlyData': hourly_data,
+            'categoryBreakdown': category_breakdown,
+            'last_updated': datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting performance metrics: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 def count_total_processed_recordings() -> int:
     """Count total processed recordings in cache."""
     try:

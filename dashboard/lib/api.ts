@@ -383,6 +383,51 @@ class ApiClient {
     return this.request(`/api/dashboard/limitless/sync/status/${taskId}`);
   }
 
+  async getLimitlessPerformanceMetrics(limit: number = 10, range: string = '24h'): Promise<{
+    summary: {
+      total_records: number;
+      records_last_24h: number;
+      avg_processing_time: number;
+      min_processing_time: number;
+      max_processing_time: number;
+      current_status: 'optimal' | 'suboptimal' | 'issues_detected' | 'no_data';
+      performance_issues: string[];
+      timing_breakdown_avg: Record<string, number>;
+      bottleneck_analysis: Record<string, {
+        avg_time: number;
+        percentage: number;
+        is_bottleneck: boolean;
+      }>;
+    };
+    recent_records: Array<{
+      log_id: string;
+      title: string;
+      total_time: number;
+      timing_breakdown: Record<string, number>;
+      results: {
+        memories_created: number;
+        tasks_created: number;
+      };
+      processed_at: string;
+      has_transcript: boolean;
+      transcript_length: number;
+    }>;
+    hourlyData: Array<{
+      hour: string;
+      avgLatency: number;
+      requestCount: number;
+    }>;
+    categoryBreakdown: Array<{
+      category: string;
+      avgLatency: number;
+      count: number;
+      errorRate: number;
+    }>;
+    last_updated: string;
+  }> {
+    return this.request(`/api/dashboard/limitless/performance-metrics?limit=${limit}&range=${range}`);
+  }
+
   // Settings endpoints
   async getSettingsSchema(): Promise<{
     schema: Record<string, any>;
