@@ -62,6 +62,8 @@ async def process_limitless_command(command: str, phone_number: str) -> str:
         return await sync_recent_lifelogs(phone_number, f"hours_{hours}")
     elif command == "force reprocess" or command == "reprocess":
         return await force_reprocess_recent_tasks(phone_number, "today")
+    elif command == "sync pending" or command == "pending":
+        return await process_pending_recordings(phone_number)
     elif command == "today":
         return await get_today_lifelogs(phone_number)
     elif command == "yesterday":
@@ -91,6 +93,7 @@ async def get_limitless_help() -> str:
 • *limitless sync yesterday* - Yesterday's full day
 • *limitless sync all* - Complete historical sync
 • *limitless sync 24* - Last 24 hours (legacy mode)
+• *limitless sync pending* - Process missed/pending recordings
 
 *Browse:*
 • *limitless today* - Today's recordings
@@ -533,6 +536,92 @@ _Incremental sync will now work efficiently for future syncs_"""
     except Exception as e:
         logger.error(f"❌ Error in force full sync: {str(e)}")
         return f"❌ Error in force full sync: {str(e)}"
+
+
+async def process_pending_recordings(phone_number: str) -> str:
+    """
+    Detect and process recordings that were missed by incremental sync.
+    This catches recordings with retroactive timestamps or out-of-order processing.
+    """
+    try:
+        logger.info(f"🔍 Checking for pending recordings that may have been missed")
+        
+        # Use same time range as dashboard (today's window)
+        end_time = datetime.now()
+        start_time = end_time.replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        # Fetch today's recordings to detect missing ones
+        lifelogs = await limitless_client.get_all_lifelogs(
+            start_time=start_time,
+            end_time=end_time,
+            timezone_str="Asia/Kuala_Lumpur",
+            max_entries=None,
+            include_markdown=True,  # Include full content for processing
+            include_headings=True
+        )
+        
+        logger.info(f"📋 Checking {len(lifelogs)} recordings for gaps")
+        
+        # Find unprocessed recordings
+        pending_logs = []
+        for log in lifelogs:
+            log_id = log.get('id', 'unknown')
+            processed_key = RedisKeyBuilder.build_limitless_processed_key(log_id)
+            if not redis_client.exists(processed_key):
+                pending_logs.append(log)
+        
+        if not pending_logs:
+            logger.info("✅ No pending recordings found - all recordings are processed")
+            # Update cache to reflect 0 pending
+            pending_sync_key = "meta-glasses:limitless:pending_sync_cache"
+            redis_client.setex(pending_sync_key, 300, "0")
+            return "No pending recordings found"
+        
+        logger.info(f"🔄 Found {len(pending_logs)} pending recordings to process")
+        
+        # Process the pending recordings
+        processed_count = 0
+        memories_created = 0
+        tasks_created = 0
+        
+        for i, log in enumerate(pending_logs, 1):
+            try:
+                log_id = log.get('id', 'unknown')
+                log_title = log.get('title', 'Untitled')
+                
+                logger.info(f"⚙️ Processing pending recording {i}/{len(pending_logs)}: {log_title} (ID: {log_id})")
+                
+                # Process the recording
+                results = await process_single_lifelog(log, phone_number)
+                
+                memories_created += results['memories_created']
+                tasks_created += results['tasks_created']
+                processed_count += 1
+                
+                # Mark as processed
+                processed_key = RedisKeyBuilder.build_limitless_processed_key(log_id)
+                redis_client.setex(processed_key, 86400 * 30, "1")  # 30 days
+                
+                logger.info(f"✅ Processed pending {log_id}: {results['memories_created']} memories, {results['tasks_created']} tasks")
+                
+                # Rate limiting delay
+                await asyncio.sleep(0.5)
+                
+            except Exception as e:
+                logger.error(f"❌ Error processing pending recording {log.get('id')}: {str(e)}")
+                continue
+        
+        # Update pending sync cache to 0 since we processed everything
+        pending_sync_key = "meta-glasses:limitless:pending_sync_cache"
+        redis_client.setex(pending_sync_key, 300, "0")
+        
+        result_msg = f"✅ Processed {processed_count} pending recordings: {memories_created} memories, {tasks_created} tasks created"
+        logger.info(result_msg)
+        return result_msg
+        
+    except Exception as e:
+        logger.error(f"❌ Error in process_pending_recordings: {str(e)}")
+        return f"❌ Error processing pending recordings: {str(e)}"
 
 
 async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]:

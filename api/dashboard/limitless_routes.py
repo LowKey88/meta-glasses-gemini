@@ -13,7 +13,7 @@ from typing import List, Dict, Optional, Any
 from api.dashboard.config import get_secure_jwt_secret
 from utils.redis_utils import r as redis_client
 from utils.redis_key_builder import RedisKeyBuilder
-from functionality.limitless import sync_recent_lifelogs, limitless_client, standardize_cached_speakers, get_last_sync_timestamp
+from functionality.limitless import sync_recent_lifelogs, limitless_client, standardize_cached_speakers, get_last_sync_timestamp, process_pending_recordings
 from utils.limitless_logger import limitless_routes_logger
 
 def verify_dashboard_token(authorization: Optional[str] = Header(None)):
@@ -60,33 +60,11 @@ async def run_sync_in_background(task_id: str, phone_number: str, sync_mode: str
         
         logger.info(f"✅ Background sync {task_id} completed successfully")
         
-        # Update pending sync cache after completion
+        # Process pending recordings after main sync completion
         try:
-            # Use same time range as the sync that just completed (today's window)
-            end_time = datetime.now()
-            start_time = end_time.replace(hour=0, minute=0, second=0, microsecond=0)
-            
-            lifelogs = await limitless_client.get_all_lifelogs(
-                start_time=start_time,
-                end_time=end_time,
-                timezone_str="Asia/Kuala_Lumpur",
-                max_entries=None,
-                include_markdown=False,
-                include_headings=False
-            )
-            
-            pending_count = 0
-            for log in lifelogs:
-                log_id = log.get('id', 'unknown')
-                processed_key = RedisKeyBuilder.build_limitless_processed_key(log_id)
-                if not redis_client.exists(processed_key):
-                    pending_count += 1
-            
-            pending_sync_key = "meta-glasses:limitless:pending_sync_cache"
-            redis_client.setex(pending_sync_key, 300, str(pending_count))
-            
+            await process_pending_recordings(phone_number)
         except Exception as e:
-            logger.error(f"Error updating pending sync cache: {str(e)}")
+            logger.error(f"Error processing pending recordings: {str(e)}")
             
     except Exception as e:
         logger.error(f"Background sync {task_id} failed: {str(e)}")
