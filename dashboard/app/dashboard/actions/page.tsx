@@ -227,7 +227,7 @@ export default function ActionsPage() {
   const filteredAndSortedTasks = tasks;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
       <div className="mb-8">
         <div className="sm:flex sm:items-center sm:justify-between">
@@ -254,8 +254,8 @@ export default function ActionsPage() {
 
       {/* Stats Cards */}
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow">
             <div className="flex items-center gap-3">
               <Target className="h-8 w-8 text-blue-600 dark:text-blue-400" />
               <div>
@@ -265,7 +265,7 @@ export default function ActionsPage() {
             </div>
           </div>
           
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow">
             <div className="flex items-center gap-3">
               <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-400" />
               <div>
@@ -276,7 +276,7 @@ export default function ActionsPage() {
             </div>
           </div>
           
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow">
             <div className="flex items-center gap-3">
               <Clock className="h-8 w-8 text-orange-600 dark:text-orange-400" />
               <div>
@@ -286,7 +286,7 @@ export default function ActionsPage() {
             </div>
           </div>
           
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow">
             <div className="flex items-center gap-3">
               <AlertTriangle className="h-8 w-8 text-red-600 dark:text-red-400" />
               <div>
@@ -300,7 +300,7 @@ export default function ActionsPage() {
 
       {/* Source Distribution */}
       {stats && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
           <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-gray-900 dark:text-white">
             <BarChart3 className="h-5 w-5" />
             Task Sources
@@ -328,120 +328,118 @@ export default function ActionsPage() {
       )}
 
       {/* Enhanced Filters & Search */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <div className="p-6">
-          <div className="flex flex-col space-y-4">
-            {/* Search Bar - Enhanced */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
+        <div className="flex flex-col space-y-4">
+          {/* Search Bar - Enhanced */}
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+              <Search className="h-5 w-5 text-gray-400 dark:text-gray-500" />
+            </div>
+            <input
+              type="text"
+              placeholder="Search tasks by title or notes..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-11 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-all duration-200"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Filters Row - Enhanced */}
+          <div className="flex flex-wrap gap-3 items-center">
+            {/* Source Filter */}
             <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <Search className="h-5 w-5 text-gray-400 dark:text-gray-500" />
-              </div>
-              <input
-                type="text"
-                placeholder="Search tasks by title or notes..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-11 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-all duration-200"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Source</label>
+              <select
+                value={sourceFilter}
+                onChange={(e) => setSourceFilter(e.target.value as TaskSource)}
+                className="appearance-none bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 pr-8 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-all duration-200 min-w-[140px]"
+              >
+                <option value="all">All Sources</option>
+                <option value="ai_extracted">🤖 AI Extracted</option>
+                <option value="natural_language">🎙️ Voice Recording</option>
+                <option value="manual">📝 Manual</option>
+                <option value="voice_command">🗣️ WhatsApp</option>
+              </select>
+              <ChevronDown className="absolute right-2 top-7 h-4 w-4 text-gray-400 pointer-events-none" />
             </div>
 
-            {/* Filters Row - Enhanced */}
-            <div className="flex flex-wrap gap-3 items-center">
-              {/* Source Filter */}
-              <div className="relative">
-                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Source</label>
-                <select
-                  value={sourceFilter}
-                  onChange={(e) => setSourceFilter(e.target.value as TaskSource)}
-                  className="appearance-none bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 pr-8 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-all duration-200 min-w-[140px]"
-                >
-                  <option value="all">All Sources</option>
-                  <option value="ai_extracted">🤖 AI Extracted</option>
-                  <option value="natural_language">🎙️ Voice Recording</option>
-                  <option value="manual">📝 Manual</option>
-                  <option value="voice_command">🗣️ WhatsApp</option>
-                </select>
-                <ChevronDown className="absolute right-2 top-7 h-4 w-4 text-gray-400 pointer-events-none" />
-              </div>
+            {/* Due Filter */}
+            <div className="relative">
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Due Date</label>
+              <select
+                value={dueFilter}
+                onChange={(e) => setDueFilter(e.target.value as DueFilter)}
+                className="appearance-none bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 pr-8 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-all duration-200 min-w-[140px]"
+              >
+                <option value="all">All Tasks</option>
+                <option value="today">Due Today</option>
+                <option value="week">Due This Week</option>
+                <option value="overdue">Overdue</option>
+              </select>
+              <ChevronDown className="absolute right-2 top-7 h-4 w-4 text-gray-400 pointer-events-none" />
+            </div>
 
-              {/* Due Filter */}
-              <div className="relative">
-                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Due Date</label>
-                <select
-                  value={dueFilter}
-                  onChange={(e) => setDueFilter(e.target.value as DueFilter)}
-                  className="appearance-none bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 pr-8 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-all duration-200 min-w-[140px]"
-                >
-                  <option value="all">All Tasks</option>
-                  <option value="today">Due Today</option>
-                  <option value="week">Due This Week</option>
-                  <option value="overdue">Overdue</option>
-                </select>
-                <ChevronDown className="absolute right-2 top-7 h-4 w-4 text-gray-400 pointer-events-none" />
-              </div>
+            {/* Sort Options */}
+            <div className="relative">
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Sort by</label>
+              <select
+                value={`${sortBy}-${sortOrder}`}
+                onChange={(e) => {
+                  const [newSortBy, newSortOrder] = e.target.value.split('-');
+                  setSortBy(newSortBy as SortBy);
+                  setSortOrder(newSortOrder as SortOrder);
+                }}
+                className="appearance-none bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 pr-8 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-all duration-200 min-w-[140px]"
+              >
+                <option value="created-desc">Newest First</option>
+                <option value="created-asc">Oldest First</option>
+                <option value="due-asc">Due Date (Soon)</option>
+                <option value="due-desc">Due Date (Later)</option>
+                <option value="title-asc">Title A-Z</option>
+                <option value="title-desc">Title Z-A</option>
+              </select>
+              <ArrowUpDown className="absolute right-2 top-7 h-4 w-4 text-gray-400 pointer-events-none" />
+            </div>
 
-              {/* Sort Options */}
-              <div className="relative">
-                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Sort by</label>
-                <select
-                  value={`${sortBy}-${sortOrder}`}
-                  onChange={(e) => {
-                    const [newSortBy, newSortOrder] = e.target.value.split('-');
-                    setSortBy(newSortBy as SortBy);
-                    setSortOrder(newSortOrder as SortOrder);
-                  }}
-                  className="appearance-none bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 pr-8 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-all duration-200 min-w-[140px]"
-                >
-                  <option value="created-desc">Newest First</option>
-                  <option value="created-asc">Oldest First</option>
-                  <option value="due-asc">Due Date (Soon)</option>
-                  <option value="due-desc">Due Date (Later)</option>
-                  <option value="title-asc">Title A-Z</option>
-                  <option value="title-desc">Title Z-A</option>
-                </select>
-                <ArrowUpDown className="absolute right-2 top-7 h-4 w-4 text-gray-400 pointer-events-none" />
-              </div>
+            {/* Completed Toggle - Enhanced */}
+            <div className="flex flex-col">
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Options</label>
+              <label className="flex items-center gap-3 bg-gray-50 dark:bg-gray-700 rounded-lg px-4 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={includeCompleted}
+                  onChange={(e) => setIncludeCompleted(e.target.checked)}
+                  className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-700"
+                />
+                <span className="text-sm text-gray-700 dark:text-gray-300 select-none">Include Completed</span>
+              </label>
+            </div>
 
-              {/* Completed Toggle - Enhanced */}
-              <div className="flex flex-col">
-                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Options</label>
-                <label className="flex items-center gap-3 bg-gray-50 dark:bg-gray-700 rounded-lg px-4 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={includeCompleted}
-                    onChange={(e) => setIncludeCompleted(e.target.checked)}
-                    className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-700"
-                  />
-                  <span className="text-sm text-gray-700 dark:text-gray-300 select-none">Include Completed</span>
-                </label>
-              </div>
-
-              {/* Refresh Button - Enhanced */}
-              <div className="flex flex-col">
-                <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">&nbsp;</div>
-                <button
-                  onClick={loadTasks}
-                  className="p-2 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-300 dark:hover:border-blue-500 transition-all duration-200"
-                  title="Refresh tasks"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                </button>
-              </div>
+            {/* Refresh Button - Enhanced */}
+            <div className="flex flex-col">
+              <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">&nbsp;</div>
+              <button
+                onClick={loadTasks}
+                className="p-2 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-300 dark:hover:border-blue-500 transition-all duration-200"
+                title="Refresh tasks"
+              >
+                <RefreshCw className="h-4 w-4" />
+              </button>
             </div>
           </div>
         </div>
       </div>
 
       {/* Task List */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
         {loading ? (
           <div className="p-8 text-center">
             <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400 dark:text-gray-500" />
@@ -473,7 +471,7 @@ export default function ActionsPage() {
               return (
                 <div
                   key={task.id}
-                  className={`p-4 border-l-4 ${getTaskPriorityColor(task)} hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors`}
+                  className={`p-6 border-l-4 ${getTaskPriorityColor(task)} hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all duration-200`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-start gap-3 flex-1">
@@ -554,12 +552,12 @@ export default function ActionsPage() {
       {/* Create Task Modal */}
       {showCreateForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 w-full max-w-md">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Create New Task</h2>
               <button
                 onClick={() => setShowCreateForm(false)}
-                className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -574,7 +572,7 @@ export default function ActionsPage() {
                   type="text"
                   value={newTask.title}
                   onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
-                  className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-all duration-200"
                   placeholder="Enter task title"
                 />
               </div>
@@ -586,7 +584,7 @@ export default function ActionsPage() {
                 <textarea
                   value={newTask.notes}
                   onChange={(e) => setNewTask({ ...newTask, notes: e.target.value })}
-                  className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-all duration-200"
                   rows={3}
                   placeholder="Additional notes (optional)"
                 />
@@ -600,7 +598,7 @@ export default function ActionsPage() {
                   type="date"
                   value={newTask.due_date}
                   onChange={(e) => setNewTask({ ...newTask, due_date: e.target.value })}
-                  className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-all duration-200"
                 />
               </div>
             </div>
@@ -609,7 +607,7 @@ export default function ActionsPage() {
               <button
                 onClick={handleCreateTask}
                 disabled={creating}
-                className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 flex items-center justify-center gap-2"
+                className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 flex items-center justify-center gap-2 transition-all duration-200"
               >
                 {creating ? (
                   <RefreshCw className="h-4 w-4 animate-spin" />
@@ -620,7 +618,7 @@ export default function ActionsPage() {
               </button>
               <button
                 onClick={() => setShowCreateForm(false)}
-                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-white"
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-white transition-all duration-200"
               >
                 Cancel
               </button>
