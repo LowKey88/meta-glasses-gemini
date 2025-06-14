@@ -24,7 +24,6 @@ import {
   Info,
   AlertTriangle,
   StickyNote,
-  RefreshCw,
   List,
   ArrowUpDown,
   ArrowUp,
@@ -338,14 +337,6 @@ export default function MemoriesPage() {
               </div>
               
               <div className="flex items-center gap-2 sm:gap-3">
-                <button
-                  onClick={fetchMemories}
-                  className="inline-flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700 px-3 sm:px-4 py-2.5 sm:py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200"
-                  title="Refresh memories"
-                >
-                  <RefreshCw className="h-4 w-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Refresh</span>
-                </button>
                 <button
                   onClick={() => setShowNewForm(true)}
                   className="inline-flex items-center justify-center rounded-lg bg-purple-600 px-3 sm:px-4 py-2.5 sm:py-2 text-sm font-medium text-white shadow-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-all duration-200"
