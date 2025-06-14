@@ -200,7 +200,7 @@ def get_last_sync_timestamp(phone_number: str) -> Optional[datetime]:
                     log_data = json.loads(data.decode() if isinstance(data, bytes) else data)
                     start_time_str = log_data.get('start_time') or log_data.get('created_at')
                     if start_time_str:
-                        log_time = datetime.fromisoformat(start_time_str.replace('Z', '+00:00'))
+                        log_time = datetime.fromisoformat(start_time_str.replace('Z', '+00:00')).replace(tzinfo=None)
                         if not latest_time or log_time > latest_time:
                             latest_time = log_time
                 except:
@@ -381,7 +381,7 @@ async def sync_recent_lifelogs(phone_number: str, sync_mode: str = "today") -> s
                 # Convert to datetime and store
                 if isinstance(latest_timestamp, str):
                     try:
-                        latest_dt = datetime.fromisoformat(latest_timestamp.replace('Z', '+00:00'))
+                        latest_dt = datetime.fromisoformat(latest_timestamp.replace('Z', '+00:00')).replace(tzinfo=None)
                     except:
                         latest_dt = datetime.now()
                 else:
@@ -512,7 +512,7 @@ async def force_full_sync(phone_number: str, hours: int = 24) -> str:
             if latest_timestamp:
                 if isinstance(latest_timestamp, str):
                     try:
-                        latest_dt = datetime.fromisoformat(latest_timestamp.replace('Z', '+00:00'))
+                        latest_dt = datetime.fromisoformat(latest_timestamp.replace('Z', '+00:00')).replace(tzinfo=None)
                     except:
                         latest_dt = datetime.now()
                 else:
