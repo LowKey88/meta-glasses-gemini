@@ -23,6 +23,11 @@ export interface Memory {
   metadata?: {
     source?: string;
     log_id?: string;
+    people_mentioned?: Array<{
+      name: string;
+      context?: string;
+      is_speaker?: boolean;
+    }>;
   };
 }
 

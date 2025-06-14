@@ -603,49 +603,17 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
                     'role': 'primary_user'
                 }]
                 
-            # Store facts as memories
-            for fact in extracted.get('facts', []):
-                if fact and len(fact) > 10:  # Skip very short facts
-                    memory_text = f"From {title}: {fact}"
-                    
-                    # Check if memory already exists for this log_id and fact
-                    existing_memories = memory_manager.get_all_memories(phone_number)
-                    duplicate_found = False
-                    
-                    for existing_mem in existing_memories:
-                        metadata = existing_mem.get('metadata', {})
-                        # Check if same log_id and similar content
-                        if (metadata.get('source') == 'limitless' and 
-                            metadata.get('log_id') == log_id and
-                            fact.lower() in existing_mem.get('content', '').lower()):
-                            logger.debug(f"Skipping duplicate fact for {log_id[:8]}...")
-                            duplicate_found = True
-                            break
-                    
-                    if duplicate_found:
-                        logger.debug(f"Skipping duplicate memory for log {log_id[:8]}...")
-                        continue
-                    
-                    # Create memory and manually add metadata for tracking
-                    memory_id = memory_manager.create_memory(
-                        user_id=phone_number,
-                        content=memory_text,
-                        memory_type='fact',
-                        extracted_from='limitless'
-                    )
-                    
-                    # Add Limitless source metadata for dashboard stats
-                    if memory_id:
-                        memory_key = RedisKeyBuilder.get_user_memory_key(phone_number, memory_id)
-                        memory_data = redis_client.get(memory_key)
-                        if memory_data:
-                            memory_obj = json.loads(memory_data.decode() if isinstance(memory_data, bytes) else memory_data)
-                            memory_obj['metadata'] = memory_obj.get('metadata', {})
-                            memory_obj['metadata']['source'] = 'limitless'
-                            memory_obj['metadata']['log_id'] = log_id
-                            redis_client.set(memory_key, json.dumps(memory_obj))
-                        
-                        results['memories_created'] += 1
+            # Create consolidated memory for this recording
+            memory_created = create_consolidated_recording_memory(
+                log_id=log_id,
+                title=title,
+                extracted=extracted,
+                phone_number=phone_number,
+                transcript_length=len(transcript) if transcript else 0
+            )
+            
+            if memory_created:
+                results['memories_created'] += 1
                         
             # ✅ ENHANCED: Create tasks with speaker attribution and success validation
             validated_tasks = []  # Track only successfully created tasks
@@ -726,56 +694,8 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
                 logger.debug(f"Lifelog {log_id[:8]}... final task count: {len(validated_tasks)} "
                            f"(sources: {task_sources})")
                         
-            # ✅ ENHANCED: Store people with speaker attribution (preserving Speaker N names)
-            for person in extracted.get('people', []):
-                if person.get('name') and person.get('context'):
-                    # Enhanced memory text with speaker info (preserving Speaker N naming)
-                    person_name = person['name']
-                    memory_text = f"{person_name}: {person['context']}"
-                    if person.get('is_speaker'):
-                        # Preserve Speaker N naming in memory text
-                        if person_name.startswith('Speaker '):
-                            memory_text += f" ({person_name} in conversation)"
-                        else:
-                            memory_text += " (Speaker in conversation)"
-                    
-                    # Check if memory already exists for this log_id and person
-                    existing_memories = memory_manager.get_all_memories(phone_number)
-                    duplicate_found = False
-                    
-                    for existing_mem in existing_memories:
-                        metadata = existing_mem.get('metadata', {})
-                        # Check if same log_id and same person
-                        if (metadata.get('source') == 'limitless' and 
-                            metadata.get('log_id') == log_id and
-                            person['name'].lower() in existing_mem.get('content', '').lower()):
-                            logger.debug(f"Skipping duplicate person {person['name']} for {log_id[:8]}...")
-                            duplicate_found = True
-                            break
-                    
-                    if duplicate_found:
-                        logger.debug(f"Skipping duplicate memory for log {log_id[:8]}...")
-                        continue
-                    
-                    memory_id = memory_manager.create_memory(
-                        user_id=phone_number,
-                        content=memory_text,
-                        memory_type='relationship',
-                        extracted_from='limitless'
-                    )
-                    
-                    # Add Limitless source metadata for dashboard stats
-                    if memory_id:
-                        memory_key = RedisKeyBuilder.get_user_memory_key(phone_number, memory_id)
-                        memory_data = redis_client.get(memory_key)
-                        if memory_data:
-                            memory_obj = json.loads(memory_data.decode() if isinstance(memory_data, bytes) else memory_data)
-                            memory_obj['metadata'] = memory_obj.get('metadata', {})
-                            memory_obj['metadata']['source'] = 'limitless'
-                            memory_obj['metadata']['log_id'] = log_id
-                            memory_obj['metadata']['is_speaker'] = person.get('is_speaker', False)
-                            redis_client.set(memory_key, json.dumps(memory_obj))
-                            results['memories_created'] += 1
+            # People are now included in the consolidated memory created above
+            # No separate people memories needed
         else:
             # ✅ FALLBACK: Even without transcript, ensure user appears in people
             extracted['people'] = speakers_identified if speakers_identified else [{
@@ -913,6 +833,219 @@ def standardize_cached_speakers(extracted_data: Dict) -> Dict:
                 unknown_speaker_counter += 1
     
     return extracted_data
+
+
+def determine_memory_type(content: str, facts: List, people: List, tasks: List) -> str:
+    """
+    Determine the appropriate memory type based on content and extracted data.
+    Returns one of the standard memory types instead of 'recording_summary'.
+    """
+    content_lower = content.lower()
+    
+    # Check for tasks/reminders
+    if tasks or any(keyword in content_lower for keyword in ['task', 'reminder', 'need to', 'should', 'must']):
+        return 'note'  # Use 'note' for task-related content
+    
+    # Check for people/relationships
+    if people or any(keyword in content_lower for keyword in ['involves', 'with', 'family', 'friend']):
+        return 'relationship'
+    
+    # Check for personal information patterns
+    if any(keyword in content_lower for keyword in ['house', 'home', 'address', 'phone', 'email']):
+        return 'personal_info'
+    
+    # Check for routine/schedule
+    if any(keyword in content_lower for keyword in ['daily', 'regular', 'schedule', 'routine', 'every']):
+        return 'routine'
+    
+    # Check for preferences
+    if any(keyword in content_lower for keyword in ['like', 'prefer', 'favorite', 'enjoy', 'hate', 'dislike']):
+        return 'preference'
+    
+    # Check for important dates/events
+    if any(keyword in content_lower for keyword in ['birthday', 'anniversary', 'appointment', 'meeting', 'event']):
+        return 'important_date'
+    
+    # Default to 'fact' for general information
+    return 'fact'
+
+
+
+def create_consolidated_recording_memory(
+    log_id: str, 
+    title: str, 
+    extracted: Dict, 
+    phone_number: str,
+    transcript_length: int = 0
+) -> bool:
+    """
+    Create a single consolidated memory per recording instead of multiple memories.
+    Combines facts, people, and key information into one comprehensive memory.
+    
+    Returns True if memory was created, False if skipped.
+    """
+    try:
+        # Check if we already have a memory for this recording
+        existing_memories = memory_manager.get_all_memories(phone_number)
+        for existing_mem in existing_memories:
+            metadata = existing_mem.get('metadata', {})
+            if (metadata.get('source') == 'limitless' and 
+                metadata.get('log_id') == log_id):
+                logger.debug(f"Memory already exists for recording {log_id[:8]}...")
+                return False
+        
+        # Check quality thresholds
+        facts = extracted.get('facts', [])
+        people = extracted.get('people', [])
+        tasks = extracted.get('tasks', [])
+        
+        # Enhanced quality filtering
+        # Skip very short recordings with no meaningful content
+        if transcript_length < 100 and not facts and not people and not tasks:
+            logger.debug(f"Skipping low-quality recording {log_id[:8]}... (no meaningful content)")
+            return False
+        
+        # Skip recordings with generic or low-quality titles
+        generic_titles = [
+            'a brief, unclear exchange', 'disjointed utterances', 'navigation instructions',
+            'discussing someone\'s age', 'discussing a teacher', 'giving directions',
+            'unclear exchange', 'brief conversation', 'short discussion'
+        ]
+        if any(generic in title.lower() for generic in generic_titles):
+            logger.debug(f"Skipping generic recording {log_id[:8]}... (generic title: {title})")
+            return False
+        
+        # Filter facts to only the most important ones (max 3)
+        meaningful_facts = []
+        for fact in facts:
+            # Skip generic, political, or very short facts
+            skip_terms = [
+                'meeting', 'discussion', 'talked about', 'government', 'political',
+                'madani', 'election', 'policy', 'minister', 'parliament',
+                'brief', 'unclear', 'exchange', 'conversation'
+            ]
+            if (fact and len(fact) > 25 and 
+                not any(skip_term in fact.lower() for skip_term in skip_terms) and
+                not fact.lower().startswith('the current') and
+                not fact.lower().startswith('everything is going')):
+                meaningful_facts.append(fact)
+        
+        # Limit to top 3 most important facts
+        meaningful_facts = meaningful_facts[:3]
+        
+        # Filter people to exclude generic speakers without meaningful context
+        meaningful_people = []
+        for person in people:
+            person_name = person.get('name', '')
+            context = person.get('context', '')
+            
+            # Skip generic speaker contexts
+            skip_contexts = [
+                'solo recording', 'technical brainstorming', 'general conversation',
+                'unrecognized speaker', 'casual discussion', 'brief exchange'
+            ]
+            
+            # Only include if person has a real name or meaningful context
+            if (person_name and person_name != 'You' and 
+                not person_name.startswith('Speaker ') and
+                context and len(context) > 10 and
+                not any(skip_ctx in context.lower() for skip_ctx in skip_contexts)):
+                meaningful_people.append(person)
+        
+        # Limit to top 3 meaningful people
+        meaningful_people = meaningful_people[:3]
+        
+        # Enhanced content validation - require substantial meaningful content
+        has_meaningful_content = (
+            len(meaningful_facts) > 0 or  # Has important facts
+            len(meaningful_people) > 0 or  # Has meaningful people
+            len(tasks) > 0 or  # Has tasks
+            (transcript_length > 200 and any(keyword in title.lower() for keyword in [
+                'work', 'project', 'plan', 'buy', 'family', 'meeting', 'appointment',
+                'decision', 'important', 'remember', 'task', 'goal', 'problem', 'solution'
+            ]))  # Longer recording with meaningful keywords
+        )
+        
+        if not has_meaningful_content:
+            logger.debug(f"Skipping recording {log_id[:8]}... (no substantial meaningful content)")
+            return False
+        
+        # Build consolidated memory content - CONCISE SUMMARY FORMAT
+        memory_parts = []
+        
+        # Create a natural summary instead of bullet points
+        summary_parts = []
+        
+        # Add main topic from title
+        main_topic = title.split('.')[0]  # Take first sentence if multiple
+        summary_parts.append(main_topic)
+        
+        # Add key insights (not all facts, just the essence)
+        if meaningful_facts:
+            # Combine facts into a flowing summary instead of bullet points
+            key_insight = meaningful_facts[0] if meaningful_facts else ""
+            if len(meaningful_facts) > 1:
+                # Find the most important fact or combine them naturally
+                key_insight = f"{meaningful_facts[0]}. {meaningful_facts[1]}" if len(meaningful_facts[1]) < 50 else meaningful_facts[0]
+        
+        # Add people context naturally if relevant
+        if meaningful_people:
+            people_names = [p['name'] for p in meaningful_people[:2]]  # Max 2 people
+            if len(people_names) == 1:
+                summary_parts.append(f"Involves {people_names[0]}")
+            elif len(people_names) == 2:
+                summary_parts.append(f"Involves {people_names[0]} and {people_names[1]}")
+        
+        # Add task mention if any
+        if tasks:
+            summary_parts.append(f"Includes {len(tasks)} task(s)")
+        
+        # Create concise summary (max 2-3 sentences)
+        content = ". ".join(summary_parts)
+        if not content.endswith('.'):
+            content += "."
+        
+        # Determine appropriate memory type based on content
+        memory_type = determine_memory_type(content, meaningful_facts, meaningful_people, tasks)
+        
+        memory_id = memory_manager.create_memory(
+            user_id=phone_number,
+            content=content,
+            memory_type=memory_type,
+            extracted_from='limitless',
+            importance=7  # Higher importance for consolidated memories
+        )
+        
+        # Add metadata for tracking
+        if memory_id and memory_id != "duplicate":
+            memory_key = RedisKeyBuilder.get_user_memory_key(phone_number, memory_id)
+            memory_data = redis_client.get(memory_key)
+            if memory_data:
+                memory_obj = json.loads(memory_data.decode() if isinstance(memory_data, bytes) else memory_data)
+                memory_obj['metadata'] = memory_obj.get('metadata', {})
+                memory_obj['metadata']['source'] = 'limitless'
+                memory_obj['metadata']['log_id'] = log_id
+                memory_obj['metadata']['is_consolidated'] = True
+                memory_obj['metadata']['facts_count'] = len(meaningful_facts)
+                memory_obj['metadata']['people_count'] = len(meaningful_people)
+                # Store people data for visual graph without creating separate memories
+                memory_obj['metadata']['people_mentioned'] = [
+                    {
+                        'name': person['name'],
+                        'context': person.get('context', ''),
+                        'is_speaker': person.get('is_speaker', False)
+                    } for person in meaningful_people
+                ]
+                redis_client.set(memory_key, json.dumps(memory_obj))
+            
+            logger.info(f"Created consolidated memory for recording {log_id[:8]}... with {len(meaningful_facts)} facts and {len(meaningful_people)} people")
+            return True
+        
+        return False
+        
+    except Exception as e:
+        logger.error(f"Error creating consolidated memory for {log_id}: {str(e)}")
+        return False
 
 
 def get_context_from_title_and_summary(title: str, summary: str, is_single_speaker: bool = False, phone_number: str = None) -> str:
@@ -1121,19 +1254,26 @@ def get_enhanced_extraction_prompt(title: str, summary: str, transcript: str) ->
     if has_speaker_info:
         # Use speaker-aware prompt with Speaker N support
         logger.debug("Using speaker-aware prompt with Speaker N naming for AI extraction")
-        prompt = f"""Analyze this conversation transcript and extract:
+        prompt = f"""Analyze this conversation transcript and extract ONLY the most important information:
 
-1. Key facts and decisions (for memory storage)
-2. Action items and tasks with deadlines - INCLUDE WHO said each task
-3. Important dates or events mentioned
-4. People mentioned and their roles/context - INCLUDE speaker identification
+1. Key facts and decisions - MAXIMUM 3 most important facts only
+2. Action items and tasks - ONLY explicit tasks with clear actions
+3. Important dates or events - ONLY specific dates mentioned
+4. People mentioned - MAXIMUM 3 most relevant people
 
-IMPORTANT: Pay attention to speaker attribution in the transcript. When extracting tasks:
+CRITICAL EXTRACTION RULES:
+- Extract ONLY the most important 2-3 facts (decisions, outcomes, critical info)
+- IGNORE casual mentions, observations, or trivial details
+- For facts, focus on: important decisions, key outcomes, critical information to remember
+- Skip generic statements like "we discussed X" or "talked about Y"
+- Only extract tasks that are explicitly stated with clear action items
+- Only include people who play a significant role in the conversation
+
+IMPORTANT: Pay attention to speaker attribution in the transcript:
 - If "You:" said something, it's the user's task
 - If "Speaker 0:", "Speaker 1:", "Speaker 2:", etc. mentioned tasks, note who assigned them
-- Preserve the exact "Speaker N" names (Speaker 0, Speaker 1, Speaker 2, etc.) when referencing unrecognized speakers
-- NEVER use "Unknown" or "Unknown Speaker" - always use the specific "Speaker N" format found in the transcript
-- Use consistent "Speaker N" numbering throughout all extractions
+- Preserve exact "Speaker N" names when referencing unrecognized speakers
+- NEVER use "Unknown" or "Unknown Speaker"
 
 Title: {title}
 Summary: {summary}
@@ -1141,31 +1281,39 @@ Transcript: {transcript[:3000]}
 
 Return a JSON object with:
 {{
-    "facts": ["fact1", "fact2"],
+    "facts": ["fact1", "fact2"],  // MAX 3 facts
     "tasks": [{{
         "description": "task description", 
         "due_date": "YYYY-MM-DD or null",
-        "assigned_to": "You" or "Speaker 0" or "Speaker 1" or "Speaker 2" or "exact_speaker_name_from_transcript",
-        "assigned_by": "exact_speaker_name_from_transcript or Speaker N who mentioned it"
+        "assigned_to": "You" or "Speaker 0" or exact name,
+        "assigned_by": "Speaker N who mentioned it"
     }}],
     "events": [{{"title": "event", "date": "YYYY-MM-DD", "time": "HH:MM or null"}}],
     "people": [{{
-        "name": "exact_name_from_transcript or Speaker 0 or Speaker 1 or Speaker 2 etc", 
+        "name": "exact name or Speaker 0/1/2", 
         "context": "their role or relationship",
         "is_speaker": true/false
-    }}]
+    }}]  // MAX 3 people
 }}
 
-Be specific about WHO said what. Preserve exact "Speaker N" naming for unrecognized speakers. NEVER generate "Unknown" speakers. Extract only clearly stated information."""
+Be VERY selective. Quality over quantity. Extract only clearly important information."""
     else:
         # ✅ FALLBACK: Use original prompt assuming single speaker
         logger.debug("No speaker attribution detected, using single-user prompt")
-        prompt = f"""Analyze this recording transcript and extract:
+        prompt = f"""Analyze this single-speaker recording and extract ONLY the most important information:
 
-1. Key facts and decisions (for memory storage)
-2. Action items and tasks with deadlines
-3. Important dates or events mentioned
-4. People mentioned and their roles/context
+1. Key facts and decisions - MAXIMUM 3 most important facts only
+2. Action items and tasks - ONLY explicit tasks with clear actions
+3. Important dates or events - ONLY specific dates mentioned
+4. People mentioned - MAXIMUM 3 most relevant people
+
+CRITICAL EXTRACTION RULES:
+- Extract ONLY the most important 2-3 facts (decisions, outcomes, critical info)
+- IGNORE casual mentions, observations, or trivial details
+- For facts, focus on: important decisions, key outcomes, critical information to remember
+- Skip generic statements like "I need to" without specific actions
+- Only extract tasks that are explicitly stated with clear action items
+- Only include people who are specifically named and relevant
 
 NOTE: This appears to be a single-speaker recording. Assume all tasks are for the primary user.
 
@@ -1175,7 +1323,7 @@ Transcript: {transcript[:3000]}
 
 Return a JSON object with:
 {{
-    "facts": ["fact1", "fact2"],
+    "facts": ["fact1", "fact2"],  // MAX 3 facts
     "tasks": [{{
         "description": "task description", 
         "due_date": "YYYY-MM-DD or null",
@@ -1187,10 +1335,10 @@ Return a JSON object with:
         "name": "person", 
         "context": "their role or relationship",
         "is_speaker": false
-    }}]
+    }}]  // MAX 3 people
 }}
 
-Extract clear, actionable information from this single-speaker recording."""
+Be VERY selective. Quality over quantity. Extract only clearly important information."""
     
     return prompt
 
