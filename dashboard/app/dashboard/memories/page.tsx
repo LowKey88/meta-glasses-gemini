@@ -299,24 +299,28 @@ export default function MemoriesPage() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-50 to-gray-100 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
-          <div className="sm:flex sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center space-x-2">
-                <Brain className="h-8 w-8 text-purple-600 dark:text-purple-400" />
-                <span>Memory Management</span>
-              </h1>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Manage and organize your AI assistant's knowledge base
-              </p>
-            </div>
-            <div className="mt-4 sm:mt-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-              {/* View Toggle - Simplified */}
-              <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 w-full sm:w-auto">
+          {/* Page Header */}
+          <div className="mb-6">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center space-x-2">
+              <Brain className="h-8 w-8 text-purple-600 dark:text-purple-400" />
+              <span>Memory Management</span>
+            </h1>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              Manage and organize your AI assistant's knowledge base
+            </p>
+          </div>
+
+          {/* Controls Section */}
+          <div className="space-y-4">
+            {/* View Toggle and Create Button Row */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              {/* View Toggle */}
+              <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-1 sm:flex-none">
                 <button
                   onClick={() => setViewMode('table')}
-                  className={`flex-1 sm:flex-none inline-flex items-center justify-center px-4 py-2.5 sm:py-2 text-sm font-medium rounded-l-lg transition-all duration-200 ${
+                  className={`flex-1 sm:flex-none inline-flex items-center justify-center px-4 py-3 sm:py-2.5 text-sm font-medium rounded-l-lg transition-all duration-200 ${
                     viewMode === 'table'
-                      ? 'bg-purple-600 text-white'
+                      ? 'bg-purple-600 text-white shadow-sm'
                       : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                   }`}
                 >
@@ -325,9 +329,9 @@ export default function MemoriesPage() {
                 </button>
                 <button
                   onClick={() => setViewMode('graph')}
-                  className={`flex-1 sm:flex-none inline-flex items-center justify-center px-4 py-2.5 sm:py-2 text-sm font-medium rounded-r-lg transition-all duration-200 ${
+                  className={`flex-1 sm:flex-none inline-flex items-center justify-center px-4 py-3 sm:py-2.5 text-sm font-medium rounded-r-lg transition-all duration-200 ${
                     viewMode === 'graph'
-                      ? 'bg-purple-600 text-white'
+                      ? 'bg-purple-600 text-white shadow-sm'
                       : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                   }`}
                 >
@@ -336,16 +340,14 @@ export default function MemoriesPage() {
                 </button>
               </div>
               
-              <div className="flex items-center gap-2 sm:gap-3">
-                <button
-                  onClick={() => setShowNewForm(true)}
-                  className="inline-flex items-center justify-center rounded-lg bg-purple-600 px-3 sm:px-4 py-2.5 sm:py-2 text-sm font-medium text-white shadow-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-all duration-200"
-                >
-                  <Plus className="h-4 w-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Create Memory</span>
-                  <span className="sm:hidden">New</span>
-                </button>
-              </div>
+              {/* Create Memory Button */}
+              <button
+                onClick={() => setShowNewForm(true)}
+                className="inline-flex items-center justify-center rounded-lg bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 px-6 py-3 sm:py-2.5 text-sm font-semibold text-white shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-all duration-200 transform hover:scale-105"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                <span>Create Memory</span>
+              </button>
             </div>
           </div>
         </div>
