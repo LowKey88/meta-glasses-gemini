@@ -177,75 +177,298 @@ async def force_reprocess_recent_tasks(phone_number: str, sync_mode: str = "toda
         return f"❌ Error force reprocessing: {str(e)}"
 
 
+def get_last_sync_timestamp(phone_number: str) -> Optional[datetime]:
+    """Get the timestamp of the last successful sync."""
+    try:
+        # Get the latest processed recording timestamp
+        latest_timestamp_key = f"meta-glasses:limitless:last_sync_timestamp:{phone_number}"
+        timestamp_str = redis_client.get(latest_timestamp_key)
+        
+        if timestamp_str:
+            if isinstance(timestamp_str, bytes):
+                timestamp_str = timestamp_str.decode()
+            return datetime.fromisoformat(timestamp_str)
+        
+        # Fallback: Find the latest processed recording from cache
+        pattern = RedisKeyBuilder.build_limitless_lifelog_key("*")
+        latest_time = None
+        
+        for key in redis_client.scan_iter(match=pattern):
+            data = redis_client.get(key)
+            if data:
+                try:
+                    log_data = json.loads(data.decode() if isinstance(data, bytes) else data)
+                    start_time_str = log_data.get('start_time') or log_data.get('created_at')
+                    if start_time_str:
+                        log_time = datetime.fromisoformat(start_time_str.replace('Z', '+00:00'))
+                        if not latest_time or log_time > latest_time:
+                            latest_time = log_time
+                except:
+                    continue
+        
+        return latest_time
+        
+    except Exception as e:
+        logger.error(f"Error getting last sync timestamp: {str(e)}")
+        return None
+
+
+def update_last_sync_timestamp(phone_number: str, timestamp: datetime):
+    """Update the last successful sync timestamp."""
+    try:
+        latest_timestamp_key = f"meta-glasses:limitless:last_sync_timestamp:{phone_number}"
+        redis_client.setex(
+            latest_timestamp_key,
+            86400 * 7,  # Keep for 7 days
+            timestamp.isoformat()
+        )
+        logger.debug(f"Updated last sync timestamp: {timestamp}")
+    except Exception as e:
+        logger.error(f"Error updating last sync timestamp: {str(e)}")
+
+
 async def sync_recent_lifelogs(phone_number: str, sync_mode: str = "today") -> str:
     """
-    Sync Lifelog entries from Limitless with efficient daily window.
+    Efficient incremental sync that only fetches NEW recordings.
     
     Args:
         phone_number: User's phone number
         sync_mode: Sync mode - "today" (default), "yesterday", "hours_N", or "all"
     """
     try:
-        # Calculate time range based on sync mode
-        logger.info(f"Starting Limitless sync for user {phone_number} with mode: {sync_mode}")
+        logger.info(f"Starting INCREMENTAL Limitless sync for user {phone_number} with mode: {sync_mode}")
+        
+        # 🎯 KEY FIX: Get last successful sync timestamp for incremental sync
+        last_sync_timestamp = get_last_sync_timestamp(phone_number)
+        
         start_time = None
         end_time = None
         
+        # Determine sync strategy based on mode and last sync timestamp
         if sync_mode == "today":
-            # Today from midnight to now - much more API efficient
+            # Today from midnight to now - use incremental if we have a recent sync
             end_time = datetime.now()
-            start_time = end_time.replace(hour=0, minute=0, second=0, microsecond=0)
-            logger.info(f"Fetching today's recordings ({start_time} to {end_time})")
+            today_start = end_time.replace(hour=0, minute=0, second=0, microsecond=0)
+            
+            if last_sync_timestamp and last_sync_timestamp > today_start:
+                # Incremental sync: only fetch recordings newer than last sync
+                start_time = last_sync_timestamp
+                logger.info(f"📈 Incremental sync for today: fetching recordings from {start_time} to {end_time}")
+            else:
+                # Full sync for today: from midnight to now
+                start_time = today_start
+                logger.info(f"🚀 Full sync for today: fetching recordings from {start_time} to {end_time}")
+                
         elif sync_mode == "yesterday":
             # Yesterday full day
             today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
             start_time = today - timedelta(days=1)
             end_time = today
-            logger.info(f"Fetching yesterday's recordings ({start_time} to {end_time})")
+            logger.info(f"📅 Yesterday sync: fetching recordings from {start_time} to {end_time}")
+            
         elif sync_mode.startswith("hours_"):
-            # Legacy hours-based sync for special cases
+            # Legacy hours-based sync - use incremental if possible
             try:
                 hours = int(sync_mode.split("_")[1])
                 end_time = datetime.now()
-                start_time = end_time - timedelta(hours=hours)
-                logger.info(f"Fetching recordings from last {hours} hours ({start_time} to {end_time})")
+                hours_start = end_time - timedelta(hours=hours)
+                
+                if last_sync_timestamp and last_sync_timestamp > hours_start:
+                    # Incremental sync: only fetch recordings newer than last sync
+                    start_time = last_sync_timestamp
+                    logger.info(f"📈 Incremental sync for last {hours}h: fetching recordings from {start_time} to {end_time}")
+                else:
+                    # Full sync for the hours period
+                    start_time = hours_start
+                    logger.info(f"🚀 Full sync for last {hours}h: fetching recordings from {start_time} to {end_time}")
             except (ValueError, IndexError):
                 # Fallback to today if invalid hours format
                 end_time = datetime.now()
                 start_time = end_time.replace(hour=0, minute=0, second=0, microsecond=0)
                 logger.warning(f"Invalid hours format '{sync_mode}', falling back to today")
+                
         elif sync_mode == "all":
-            logger.info("Fetching ALL recordings without date filtering for initial sync")
+            # Force full historical sync - ignore incremental
+            start_time = None
+            end_time = None
+            logger.info("🔥 Full historical sync: fetching ALL recordings")
+            
         else:
-            # Default to today for unknown modes
+            # Default to today for unknown modes - use incremental if possible
             end_time = datetime.now()
-            start_time = end_time.replace(hour=0, minute=0, second=0, microsecond=0)
-            logger.warning(f"Unknown sync mode '{sync_mode}', falling back to today")
+            today_start = end_time.replace(hour=0, minute=0, second=0, microsecond=0)
+            
+            if last_sync_timestamp and last_sync_timestamp > today_start:
+                start_time = last_sync_timestamp
+                logger.info(f"📈 Incremental sync (default): fetching recordings from {start_time} to {end_time}")
+            else:
+                start_time = today_start
+                logger.info(f"🚀 Full sync (default): fetching recordings from {start_time} to {end_time}")
         
-        # Fetch ALL Lifelogs with time restrictions if specified (no max_entries limit)
+        # Fetch only NEW recordings (not all recordings in time range)
         lifelogs = await limitless_client.get_all_lifelogs(
             start_time=start_time,
             end_time=end_time,
-            timezone_str="Asia/Kuala_Lumpur", # Set Malaysia Timezone
-            max_entries=None,  # Remove limit to fetch ALL recordings using cursor pagination
-            include_markdown=True,  # Include full transcript for processing
+            timezone_str="Asia/Kuala_Lumpur",
+            max_entries=None,
+            include_markdown=True,
             include_headings=True
         )
         
-        logger.info(f"Fetched {len(lifelogs)} recordings from Limitless API")
-        
-        # Debug: Log the timestamps of fetched recordings
-        if lifelogs:
-            latest_times = []
-            for log in lifelogs[-5:]:  # Last 5 recordings
-                start_time = log.get('start_time') or log.get('startTime') or log.get('createdAt')
-                latest_times.append(f"ID: {log.get('id', 'unknown')[:8]}... Time: {start_time}")
-            logger.debug(f"📅 Latest 5 recordings from API: {latest_times}")
+        logger.info(f"📥 Fetched {len(lifelogs)} recordings from Limitless API")
         
         if not lifelogs:
-            return "No new recordings found in the specified time range."
+            logger.info("✅ No new recordings found - sync complete")
+            return "No new recordings found. All recordings are up to date."
+        
+        # 🎯 OPTIMIZATION: Pre-filter already processed recordings to minimize Redis checks
+        unprocessed_logs = []
+        processed_count_existing = 0
+        
+        for log in lifelogs:
+            log_id = log.get('id', 'unknown')
+            processed_key = RedisKeyBuilder.build_limitless_processed_key(log_id)
             
-        # Process each Lifelog
+            if not redis_client.exists(processed_key):
+                unprocessed_logs.append(log)
+            else:
+                processed_count_existing += 1
+        
+        logger.info(f"📊 Pre-filtering: {len(unprocessed_logs)} new, {processed_count_existing} already processed")
+        
+        if not unprocessed_logs:
+            logger.info("✅ All fetched recordings already processed")
+            return "All recordings are already processed."
+        
+        # Process only the unprocessed recordings
+        processed_count = 0
+        memories_created = 0
+        tasks_created = 0
+        
+        for i, log in enumerate(unprocessed_logs, 1):
+            try:
+                log_id = log.get('id', 'unknown')
+                log_title = log.get('title', 'Untitled')
+                
+                logger.info(f"⚙️ Processing recording {i}/{len(unprocessed_logs)}: {log_title} (ID: {log_id})")
+                
+                # Process the recording
+                results = await process_single_lifelog(log, phone_number)
+                
+                memories_created += results['memories_created']
+                tasks_created += results['tasks_created']
+                processed_count += 1
+                
+                # Mark as processed
+                processed_key = RedisKeyBuilder.build_limitless_processed_key(log_id)
+                redis_client.setex(processed_key, 86400 * 30, "1")  # 30 days
+                
+                logger.info(f"✅ Processed {log_id}: {results['memories_created']} memories, {results['tasks_created']} tasks")
+                
+                # Rate limiting delay
+                await asyncio.sleep(limitless_config.BATCH_PROCESSING_DELAY)
+                
+            except Exception as e:
+                logger.error(f"❌ Error processing {log.get('id')}: {str(e)}")
+                continue
+        
+        # 🎯 CRITICAL: Update last sync timestamp to latest processed recording
+        if unprocessed_logs:
+            latest_recording = max(unprocessed_logs, key=lambda x: x.get('start_time') or x.get('startTime') or x.get('createdAt') or '')
+            latest_timestamp = latest_recording.get('start_time') or latest_recording.get('startTime') or latest_recording.get('createdAt')
+            
+            if latest_timestamp:
+                # Convert to datetime and store
+                if isinstance(latest_timestamp, str):
+                    try:
+                        latest_dt = datetime.fromisoformat(latest_timestamp.replace('Z', '+00:00'))
+                    except:
+                        latest_dt = datetime.now()
+                else:
+                    latest_dt = latest_timestamp
+                
+                update_last_sync_timestamp(phone_number, latest_dt)
+                logger.info(f"📌 Updated last sync timestamp to: {latest_dt}")
+        
+        # Update legacy sync timestamp for backward compatibility
+        last_sync_key = RedisKeyBuilder.build_limitless_sync_key(phone_number)
+        redis_client.set(last_sync_key, datetime.now(timezone.utc).isoformat())
+        
+        # Log efficiency summary
+        total_fetched = len(lifelogs)
+        efficiency_pct = (len(unprocessed_logs) / total_fetched * 100) if total_fetched > 0 else 0
+        logger.info(f"🔄 Sync efficiency: {efficiency_pct:.1f}% ({len(unprocessed_logs)}/{total_fetched} fetched recordings needed processing)")
+        
+        # Store efficiency metrics for dashboard
+        try:
+            efficiency_key = f"meta-glasses:limitless:last_efficiency:{phone_number}"
+            redis_client.setex(efficiency_key, 86400 * 7, str(efficiency_pct))  # Keep for 7 days
+        except Exception as e:
+            logger.error(f"Error storing efficiency metrics: {str(e)}")
+        
+        # Update pending sync cache
+        try:
+            pending_sync_key = "meta-glasses:limitless:pending_sync_cache"
+            redis_client.setex(pending_sync_key, 300, "0")  # Set to 0 since we just processed everything
+            logger.info(f"📊 Updated pending sync cache: 0 recordings pending")
+        except Exception as e:
+            logger.error(f"Error updating pending sync cache: {str(e)}")
+        
+        # Build response with efficiency info
+        sync_type = "Incremental" if last_sync_timestamp and start_time == last_sync_timestamp else "Full"
+        
+        time_range_str = ""
+        if start_time and end_time and hasattr(start_time, 'strftime') and hasattr(end_time, 'strftime'):
+            start_str = start_time.strftime('%b %d, %I:%M %p')
+            end_str = end_time.strftime('%I:%M %p')
+            time_range_str = f"📅 Time Range: {start_str} - {end_str}\n"
+        elif sync_mode == "all":
+            time_range_str = "📅 Time Range: All recordings\n"
+        
+        response = f"""✅ *{sync_type} Sync Complete*
+
+{time_range_str}📝 New recordings processed: {len(unprocessed_logs)}
+🧠 Memories created: {memories_created}
+✅ Tasks extracted: {tasks_created}
+⏭️ Already processed: {processed_count_existing}
+
+_Efficiency: Only fetched {len(lifelogs)} recordings instead of checking all recordings_"""
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"❌ Error in incremental sync: {str(e)}")
+        return f"❌ Error syncing Limitless recordings: {str(e)}"
+
+
+async def force_full_sync(phone_number: str, hours: int = 24) -> str:
+    """Force a full sync that ignores incremental timestamps - use sparingly."""
+    
+    try:
+        logger.info(f"🔥 FORCE FULL SYNC requested for last {hours} hours")
+        
+        # Clear last sync timestamp to force full sync
+        latest_timestamp_key = f"meta-glasses:limitless:last_sync_timestamp:{phone_number}"
+        redis_client.delete(latest_timestamp_key)
+        
+        # Run full sync
+        end_time = datetime.now()
+        start_time = end_time - timedelta(hours=hours)
+        
+        logger.info(f"📅 Full sync: fetching ALL recordings from {start_time} to {end_time}")
+        
+        lifelogs = await limitless_client.get_all_lifelogs(
+            start_time=start_time,
+            end_time=end_time,
+            timezone_str="Asia/Kuala_Lumpur",
+            max_entries=None,
+            include_markdown=True,
+            include_headings=True
+        )
+        
+        logger.info(f"📥 Full sync fetched {len(lifelogs)} recordings")
+        
+        # Process all recordings (will skip already processed ones)
         processed_count = 0
         skipped_count = 0
         memories_created = 0
@@ -260,10 +483,9 @@ async def sync_recent_lifelogs(phone_number: str, sync_mode: str = "today") -> s
                 processed_key = RedisKeyBuilder.build_limitless_processed_key(log_id)
                 if redis_client.exists(processed_key):
                     skipped_count += 1
-                    logger.debug(f"Recording {log_id} already processed, skipping")
                     continue
                     
-                logger.info(f"Processing recording {i}/{len(lifelogs)}: {log_title} (ID: {log_id})")
+                logger.info(f"⚙️ Force processing recording {i}/{len(lifelogs)}: {log_title} (ID: {log_id})")
                     
                 # Process the Lifelog
                 results = await process_single_lifelog(log, phone_number)
@@ -272,69 +494,45 @@ async def sync_recent_lifelogs(phone_number: str, sync_mode: str = "today") -> s
                 tasks_created += results['tasks_created']
                 processed_count += 1
                 
-                logger.info(f"Recording {log_id} processed: {results['memories_created']} memories, {results['tasks_created']} tasks created")
-                
                 # Mark as processed
-                redis_client.setex(
-                    processed_key,
-                    86400 * 30,  # Keep for 30 days
-                    "1"
-                )
+                redis_client.setex(processed_key, 86400 * 30, "1")  # 30 days
                 
-                # Delay between processing to respect API rate limits
-                await asyncio.sleep(limitless_config.BATCH_PROCESSING_DELAY)
+                # Rate limiting delay
+                await asyncio.sleep(0.5)
                 
             except Exception as e:
-                logger.error(f"Error processing Lifelog {log.get('id')}: {str(e)}")
+                logger.error(f"❌ Error processing {log.get('id')}: {str(e)}")
                 continue
-                
-        # Update last sync timestamp
-        last_sync_key = RedisKeyBuilder.build_limitless_sync_key(phone_number)
-        redis_client.set(last_sync_key, datetime.now(timezone.utc).isoformat())
         
-        # Log summary
-        if processed_count > 0 or skipped_count > 0:
-            logger.info(f"🔄 Sync summary: {processed_count} processed, {skipped_count} skipped from {len(lifelogs)} total recordings")
-        
-        # Update pending sync cache (avoid unnecessary API calls on dashboard load)
-        try:
-            # Count remaining unprocessed recordings from current fetch
-            remaining_pending = 0
-            for log in lifelogs:
-                log_id = log.get('id', 'unknown')
-                processed_key = RedisKeyBuilder.build_limitless_processed_key(log_id)
-                if not redis_client.exists(processed_key):
-                    remaining_pending += 1
+        # Update timestamps for future incremental syncs
+        if lifelogs:
+            latest_recording = max(lifelogs, key=lambda x: x.get('start_time') or x.get('startTime') or x.get('createdAt') or '')
+            latest_timestamp = latest_recording.get('start_time') or latest_recording.get('startTime') or latest_recording.get('createdAt')
             
-            # Cache the result for 5 minutes
-            pending_sync_key = "meta-glasses:limitless:pending_sync_cache"
-            redis_client.setex(pending_sync_key, 300, str(remaining_pending))  # 5 minute cache
-            logger.info(f"📊 Updated pending sync cache from sync: {remaining_pending} recordings still pending")
-        except Exception as e:
-            logger.error(f"Error updating pending sync cache from sync: {str(e)}")
+            if latest_timestamp:
+                if isinstance(latest_timestamp, str):
+                    try:
+                        latest_dt = datetime.fromisoformat(latest_timestamp.replace('Z', '+00:00'))
+                    except:
+                        latest_dt = datetime.now()
+                else:
+                    latest_dt = latest_timestamp
+                
+                update_last_sync_timestamp(phone_number, latest_dt)
         
-        # Build response with time range info
-        time_range_str = ""
-        if start_time and end_time and hasattr(start_time, 'strftime') and hasattr(end_time, 'strftime'):
-            start_str = start_time.strftime('%b %d, %I:%M %p')
-            end_str = end_time.strftime('%I:%M %p')
-            time_range_str = f"📅 Time Range: {start_str} - {end_str}\n"
-        elif sync_mode == "all":
-            time_range_str = "📅 Time Range: All recordings\n"
-        
-        response = f"""✅ *Limitless Sync Complete*
+        return f"""✅ *Force Full Sync Complete*
 
-{time_range_str}📝 Recordings processed: {processed_count}
+📝 Total recordings checked: {len(lifelogs)}
+⚙️ New recordings processed: {processed_count}
 🧠 Memories created: {memories_created}
 ✅ Tasks extracted: {tasks_created}
+⏭️ Already processed: {skipped_count}
 
-_Use "limitless today" to see today's recordings_"""
-        
-        return response
+_Incremental sync will now work efficiently for future syncs_"""
         
     except Exception as e:
-        logger.error(f"Error syncing Limitless: {str(e)}")
-        return "❌ Error syncing Limitless recordings. Please check your API key."
+        logger.error(f"❌ Error in force full sync: {str(e)}")
+        return f"❌ Error in force full sync: {str(e)}"
 
 
 async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]:

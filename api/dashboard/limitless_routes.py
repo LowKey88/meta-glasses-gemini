@@ -13,7 +13,7 @@ from typing import List, Dict, Optional, Any
 from api.dashboard.config import get_secure_jwt_secret
 from utils.redis_utils import r as redis_client
 from utils.redis_key_builder import RedisKeyBuilder
-from functionality.limitless import sync_recent_lifelogs, limitless_client, standardize_cached_speakers
+from functionality.limitless import sync_recent_lifelogs, limitless_client, standardize_cached_speakers, get_last_sync_timestamp
 from utils.limitless_logger import limitless_routes_logger
 
 def verify_dashboard_token(authorization: Optional[str] = Header(None)):
@@ -476,3 +476,83 @@ async def get_sync_status(
     except Exception as e:
         logger.error(f"Error getting sync status: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/sync-efficiency")
+async def get_sync_efficiency(
+    user: str = Depends(verify_dashboard_token)
+) -> Dict[str, Any]:
+    """Get sync efficiency metrics and last sync information."""
+    try:
+        phone_number = "60122873632"
+        
+        # Get last sync info
+        last_sync_timestamp = get_last_sync_timestamp(phone_number)
+        
+        # Count total processed recordings
+        pattern = RedisKeyBuilder.build_limitless_lifelog_key("*")
+        total_recordings = 0
+        for key in redis_client.scan_iter(match=pattern):
+            total_recordings += 1
+        
+        # Calculate next sync prediction
+        now = datetime.now()
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        # Determine sync mode for next sync
+        next_sync_mode = "incremental"
+        next_sync_description = "only new recordings"
+        estimated_fetch_count = "2-5 recordings"
+        
+        if not last_sync_timestamp:
+            next_sync_mode = "full"
+            next_sync_description = "all recordings for time period"
+            estimated_fetch_count = "20-50+ recordings"
+        elif last_sync_timestamp < today_start:
+            next_sync_mode = "full_day"
+            next_sync_description = "all recordings since midnight"
+            estimated_fetch_count = "10-30 recordings"
+        
+        # Get efficiency from last sync (if available)
+        last_efficiency = None
+        efficiency_key = f"meta-glasses:limitless:last_efficiency:{phone_number}"
+        efficiency_data = redis_client.get(efficiency_key)
+        if efficiency_data:
+            try:
+                last_efficiency = float(efficiency_data.decode() if isinstance(efficiency_data, bytes) else efficiency_data)
+            except:
+                pass
+        
+        # Check if incremental sync is active
+        incremental_active = last_sync_timestamp is not None
+        
+        sync_info = {
+            'last_sync_timestamp': last_sync_timestamp.isoformat() if last_sync_timestamp else None,
+            'last_sync_age_hours': (now - last_sync_timestamp).total_seconds() / 3600 if last_sync_timestamp else None,
+            'total_processed_recordings': total_recordings,
+            'incremental_sync_active': incremental_active,
+            'next_sync_mode': next_sync_mode,
+            'next_sync_will_fetch': next_sync_description,
+            'estimated_fetch_count': estimated_fetch_count,
+            'last_sync_efficiency_percent': last_efficiency,
+            'efficiency_status': 'optimal' if incremental_active else 'needs_initial_sync'
+        }
+        
+        return sync_info
+        
+    except Exception as e:
+        logger.error(f"Error getting sync efficiency: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def count_total_processed_recordings() -> int:
+    """Count total processed recordings in cache."""
+    try:
+        pattern = RedisKeyBuilder.build_limitless_lifelog_key("*")
+        count = 0
+        for key in redis_client.scan_iter(match=pattern):
+            count += 1
+        return count
+    except Exception as e:
+        logger.error(f"Error counting recordings: {str(e)}")
+        return 0
