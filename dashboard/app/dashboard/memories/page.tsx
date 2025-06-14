@@ -17,16 +17,13 @@ import {
   AlertCircle,
   User,
   Hash,
-  Grid3X3,
   Network,
   Heart,
-  FileText,
   Users,
   Clock,
   Info,
   AlertTriangle,
   StickyNote,
-  MoreHorizontal,
   RefreshCw,
   List,
   ArrowUpDown,
@@ -74,27 +71,6 @@ const sourceColors = {
   auto: 'bg-orange-100 text-orange-800 dark:bg-orange-600 dark:text-white'
 };
 
-// Skeleton loader for memory cards
-function MemoryCardSkeleton() {
-  return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-      <div className="animate-pulse">
-        <div className="flex items-start justify-between mb-4">
-          <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-24"></div>
-          <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded-full w-8"></div>
-        </div>
-        <div className="space-y-2 mb-4">
-          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-full"></div>
-          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
-        </div>
-        <div className="flex items-center space-x-2">
-          <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded-full w-16"></div>
-          <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded-full w-16"></div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function MemoriesPage() {
   const [memories, setMemories] = useState<Memory[]>([]);
@@ -108,7 +84,7 @@ export default function MemoriesPage() {
   const [filterType, setFilterType] = useState<MemoryType>('all');
   const [showFilters, setShowFilters] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'grid' | 'table' | 'graph'>('table');
+  const [viewMode, setViewMode] = useState<'table' | 'graph'>('table');
   const [sortBy, setSortBy] = useState<'created_at' | 'type' | 'content'>('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [currentPage, setCurrentPage] = useState(1);
@@ -335,43 +311,29 @@ export default function MemoriesPage() {
               </p>
             </div>
             <div className="mt-4 sm:mt-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-              {/* View Toggle - Mobile Optimized */}
+              {/* View Toggle - Simplified */}
               <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 w-full sm:w-auto">
                 <button
                   onClick={() => setViewMode('table')}
-                  className={`flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2.5 sm:py-2 text-sm font-medium rounded-l-lg transition-all duration-200 ${
+                  className={`flex-1 sm:flex-none inline-flex items-center justify-center px-4 py-2.5 sm:py-2 text-sm font-medium rounded-l-lg transition-all duration-200 ${
                     viewMode === 'table'
                       ? 'bg-purple-600 text-white'
                       : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                   }`}
                 >
-                  <List className="h-4 w-4 mr-1.5 sm:mr-2" />
-                  <span className="hidden sm:inline">Table View</span>
-                  <span className="sm:hidden">Table</span>
-                </button>
-                <button
-                  onClick={() => setViewMode('grid')}
-                  className={`flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2.5 sm:py-2 text-sm font-medium transition-all duration-200 ${
-                    viewMode === 'grid'
-                      ? 'bg-purple-600 text-white'
-                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  <Grid3X3 className="h-4 w-4 mr-1.5 sm:mr-2" />
-                  <span className="hidden sm:inline">Grid View</span>
-                  <span className="sm:hidden">Grid</span>
+                  <List className="h-4 w-4 mr-2" />
+                  <span>Table View</span>
                 </button>
                 <button
                   onClick={() => setViewMode('graph')}
-                  className={`flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2.5 sm:py-2 text-sm font-medium rounded-r-lg transition-all duration-200 ${
+                  className={`flex-1 sm:flex-none inline-flex items-center justify-center px-4 py-2.5 sm:py-2 text-sm font-medium rounded-r-lg transition-all duration-200 ${
                     viewMode === 'graph'
                       ? 'bg-purple-600 text-white'
                       : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                   }`}
                 >
-                  <Network className="h-4 w-4 mr-1.5 sm:mr-2" />
-                  <span className="hidden sm:inline">Visual View</span>
-                  <span className="sm:hidden">Graph</span>
+                  <Network className="h-4 w-4 mr-2" />
+                  <span>Visual Graph</span>
                 </button>
               </div>
               
@@ -852,162 +814,6 @@ export default function MemoriesPage() {
               </div>
             )}
           </div>
-        ) : viewMode === 'grid' ? (
-          <>
-            {/* Memories Grid */}
-            {loading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 px-4 sm:px-0">
-                {[...Array(6)].map((_, i) => (
-                  <MemoryCardSkeleton key={i} />
-                ))}
-              </div>
-            ) : memories.length === 0 ? (
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-12 text-center">
-                <Brain className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                  {searchTerm || filterType !== 'all' ? 'No memories found' : 'No memories yet'}
-                </h3>
-                <p className="text-gray-500 dark:text-gray-400">
-                  {searchTerm || filterType !== 'all' 
-                    ? 'Try adjusting your search or filters'
-                    : 'Create your first memory to get started'
-                  }
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 px-4 sm:px-0">
-            {memories.map((memory) => {
-              const Icon = memoryTypeIcons[memory.type as keyof typeof memoryTypeIcons] || Hash;
-              const isEditing = editingId === memory.id;
-              const isDeleting = deleteConfirmId === memory.id;
-
-              return (
-                <div
-                  key={memory.id}
-                  className="group bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-all duration-200"
-                >
-                  <div className="p-4 sm:p-6">
-                    {/* Header */}
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center space-x-2">
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium ${memoryTypeColors[memory.type as keyof typeof memoryTypeColors]}`}>
-                          <Icon className="h-3.5 w-3.5 mr-1" />
-                          {memory.type}
-                        </span>
-                        {(() => {
-                          const source = memory.extracted_from || memory.metadata?.source || 'manual';
-                          return (
-                            <span className={`inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium ${
-                              sourceColors[source as keyof typeof sourceColors] || sourceColors.manual
-                            }`}>
-                              {source.charAt(0).toUpperCase() + source.slice(1)}
-                            </span>
-                          );
-                        })()}
-                      </div>
-                      <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                        {!isEditing && !isDeleting && (
-                          <div className="flex items-center space-x-1">
-                            <button
-                              onClick={() => handleEdit(memory)}
-                              className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                            >
-                              <Edit3 className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-                            </button>
-                            <button
-                              onClick={() => setDeleteConfirmId(memory.id)}
-                              className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                            >
-                              <Trash2 className="h-4 w-4 text-red-500 dark:text-red-400" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Content */}
-                    <div className="mb-4">
-                      {isEditing ? (
-                        <textarea
-                          className="w-full rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200"
-                          rows={4}
-                          value={editForm.content}
-                          onChange={(e) => setEditForm({ ...editForm, content: e.target.value })}
-                        />
-                      ) : (
-                        <p className="text-gray-700 dark:text-gray-300 line-clamp-3">
-                          {memory.content}
-                        </p>
-                      )}
-                    </div>
-
-
-                    {/* Footer */}
-                    <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
-                      <div className="flex items-center space-x-1">
-                        <User className="h-4 w-4" />
-                        <span className="truncate max-w-[150px]">{memory.user_id}</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <Calendar className="h-4 w-4" />
-                        <span>{new Date(memory.created_at).toLocaleDateString(undefined, { 
-                          month: 'short', 
-                          day: 'numeric', 
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}</span>
-                      </div>
-                    </div>
-
-                    {/* Edit Actions */}
-                    {isEditing && (
-                      <div className="mt-4 flex gap-2">
-                        <button
-                          onClick={() => handleSave(memory.id)}
-                          className="flex-1 inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 transition-colors"
-                        >
-                          <Save className="h-4 w-4 mr-1" />
-                          Save
-                        </button>
-                        <button
-                          onClick={() => setEditingId(null)}
-                          className="flex-1 px-3 py-1.5 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Delete Confirmation */}
-                    {isDeleting && (
-                      <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
-                        <p className="text-sm text-red-700 dark:text-red-300 mb-2">
-                          Are you sure you want to delete this memory?
-                        </p>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleDelete(memory.id)}
-                            className="flex-1 px-3 py-1.5 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors"
-                          >
-                            Delete
-                          </button>
-                          <button
-                            onClick={() => setDeleteConfirmId(null)}
-                            className="flex-1 px-3 py-1.5 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-          </>
         ) : (
           // Graph View
           <div className="h-[800px] w-full">
