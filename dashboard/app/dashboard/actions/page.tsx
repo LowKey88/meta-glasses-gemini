@@ -39,7 +39,7 @@ type SortOrder = 'asc' | 'desc';
 // Source icon and label mapping
 const sourceConfig = {
   ai_extracted: { icon: Bot, label: 'AI Extracted', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
-  natural_language: { icon: Mic, label: 'Voice Recording', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
+  natural_language: { icon: Mic, label: 'Limitless', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
   manual: { icon: FileText, label: 'Manual', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' },
   voice_command: { icon: MessageSquare, label: 'WhatsApp', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' },
 };
@@ -364,7 +364,7 @@ export default function ActionsPage() {
               >
                 <option value="all">All Sources</option>
                 <option value="ai_extracted">🤖 AI Extracted</option>
-                <option value="natural_language">🎙️ Voice Recording</option>
+                <option value="natural_language">🎙️ Limitless</option>
                 <option value="manual">📝 Manual</option>
                 <option value="voice_command">🗣️ WhatsApp</option>
               </select>
@@ -461,7 +461,7 @@ export default function ActionsPage() {
             {filteredAndSortedTasks.map((task) => {
               const taskSourceConfig = {
                 ai_extracted: { icon: Bot, label: 'AI Extracted', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
-                natural_language: { icon: Mic, label: 'Voice Recording', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
+                natural_language: { icon: Mic, label: 'Limitless', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
                 manual: { icon: FileText, label: 'Manual', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' },
                 voice_command: { icon: MessageSquare, label: 'WhatsApp', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' },
               }[task.source];
