@@ -2,6 +2,73 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.0] - 2025-06-15
+
+### Major Feature: Limitless Performance Time-Based Charts & Advanced Analytics
+
+#### Comprehensive Time-Based Visualization System
+- **Feature**: Complete implementation of time-based charts for Limitless performance monitoring
+- **Enhancement**: Added 24-hour and 7-day trend analysis capabilities
+- **Visualization**: Processing Time Trend chart with line graph visualization matching Message Processing tab design
+- **Analytics**: Performance by Operation breakdown table with bottleneck detection
+- **Distribution**: Processing Volume Distribution pie chart for workload analysis
+
+#### Advanced Performance Monitoring Backend
+- **API Enhancement**: Extended `/api/dashboard/limitless/performance-metrics` with time range support (`24h`, `7d`)
+- **Data Processing**: Implemented hourly data bucketing for trend visualization
+- **Category Analysis**: Added operation-level performance breakdown with timing statistics
+- **Time Filtering**: Smart time window filtering for performance records
+- **Bottleneck Detection**: Automatic identification of slow operations (>10s threshold)
+
+#### Frontend Implementation & User Experience
+- **Time Range Selector**: Independent dropdown controls for Limitless vs Message Processing tabs
+- **Chart Integration**: Professional Recharts implementation with consistent styling
+- **Empty States**: Proper "No data available" messages for all chart sections
+- **Visual Consistency**: Matching design patterns with Message Processing tab charts
+- **Responsive Design**: Mobile-optimized chart layouts with proper scaling
+
+#### Technical Architecture Enhancements
+- **TypeScript Integration**: Complete type safety with enhanced interfaces for chart data
+- **State Management**: Separate time range state management for tab independence
+- **API Client Updates**: Enhanced `getLimitlessPerformanceMetrics()` with time range parameter
+- **Error Handling**: Comprehensive error states and loading indicators
+- **Performance Optimization**: Efficient data processing with time-based filtering
+
+#### Chart Components Implemented
+1. **📈 Processing Time Trend Chart**:
+   - Line chart visualization showing processing times over selected time range
+   - Proper axis labels, tooltips, and responsive design
+   - Blue color scheme matching dashboard standards
+
+2. **⚙️ Performance by Operation Table**:
+   - Breakdown by operation type (Speaker ID, Gemini AI, Memory Creation, etc.)
+   - Color-coded performance indicators (green <10s, yellow 10-30s, red >30s)
+   - Bottleneck detection with badge indicators
+
+3. **📊 Processing Volume Distribution Chart**:
+   - Pie chart showing workload distribution across operations
+   - Color-coded segments with interactive tooltips
+   - Legend with operation details
+
+#### Backend Performance Tracking Enhancements
+- **Operation Categories**: Structured tracking for 6 operation types
+- **Display Name Mapping**: User-friendly operation names in frontend
+- **Time Bucketing**: Hourly (24h) and daily (7d) data aggregation
+- **Statistical Analysis**: Average processing times, counts, and performance status calculation
+
+#### Files Modified
+- `api/dashboard/limitless_routes.py` - Enhanced performance API with time-based analytics
+- `dashboard/app/dashboard/performance/page.tsx` - Complete chart implementation
+- `dashboard/lib/api.ts` - Updated TypeScript interfaces and API client methods
+- `functionality/limitless.py` - Enhanced performance tracking infrastructure
+- `utils/gemini.py` - Performance monitoring improvements
+
+#### Development Impact
+- **Bundle Size**: Added 0.3KB to performance page for advanced chart functionality
+- **API Efficiency**: Optimized time-based filtering reduces unnecessary data processing
+- **User Experience**: Professional visualization matching industry-standard analytics dashboards
+- **Monitoring Capabilities**: Complete visibility into Limitless processing performance bottlenecks
+
 ## [1.3.0] - 2025-06-14
 
 ### Major Feature: Memory Management Mobile Responsiveness & UI Simplification
