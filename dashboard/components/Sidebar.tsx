@@ -11,12 +11,14 @@ import {
   Glasses,
   Activity,
   Mic,
-  Settings
+  Settings,
+  Target
 } from 'lucide-react';
 
 const navigation = [
   { name: 'Overview', href: '/dashboard', icon: Home },
   { name: 'Memories', href: '/dashboard/memories', icon: Brain },
+  { name: 'Actions', href: '/dashboard/actions', icon: Target },
   { name: 'Performance', href: '/dashboard/performance', icon: Activity },
   { name: 'Limitless', href: '/dashboard/limitless', icon: Mic },
   { name: 'Redis Monitor', href: '/dashboard/redis', icon: Database },

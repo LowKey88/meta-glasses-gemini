@@ -39,6 +39,10 @@ dashboard_router.include_router(limitless_router)
 from .settings_routes import router as settings_router
 dashboard_router.include_router(settings_router)
 
+# Import Task router
+from .task_routes import router as task_router
+dashboard_router.include_router(task_router)
+
 class LoginRequest(BaseModel):
     password: str
 

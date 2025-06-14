@@ -331,10 +331,7 @@ export default function MemoriesPage() {
                 <span>Memory Management</span>
               </h1>
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                {paginationData ? 
-                  `Manage and organize your AI assistant's knowledge base (${paginationData.total} total memories)` :
-                  'Manage and organize your AI assistant\'s knowledge base'
-                }
+                Manage and organize your AI assistant's knowledge base
               </p>
             </div>
             <div className="mt-4 sm:mt-0 flex items-center gap-3">

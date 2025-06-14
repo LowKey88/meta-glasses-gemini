@@ -38,6 +38,50 @@ export interface CreateMemoryRequest {
   tags: string[];
 }
 
+export interface Task {
+  id: string;
+  title: string;
+  notes?: string;
+  status: 'needsAction' | 'completed';
+  due?: string;
+  due_formatted?: string;
+  due_display?: string;
+  is_overdue?: boolean;
+  source: 'ai_extracted' | 'natural_language' | 'manual' | 'voice_command';
+  source_icon: string;
+  days_until_due?: number;
+}
+
+export interface CreateTaskRequest {
+  title: string;
+  notes?: string;
+  due_date?: string; // YYYY-MM-DD format
+}
+
+export interface UpdateTaskRequest {
+  title?: string;
+  notes?: string;
+  due_date?: string;
+  completed?: boolean;
+}
+
+export interface TaskStats {
+  total_tasks: number;
+  completed_tasks: number;
+  pending_tasks: number;
+  overdue_tasks: number;
+  due_today: number;
+  due_this_week: number;
+  completion_rate: number;
+  recent_completions: number;
+  source_distribution: Record<string, number>;
+}
+
+export interface TaskList {
+  id: string;
+  title: string;
+}
+
 export interface PaginationParams {
   page?: number;
   page_size?: number;
@@ -404,6 +448,93 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ key, value }),
     });
+  }
+
+  // Task endpoints
+  async getTasks(
+    includeCompleted: boolean = false,
+    dueFilter?: 'today' | 'week' | 'overdue',
+    sortBy: string = 'created',
+    sortOrder: string = 'desc'
+  ): Promise<{
+    tasks: Task[];
+    total: number;
+    filters: {
+      include_completed: boolean;
+      due_filter?: string;
+      sort_by: string;
+      sort_order: string;
+    };
+  }> {
+    const params = new URLSearchParams({
+      include_completed: includeCompleted.toString(),
+      sort_by: sortBy,
+      sort_order: sortOrder,
+    });
+    
+    if (dueFilter) {
+      params.append('due_filter', dueFilter);
+    }
+    
+    return this.request(`/api/dashboard/tasks/?${params.toString()}`);
+  }
+
+  async createTask(task: CreateTaskRequest): Promise<{
+    success: boolean;
+    message: string;
+    task: Task;
+  }> {
+    return this.request('/api/dashboard/tasks/', {
+      method: 'POST',
+      body: JSON.stringify(task),
+    });
+  }
+
+  async updateTask(taskId: string, update: UpdateTaskRequest): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    return this.request(`/api/dashboard/tasks/${taskId}`, {
+      method: 'PUT',
+      body: JSON.stringify(update),
+    });
+  }
+
+  async deleteTask(taskId: string): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    return this.request(`/api/dashboard/tasks/${taskId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async completeTask(taskId: string): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    return this.request(`/api/dashboard/tasks/${taskId}/complete`, {
+      method: 'POST',
+    });
+  }
+
+  async getUpcomingTasks(days: number = 7): Promise<{
+    upcoming_tasks: Task[];
+    total: number;
+    days_ahead: number;
+  }> {
+    return this.request(`/api/dashboard/tasks/upcoming?days=${days}`);
+  }
+
+  async getTaskStats(): Promise<TaskStats> {
+    return this.request('/api/dashboard/tasks/stats');
+  }
+
+  async getTaskLists(): Promise<{
+    task_lists: TaskList[];
+    total: number;
+  }> {
+    return this.request('/api/dashboard/tasks/lists');
   }
 }
 

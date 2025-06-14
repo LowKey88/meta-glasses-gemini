@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { api, SystemStats } from '@/lib/api';
 import { MessageActivityChart, WeeklyActivityChart, ComparisonChart } from '@/components/charts';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Clock, MessageCircle, Brain, Bell, Server, Wifi, Cpu, Database, Activity, AlertCircle, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
+import { Clock, MessageCircle, Brain, Bell, Server, Wifi, Cpu, Database, Activity, AlertCircle, CheckCircle, XCircle, Home } from 'lucide-react';
 
 type ChartView = 'message-activity' | 'weekly-activity' | 'comparison';
 
@@ -119,7 +119,6 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeChart, setActiveChart] = useState<ChartView>('message-activity');
-  const [refreshing, setRefreshing] = useState(false);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -130,14 +129,9 @@ export default function DashboardPage() {
       setError(err instanceof Error ? err.message : 'Failed to load stats');
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   }, []);
 
-  const handleManualRefresh = async () => {
-    setRefreshing(true);
-    await fetchStats();
-  };
 
   useEffect(() => {
     fetchStats();
@@ -183,23 +177,14 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-50 to-gray-100 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                System Overview
-              </h1>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Real-time monitoring and analytics for your AI assistant
-              </p>
-            </div>
-            <button
-              onClick={handleManualRefresh}
-              disabled={refreshing}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-              {refreshing ? 'Refreshing...' : 'Refresh'}
-            </button>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center space-x-2">
+              <Home className="h-8 w-8 text-green-600 dark:text-green-400" />
+              <span>System Overview</span>
+            </h1>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              Real-time monitoring and analytics for your AI assistant
+            </p>
           </div>
         </div>
 
