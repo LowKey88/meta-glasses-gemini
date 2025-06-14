@@ -312,10 +312,10 @@ export default function MemoriesPage() {
 
           {/* Controls Section */}
           <div className="space-y-4">
-            {/* View Toggle and Create Button Row */}
-            <div className="flex flex-col sm:flex-row gap-3">
+            {/* All Buttons Aligned Right */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center sm:justify-end gap-3">
               {/* View Toggle */}
-              <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-1 sm:flex-none">
+              <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 w-full sm:w-auto">
                 <button
                   onClick={() => setViewMode('table')}
                   className={`flex-1 sm:flex-none inline-flex items-center justify-center px-4 py-3 sm:py-2.5 text-sm font-medium rounded-l-lg transition-all duration-200 ${
@@ -343,7 +343,7 @@ export default function MemoriesPage() {
               {/* Create Memory Button */}
               <button
                 onClick={() => setShowNewForm(true)}
-                className="inline-flex items-center justify-center rounded-lg bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 px-6 py-3 sm:py-2.5 text-sm font-semibold text-white shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-all duration-200 transform hover:scale-105"
+                className="w-full sm:w-auto inline-flex items-center justify-center rounded-lg bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 px-6 py-3 sm:py-2.5 text-sm font-semibold text-white shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-all duration-200 transform hover:scale-105"
               >
                 <Plus className="h-4 w-4 mr-2" />
                 <span>Create Memory</span>
