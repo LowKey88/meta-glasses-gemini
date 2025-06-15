@@ -49,7 +49,7 @@ def test_template_sending():
         },
         {
             "name": "daily_schedule", 
-            "params": {"body": ["• Test Meeting at 2:00 PM\n• Another Meeting at 4:00 PM"]},
+            "params": {"body": ["Test Meeting at 2:00 PM, Another Meeting at 4:00 PM"]},
             "description": "Daily schedule template"
         },
         {

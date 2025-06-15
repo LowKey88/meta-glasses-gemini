@@ -54,18 +54,19 @@ def send_whatsapp_template(template_name: str, parameters: Optional[Dict[str, An
        "language": {"code": "en"}
    }
    
-   # Add parameters if provided - simplified approach
+   # Add parameters if provided - handle multiple parameters correctly
    if parameters and 'body' in parameters and len(parameters['body']) > 0:
-       # For templates with variables, we need to provide parameters
+       body_params = []
+       for param in parameters['body']:
+           body_params.append({
+               "type": "text", 
+               "text": str(param)
+           })
+       
        template_data["components"] = [
            {
                "type": "body",
-               "parameters": [
-                   {
-                       "type": "text", 
-                       "text": str(parameters['body'][0])
-                   }
-               ]
+               "parameters": body_params
            }
        ]
    
