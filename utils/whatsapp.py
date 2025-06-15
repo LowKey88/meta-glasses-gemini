@@ -45,31 +45,29 @@ def send_whatsapp_template(template_name: str, parameters: Optional[Dict[str, An
    """Send a WhatsApp message template (for use outside 24-hour window)."""
    logger.info(f"Sending WhatsApp template: {template_name} with parameters: {parameters}")
    
+   # Check if templates are approved
+   if template_name == "ha_status":
+       logger.info("⚠️  Using ha_status template - ensure it's APPROVED in WhatsApp Business Manager")
+   
    template_data = {
        "name": template_name,
        "language": {"code": "en"}
    }
    
-   # Add parameters if provided
-   if parameters and 'body' in parameters:
-       components = []
-       body_params = []
-       
-       for param in parameters['body']:
-           body_params.append({
-               "type": "text",
-               "text": str(param)
-           })
-       
-       # Only add body component with parameters if there are parameters
-       if body_params:
-           components.append({
-               "type": "body", 
-               "parameters": body_params
-           })
-       
-       if components:
-           template_data["components"] = components
+   # Add parameters if provided - simplified approach
+   if parameters and 'body' in parameters and len(parameters['body']) > 0:
+       # For templates with variables, we need to provide parameters
+       template_data["components"] = [
+           {
+               "type": "body",
+               "parameters": [
+                   {
+                       "type": "text", 
+                       "text": str(parameters['body'][0])
+                   }
+               ]
+           }
+       ]
    
    json_data = {
        'messaging_product': 'whatsapp',
