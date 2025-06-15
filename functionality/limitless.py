@@ -574,16 +574,45 @@ async def process_pending_recordings(phone_number: str) -> str:
         # ⏱️ TIMING: Gap detection
         gap_detection_start = time.time()
         
-        # Find unprocessed recordings
+        # Find unprocessed recordings - ENHANCED LOGIC
         pending_logs = []
+        processed_marker_missing = 0
+        cache_missing = 0
+        inconsistent_state = 0
+        
         for log in lifelogs:
             log_id = log.get('id', 'unknown')
             processed_key = RedisKeyBuilder.build_limitless_processed_key(log_id)
-            if not redis_client.exists(processed_key):
+            cache_key = RedisKeyBuilder.build_limitless_lifelog_key(log_id)
+            
+            has_processed_marker = redis_client.exists(processed_key)
+            has_cache_entry = redis_client.exists(cache_key)
+            
+            # Recording needs processing if:
+            # 1. No processed marker at all, OR
+            # 2. Has processed marker but missing cache entry (inconsistent state)
+            needs_processing = False
+            reason = ""
+            
+            if not has_processed_marker:
+                needs_processing = True
+                reason = "no_processed_marker"
+                processed_marker_missing += 1
+            elif not has_cache_entry:
+                needs_processing = True
+                reason = "missing_cache_entry"
+                inconsistent_state += 1
+                logger.warning(f"🔧 Inconsistent state for {log_id[:8]}... - has processed marker but missing cache")
+            
+            if needs_processing:
+                log['_gap_reason'] = reason  # Track why it needs processing
                 pending_logs.append(log)
         
+        # Enhanced logging
+        logger.debug(f"Gap analysis: {processed_marker_missing} missing markers, {inconsistent_state} inconsistent states, {cache_missing} missing cache")
+        
         gap_detection_time = time.time() - gap_detection_start
-        logger.info(f"🔍 Gap detection completed in {gap_detection_time:.1f}s - Found {len(pending_logs)} pending")
+        logger.info(f"🔍 Gap detection completed in {gap_detection_time:.1f}s - Found {len(pending_logs)} pending ({processed_marker_missing} missing markers, {inconsistent_state} inconsistent states)")
         
         if not pending_logs:
             total_time = time.time() - overall_start
@@ -608,8 +637,9 @@ async def process_pending_recordings(phone_number: str) -> str:
                 
                 log_id = log.get('id', 'unknown')
                 log_title = log.get('title', 'Untitled')
+                gap_reason = log.get('_gap_reason', 'unknown')
                 
-                logger.info(f"⚙️ Processing pending recording {i}/{len(pending_logs)}: {log_title[:30]}... (ID: {log_id[:8]}...)")
+                logger.info(f"🔧 Processing {i}/{len(pending_logs)}: {log_id[:8]}... ({gap_reason}) - {log_title[:50]}...")
                 
                 # Process the recording
                 results = await process_single_lifelog(log, phone_number)
