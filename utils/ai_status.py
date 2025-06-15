@@ -15,7 +15,7 @@ async def check_gemini_api_status() -> Dict[str, any]:
     Check Gemini AI API status and rate limits with caching
     Returns dict with status, rate limits, response times, and error info
     """
-    # Check cache first (15-minute cache for better performance)
+    # Check cache first (30-minute cache for better performance)
     cache_key = "meta-glasses:ai:gemini_status_cache"
     cached_status = r.get(cache_key)
     
@@ -40,42 +40,16 @@ async def check_gemini_api_status() -> Dict[str, any]:
             r.setex(cache_key, 300, json.dumps(status))
             return status
         
-        # Test Gemini API with a minimal request (models endpoint)
+        # Test Gemini API with lightweight models endpoint only (fast and sufficient)
         test_url = "https://generativelanguage.googleapis.com/v1beta/models"
         headers = {'x-goog-api-key': api_key}
         
         start_time = datetime.now()
         
-        async with httpx.AsyncClient(timeout=5.0) as client:
+        async with httpx.AsyncClient(timeout=3.0) as client:  # Reduced timeout for faster response
             response = await client.get(test_url, headers=headers)
             
             response_time = (datetime.now() - start_time).total_seconds() * 1000  # ms
-            
-            # Additional test: Try a minimal generation request to check for rate limiting
-            generation_status = "unknown"
-            generation_error = None
-            
-            try:
-                # Test generation endpoint with minimal request using same client
-                gen_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
-                gen_data = {
-                    "contents": [{"parts": [{"text": "Test"}]}],
-                    "generationConfig": {"maxOutputTokens": 1}
-                }
-                gen_response = await client.post(gen_url, headers=headers, json=gen_data, timeout=3.0)
-                
-                if gen_response.status_code == 200:
-                    generation_status = "active"
-                elif gen_response.status_code == 429:
-                    generation_status = "rate_limited"
-                    generation_error = "Generation endpoint rate limited"
-                else:
-                    generation_status = "error"
-                    generation_error = f"Generation endpoint status {gen_response.status_code}"
-                    
-            except Exception as e:
-                generation_status = "error"
-                generation_error = f"Generation test failed: {str(e)[:100]}"
         
         # Get rate limit info from headers (if available)
         rate_limit_info = {
@@ -89,37 +63,17 @@ async def check_gemini_api_status() -> Dict[str, any]:
             models_data = response.json()
             available_models = [model.get("name", "") for model in models_data.get("models", [])]
             
-            # Determine overall status based on generation endpoint result
-            if generation_status == "rate_limited":
-                final_status = "rate_limited"
-                final_message = "Gemini generation API is rate limited"
-                final_available = False
-                final_error = generation_error
-            elif generation_status == "error":
-                final_status = "degraded"
-                final_message = "Models API active, but generation endpoint has issues"
-                final_available = True  # Models work, generation doesn't
-                final_error = generation_error
-            else:
-                final_status = "active"
-                final_message = "Gemini API is fully active and responding"
-                final_available = True
-                final_error = None
-            
+            # Models endpoint success indicates API is active (no need for expensive generation test)
             status = {
-                "status": final_status,
-                "is_available": final_available,
-                "message": final_message,
+                "status": "active",
+                "is_available": True,
+                "message": "Gemini API is active and responding",
                 "response_time_ms": round(response_time, 2),
                 "rate_limit": rate_limit_info,
                 "available_models": len(available_models),
                 "api_key_present": True,
-                "generation_status": generation_status,
                 "last_checked": datetime.now().isoformat()
             }
-            
-            if final_error:
-                status["error"] = final_error
         elif response.status_code == 429:
             status = {
                 "status": "rate_limited",
@@ -149,8 +103,8 @@ async def check_gemini_api_status() -> Dict[str, any]:
                 "last_checked": datetime.now().isoformat()
             }
         
-        # Cache successful responses for 15 minutes, errors for 5 minutes (improved performance)
-        cache_ttl = 900 if status["status"] == "active" else 300
+        # Cache successful responses for 30 minutes, errors for 5 minutes (improved performance)
+        cache_ttl = 1800 if status["status"] == "active" else 300
         r.setex(cache_key, cache_ttl, json.dumps(status))
         return status
             
@@ -158,7 +112,7 @@ async def check_gemini_api_status() -> Dict[str, any]:
         status = {
             "status": "timeout",
             "is_available": False,
-            "message": "Gemini API timeout (>5s)",
+            "message": "Gemini API timeout (>3s)",
             "error": "Request timeout",
             "last_checked": datetime.now().isoformat()
         }
@@ -227,6 +181,29 @@ def get_ai_usage_stats() -> Dict[str, any]:
             "errors_last_hour": 0,
             "models_configured": {}
         }
+
+def get_cached_or_check_gemini_status() -> Dict[str, any]:
+    """
+    Fast-path function that returns cached status immediately if available,
+    otherwise falls back to live check. Optimized for dashboard performance.
+    """
+    cache_key = "meta-glasses:ai:gemini_status_cache"
+    cached_status = r.get(cache_key)
+    
+    if cached_status:
+        try:
+            cached_data = json.loads(cached_status.decode('utf-8'))
+            # Check if cache is still relatively fresh (within 25 minutes)
+            last_checked = datetime.fromisoformat(cached_data.get('last_checked', ''))
+            age_minutes = (datetime.now() - last_checked).total_seconds() / 60
+            
+            if age_minutes < 25:  # Use cached data if less than 25 minutes old
+                return cached_data
+        except Exception:
+            pass  # Fall through to live check
+    
+    # If no cache or cache is old, do live check
+    return check_gemini_api_status_sync()
 
 def check_gemini_api_status_sync() -> Dict[str, any]:
     """Synchronous wrapper for async Gemini status check"""

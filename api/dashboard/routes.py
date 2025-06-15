@@ -14,8 +14,8 @@ from utils.reminder import ReminderManager
 from utils.gemini import GEMINI_VISION_MODEL, GEMINI_CHAT_MODEL
 from utils.metrics import MetricsTracker
 from utils.performance_tracker import PerformanceTracker
-from utils.whatsapp_status import check_whatsapp_token_status_sync
-from utils.ai_status import check_gemini_api_status_sync, get_ai_usage_stats
+from utils.whatsapp_status import check_whatsapp_token_status_sync, get_cached_or_check_whatsapp_status
+from utils.ai_status import check_gemini_api_status_sync, get_ai_usage_stats, get_cached_or_check_gemini_status
 from .config import (
     JWT_SECRET, DASHBOARD_PASSWORD, TOKEN_EXPIRY_HOURS,
     API_PREFIX, DEFAULT_USER_ID, DEFAULT_LIMIT, MAX_LIMIT
@@ -142,12 +142,30 @@ async def get_dashboard_stats(user_id: str = "60122873632"):
         weekly_activity = MetricsTracker.get_weekly_message_activity()  # Last 7 days
         today_vs_yesterday = MetricsTracker.get_today_vs_yesterday_hourly()  # Comparison
         
-        # Get WhatsApp status (non-blocking with cache)
-        whatsapp_token_info = check_whatsapp_token_status_sync()
+        # Get WhatsApp and AI status concurrently for better performance
+        import asyncio
+        import concurrent.futures
+        
+        def get_concurrent_status():
+            """Run WhatsApp and AI status checks in parallel with fast-path caching"""
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                # Submit both API checks to run concurrently using optimized fast-path functions
+                whatsapp_future = executor.submit(get_cached_or_check_whatsapp_status)
+                ai_future = executor.submit(get_cached_or_check_gemini_status)
+                
+                # Wait for both to complete with 4-second timeout total (reduced from 6s)
+                try:
+                    whatsapp_result = whatsapp_future.result(timeout=4)
+                    ai_result = ai_future.result(timeout=4)
+                    return whatsapp_result, ai_result
+                except concurrent.futures.TimeoutError:
+                    # Return cached or default values on timeout
+                    return {"status": "timeout", "is_valid": False}, {"status": "timeout", "is_available": False}
+        
+        whatsapp_token_info, ai_status_info = get_concurrent_status()
         whatsapp_status = whatsapp_token_info.get('status', 'unknown')
         
-        # Get AI status and usage stats
-        ai_status_info = check_gemini_api_status_sync()
+        # Get AI usage stats (Redis-only, fast)
         ai_usage_stats = get_ai_usage_stats()
         
         return DashboardStats(

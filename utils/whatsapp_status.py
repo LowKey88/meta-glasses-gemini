@@ -76,8 +76,8 @@ async def check_whatsapp_token_status() -> Dict[str, any]:
                 "last_checked": datetime.now().isoformat()
             }
         
-        # Cache successful responses for 15 minutes, errors for 5 minutes (improved performance)
-        cache_ttl = 900 if status["status"] == "active" else 300
+        # Cache successful responses for 30 minutes, errors for 5 minutes (improved performance)
+        cache_ttl = 1800 if status["status"] == "active" else 300
         r.setex(cache_key, cache_ttl, json.dumps(status))
         return status
             
@@ -104,6 +104,29 @@ async def check_whatsapp_token_status() -> Dict[str, any]:
         }
         r.setex(cache_key, 300, json.dumps(status))
         return status
+
+def get_cached_or_check_whatsapp_status() -> Dict[str, any]:
+    """
+    Fast-path function that returns cached status immediately if available,
+    otherwise falls back to live check. Optimized for dashboard performance.
+    """
+    cache_key = "meta-glasses:whatsapp:status_cache"
+    cached_status = r.get(cache_key)
+    
+    if cached_status:
+        try:
+            cached_data = json.loads(cached_status.decode('utf-8'))
+            # Check if cache is still relatively fresh (within 25 minutes)
+            last_checked = datetime.fromisoformat(cached_data.get('last_checked', ''))
+            age_minutes = (datetime.now() - last_checked).total_seconds() / 60
+            
+            if age_minutes < 25:  # Use cached data if less than 25 minutes old
+                return cached_data
+        except Exception:
+            pass  # Fall through to live check
+    
+    # If no cache or cache is old, do live check
+    return check_whatsapp_token_status_sync()
 
 def check_whatsapp_token_status_sync() -> Dict[str, any]:
     """Synchronous wrapper for async WhatsApp status check"""
