@@ -7,7 +7,7 @@ from typing import Dict, Optional
 from utils.redis_utils import r, try_catch_decorator, delete_reminder, cleanup_expired_reminders
 from utils.redis_monitor import monitored_scan_iter, monitored_get, monitored_set, monitored_expireat
 from utils.redis_key_builder import redis_keys
-from utils.whatsapp import send_whatsapp_message
+from utils.whatsapp import send_whatsapp_message, send_smart_whatsapp_message
 from utils.google_api import get_calendar_service
 
 logger = logging.getLogger("uvicorn")
@@ -289,7 +289,7 @@ class ReminderManager:
                         for event in valid_reminders
                     )
                     message = f"Good morning! Here's your schedule for today:\n{events_text}"
-                    send_whatsapp_message(message)
+                    send_smart_whatsapp_message(message, "daily_schedule", {"body": [events_text]})
                     
                     # Mark all morning reminders as sent
                     for event in valid_reminders:
@@ -333,7 +333,7 @@ class ReminderManager:
                         f"Reminder: '{reminder_data['title']}' starts in 1 hour "
                         f"at {ReminderManager._format_time(start_time)}"
                     )
-                    send_whatsapp_message(message)
+                    send_smart_whatsapp_message(message, "meeting_reminder", {"body": [reminder_data['title'], ReminderManager._format_time(start_time)]})
                     ReminderManager.mark_reminder_sent(event_id, "hour_before")
             
             # Check meeting start reminder
@@ -341,7 +341,7 @@ class ReminderManager:
                 time_until_start = start_time - now
                 if timedelta(minutes=-1) <= time_until_start <= timedelta(minutes=1):
                     message = f"'{reminder_data['title']}' is starting now!"
-                    send_whatsapp_message(message)
+                    send_smart_whatsapp_message(message, "meeting_start", {"body": [reminder_data['title']]})
                     ReminderManager.mark_reminder_sent(event_id, "start")
 
 # Function to be called by scheduler/cron job

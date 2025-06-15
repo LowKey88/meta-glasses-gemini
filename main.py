@@ -34,7 +34,7 @@ from functionality.search import google_search_pipeline
 # Local imports - utils
 from utils.gemini import *
 from utils.google_auth import GoogleAuth
-from utils.whatsapp import send_whatsapp_threaded, send_whatsapp_image, download_file
+from utils.whatsapp import send_whatsapp_threaded, send_whatsapp_image, download_file, update_conversation_window, send_smart_whatsapp_message
 from utils.context_manager import ContextManager
 from utils.memory_manager import MemoryManager
 from utils.metrics import MetricsTracker
@@ -125,6 +125,12 @@ def webhook_verification(request: Request):
 @app.post('/webhook')
 def receive_whatsapp_message(request: Request, data: dict):
    message = data['entry'][0]['changes'][0]['value'].get('messages', [{}])[0]
+   
+   # Update conversation window when user sends a message
+   if message:
+       logger.info("User message received - updating conversation window")
+       update_conversation_window()
+   
    threading.Thread(target=logic, args=(message,)).start()
    return ok
 
@@ -138,8 +144,8 @@ async def send_notification(request: Request):
        if not message:
            raise HTTPException(status_code=400, detail="Missing message")
            
-       send_whatsapp_threaded(message)
-       logger.info(f"Notification sent: {message}")
+       success = send_smart_whatsapp_message(message, "ha_status")
+       logger.info(f"Notification sent: {message}, success: {success}")
 
        if image_url:
            send_whatsapp_image(image_url)

@@ -1399,6 +1399,107 @@ open http://localhost:3000/dashboard/performance
 - `api/dashboard/limitless_routes.py` - Performance metrics and operation naming
 - `dashboard/app/dashboard/performance/page.tsx` - Performance visualization
 
+### WhatsApp 24-Hour Conversation Window Fix (June 2025)
+
+#### Problem Resolution: WhatsApp Bot Stops After 24 Hours
+**Background**: WhatsApp Business API blocks regular text messages after 24 hours of no user interaction. This caused reminders, notifications, and Home Assistant alerts to fail delivery.
+
+**Root Cause**: System was sending regular text messages for all notifications, which WhatsApp blocks outside the 24-hour conversation window. Only approved message templates are allowed after this period.
+
+#### Solution Implementation
+
+**1. Conversation Window Tracking**
+- Added `update_conversation_window()` - Tracks when users send messages
+- Added `is_within_conversation_window()` - Checks if within 24-hour window
+- Integrated tracking into webhook handler in `main.py:130-132`
+
+**2. WhatsApp Message Templates Support**
+- Added `send_whatsapp_template()` - Sends approved WhatsApp Business templates
+- Added `send_smart_whatsapp_message()` - Automatically chooses regular vs template messages
+- Templates required: `general_notification`, `daily_schedule`, `meeting_reminder`, `meeting_start`
+
+**3. Smart Message Routing**
+- **Within 24 hours**: Sends regular text messages (existing behavior)
+- **After 24 hours**: Automatically switches to approved templates
+- **Seamless transition**: No user experience changes
+
+#### Technical Implementation
+
+**Enhanced WhatsApp Utils (`utils/whatsapp.py`):**
+```python
+# Smart messaging - automatically chooses message type
+send_smart_whatsapp_message(message, template_fallback, template_params)
+
+# Conversation window management
+update_conversation_window()  # Call when user sends message
+is_within_conversation_window()  # Check 24-hour status
+```
+
+**Updated Components:**
+- `utils/reminder.py` - All reminder functions now use smart messaging
+- `main.py` - Webhook tracks conversation window, notifications use templates
+- `send-notification` endpoint - Home Assistant notifications use smart messaging
+
+#### Required WhatsApp Business Setup
+
+**Message Templates to Create:**
+1. **general_notification** - `{{1}}` (for Home Assistant & general notifications)
+2. **daily_schedule** - `Good morning! Here's your schedule for today: {{1}}`
+3. **meeting_reminder** - `Reminder: "{{1}}" starts in 1 hour at {{2}}`
+4. **meeting_start** - `"{{1}}" is starting now!`
+
+**Setup Process:**
+1. Create templates in WhatsApp Business Manager
+2. Submit for Meta approval (24-48 hours)
+3. Deploy updated code
+4. Test both regular and template message flows
+
+#### Monitoring & Validation
+
+**Log Messages to Monitor:**
+```bash
+# Check conversation window status
+"Within conversation window - sending regular message"
+"Outside conversation window - using template message"
+
+# Verify template success
+"Template message sent successfully"
+"Template message failed"
+```
+
+**Test Script:**
+```bash
+# Test WhatsApp template functionality
+python3 scripts/test_whatsapp_templates.py
+```
+
+#### Files Modified
+- `utils/whatsapp.py` - Template support and conversation window tracking
+- `utils/reminder.py` - Smart messaging for all reminders
+- `main.py` - Webhook conversation tracking and notification templates
+- `WHATSAPP_TEMPLATES_SETUP.md` - Comprehensive setup guide
+- `scripts/test_whatsapp_templates.py` - Testing and validation script
+
+#### Expected Results
+- ✅ **Notifications work 24/7** regardless of user activity
+- ✅ **No user experience change** - messages still received normally
+- ✅ **Automatic fallback** to templates when needed
+- ✅ **Home Assistant integration** continues working after 24 hours
+- ✅ **Meeting reminders** delivered reliably
+
+#### Commands for Testing
+
+```bash
+# Test template functionality
+python3 scripts/test_whatsapp_templates.py
+
+# Monitor conversation window in logs
+docker-compose -f docker-compose.local.yml logs -f app | grep "conversation window"
+
+# Check template message success
+docker-compose -f docker-compose.local.yml logs -f app | grep "Template message"
+```
+
 # important-instruction-reminders
 Do what has been asked; nothing more, nothing less.
 NEVER create files unless they're absolutely necessary for achieving your goal.
