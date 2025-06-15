@@ -144,7 +144,7 @@ async def send_notification(request: Request):
        if not message:
            raise HTTPException(status_code=400, detail="Missing message")
            
-       success = send_smart_whatsapp_message(message, "ha_status")
+       success = send_smart_whatsapp_message(message, "ha_notification")
        logger.info(f"Notification sent: {message}, success: {success}")
 
        if image_url:

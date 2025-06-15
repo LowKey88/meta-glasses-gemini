@@ -49,7 +49,7 @@ def check_template_status():
         print("❌ No templates found or error accessing templates")
         return
         
-    our_templates = ['ha_status', 'daily_schedule', 'meeting_reminder', 'meeting_start']
+    our_templates = ['ha_notification', 'daily_schedule', 'meeting_reminder', 'meeting_start']
     
     for template in templates:
         name = template.get('name', 'Unknown')
@@ -111,7 +111,7 @@ def test_simple_template():
         'to': os.getenv('WHATSAPP_PHONE_NUMBER'),
         'type': 'template',
         'template': {
-            'name': 'ha_status',
+            'name': 'ha_notification',
             'language': {'code': 'en'}
         }
     }

@@ -465,14 +465,14 @@ class ApiClient {
     return this.request(`/api/dashboard/settings/${key}`);
   }
 
-  async updateSetting(key: string, value: string): Promise<{
+  async updateSetting(key: string, updateData: { value: string }): Promise<{
     success: boolean;
     message: string;
     requires_restart: boolean;
   }> {
     return this.request(`/api/dashboard/settings/${key}`, {
       method: 'PUT',
-      body: JSON.stringify({ value }),
+      body: JSON.stringify(updateData),
     });
   }
 
@@ -492,6 +492,16 @@ class ApiClient {
     return this.request(`/api/dashboard/settings/test/${key}`, {
       method: 'POST',
       body: JSON.stringify({ key, value }),
+    });
+  }
+
+  async testTemplate(templateName: string, testData: any): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    return this.request(`/api/dashboard/settings/test-template/${templateName}`, {
+      method: 'POST',
+      body: JSON.stringify(testData),
     });
   }
 

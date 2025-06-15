@@ -35,6 +35,72 @@ def update_conversation_window():
    _last_user_message_time = datetime.now()
    logger.info(f"Conversation window updated: {_last_user_message_time}")
 
+def get_template_config(template_name: str) -> dict:
+    """Get template configuration from settings, fallback to hardcoded defaults"""
+    try:
+        from utils.redis_utils import r
+        from utils.encryption import secure_retrieve
+        
+        # Try to get from Redis settings first
+        setting_key = f"whatsapp_template_{template_name}"
+        redis_key = f"meta-glasses:settings:global:{setting_key}"
+        
+        redis_value = r.get(redis_key)
+        if redis_value:
+            encrypted_value = redis_value.decode('utf-8')
+            config_str = secure_retrieve(encrypted_value)
+            if config_str:
+                config = json.loads(config_str)
+                # Extract template_config if it exists
+                if isinstance(config, dict) and 'template_config' in config:
+                    return config['template_config']
+                return config
+    except Exception as e:
+        logger.warning(f"Failed to get template config from settings for {template_name}: {e}")
+    
+    # Fallback to hardcoded configurations
+    return get_default_template_config(template_name)
+
+def get_default_template_config(template_name: str) -> dict:
+    """Get default hardcoded template configuration"""
+    default_configs = {
+        "ha_notification": {
+            "enabled": True,
+            "template_name": "ha_notification",
+            "variables": [
+                {"position": 0, "parameter_name": "ha_message", "description": "Home Assistant message"}
+            ]
+        },
+        "meeting_reminder": {
+            "enabled": True,
+            "template_name": "meeting_reminder", 
+            "variables": [
+                {"position": 0, "parameter_name": "meeting_title", "description": "Meeting name"},
+                {"position": 1, "parameter_name": "meeting_time", "description": "Meeting time"}
+            ]
+        },
+        "meeting_start": {
+            "enabled": True,
+            "template_name": "meeting_start",
+            "variables": [
+                {"position": 0, "parameter_name": "meeting_title", "description": "Meeting name"}
+            ]
+        },
+        "daily_schedule": {
+            "enabled": True,
+            "template_name": "daily_schedule",
+            "variables": [
+                {"position": 0, "parameter_name": "schedule_details", "description": "Schedule information"}
+            ]
+        }
+    }
+    
+    return default_configs.get(template_name, {
+        "enabled": False,
+        "template_name": template_name,
+        "variables": []
+    })
+
 def is_within_conversation_window() -> bool:
    """Check if we're within the 24-hour conversation window."""
    if _last_user_message_time is None:
@@ -51,98 +117,50 @@ def send_whatsapp_template(template_name: str, parameters: Optional[Dict[str, An
    """Send a WhatsApp message template (for use outside 24-hour window)."""
    logger.info(f"Sending WhatsApp template: {template_name} with parameters: {parameters}")
    
+   # Get template configuration from settings
+   config = get_template_config(template_name)
+   
+   # Check if template is enabled
+   if not config.get("enabled", False):
+       logger.warning(f"Template {template_name} is disabled")
+       return False
+   
    template_data = {
        "name": template_name,
        "language": {"code": "en"}
    }
    
-   # Handle different template structures with named parameters
-   if template_name == "ha_status":
-       # ha_status has Header + Body with 1 variable {{ha_message}}
-       if parameters and 'body' in parameters and len(parameters['body']) > 0:
-           template_data["components"] = [
-               {
-                   "type": "body",
-                   "parameters": [
-                       {
-                           "type": "text",
-                           "parameter_name": "ha_message",  # Named parameter for {{ha_message}}
-                           "text": str(parameters['body'][0])
-                       }
-                   ]
-               }
-           ]
-       else:
-           logger.info("🧪 Testing ha_status template without parameters first")
-           
-   elif template_name == "meeting_reminder":
-       # meeting_reminder expects 2 parameters: {{meeting_title}} and {{meeting_time}}
-       if parameters and 'body' in parameters and len(parameters['body']) >= 2:
-           template_data["components"] = [
-               {
-                   "type": "body",
-                   "parameters": [
-                       {
-                           "type": "text", 
-                           "parameter_name": "meeting_title",  # Named parameter for {{meeting_title}}
-                           "text": str(parameters['body'][0])
-                       },
-                       {
-                           "type": "text", 
-                           "parameter_name": "meeting_time",   # Named parameter for {{meeting_time}}
-                           "text": str(parameters['body'][1])
-                       }
-                   ]
-               }
-           ]
-           
-   elif template_name == "meeting_start":
-       # meeting_start expects 1 parameter: {{meeting_title}}
-       if parameters and 'body' in parameters and len(parameters['body']) > 0:
-           template_data["components"] = [
-               {
-                   "type": "body",
-                   "parameters": [
-                       {
-                           "type": "text",
-                           "parameter_name": "meeting_title",  # Named parameter for {{meeting_title}}
-                           "text": str(parameters['body'][0])
-                       }
-                   ]
-               }
-           ]
-           
-   elif template_name == "daily_schedule":
-       # daily_schedule expects 1 parameter: {{schedule_details}}
-       if parameters and 'body' in parameters and len(parameters['body']) > 0:
-           template_data["components"] = [
-               {
-                   "type": "body",
-                   "parameters": [
-                       {
-                           "type": "text",
-                           "parameter_name": "schedule_details",  # Named parameter for {{schedule_details}}
-                           "text": str(parameters['body'][0])
-                       }
-                   ]
-               }
-           ]
-   else:
-       # Generic handling for other templates (fallback)
-       if parameters and 'body' in parameters and len(parameters['body']) > 0:
-           body_params = []
-           for i, param in enumerate(parameters['body']):
+   # Build template components dynamically from configuration
+   variables = config.get("variables", [])
+   if variables and parameters and 'body' in parameters:
+       # Sort variables by position
+       sorted_variables = sorted(variables, key=lambda x: x.get("position", 0))
+       
+       # Build parameters array
+       body_params = []
+       for i, variable in enumerate(sorted_variables):
+           if i < len(parameters['body']):
+               param_name = variable.get("parameter_name", f"param_{i}")
                body_params.append({
-                   "type": "text", 
-                   "text": str(param)  # Use positional format as fallback
+                   "type": "text",
+                   "parameter_name": param_name,
+                   "text": str(parameters['body'][i])
                })
-           
+           else:
+               # Not enough parameters provided
+               logger.warning(f"Not enough parameters for template {template_name}. Expected {len(sorted_variables)}, got {len(parameters['body'])}")
+               break
+       
+       if body_params:
            template_data["components"] = [
                {
                    "type": "body",
                    "parameters": body_params
                }
            ]
+   else:
+       # No variables or no parameters - send template without parameters
+       logger.info(f"🧪 Testing {template_name} template without parameters")
    
    json_data = {
        'messaging_product': 'whatsapp',
@@ -237,7 +255,7 @@ def download_file(file_data):
     else:
         logger.info(f"Download failed. Status code: {response.status_code}")
 
-def send_smart_whatsapp_message(text: str, template_fallback: str = "ha_status", template_params: Optional[Dict[str, Any]] = None) -> bool:
+def send_smart_whatsapp_message(text: str, template_fallback: str = "ha_notification", template_params: Optional[Dict[str, Any]] = None) -> bool:
    """
    Smart WhatsApp message sender that automatically chooses between regular messages and templates.
    
@@ -259,9 +277,9 @@ def send_smart_whatsapp_message(text: str, template_fallback: str = "ha_status",
            return False
    else:
        logger.info("Outside conversation window - using template message")
-       # If no template params provided, use the correct variable name for ha_status template
+       # If no template params provided, use the correct variable name for ha_notification template
        if not template_params:
-           if template_fallback == "ha_status":
+           if template_fallback == "ha_notification":
                template_params = {"body": [text]}
            else:
                template_params = {"body": [text]}

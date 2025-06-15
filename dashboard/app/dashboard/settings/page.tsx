@@ -36,6 +36,15 @@ interface Setting {
   is_sensitive: boolean;
   requires_restart: boolean;
   options?: string[];
+  template_config?: {
+    enabled: boolean;
+    template_name: string;
+    variables: Array<{
+      position: number;
+      parameter_name: string;
+      description: string;
+    }>;
+  };
 }
 
 interface SettingsSchema {
@@ -92,6 +101,13 @@ const categoryMetadata = {
     badgeClass: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300',
     gradient: 'from-cyan-500 to-cyan-600'
   },
+  whatsapp_templates: {
+    name: 'WhatsApp Templates',
+    description: 'Message templates and parameter configurations',
+    icon: MessageSquare,
+    badgeClass: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+    gradient: 'from-green-600 to-green-700'
+  },
   storage: {
     name: 'Cloud Storage',
     description: 'Google Cloud Storage and file management',
@@ -132,6 +148,551 @@ function CategorySkeleton() {
             </div>
             <div className="h-5 w-5 bg-gray-200 dark:bg-gray-700 rounded"></div>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// WhatsApp Template Card Component
+interface WhatsAppTemplateCardProps {
+  templateKey: string;
+  setting: Setting;
+  onUpdate: () => void;
+}
+
+function WhatsAppTemplateCard({ templateKey, setting, onUpdate }: WhatsAppTemplateCardProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [templateConfig, setTemplateConfig] = useState<any>(null);
+  const [testingTemplate, setTestingTemplate] = useState(false);
+  const { toast } = useToast();
+
+  // Parse template config from setting
+  useEffect(() => {
+    try {
+      // Check if template_config is directly available in setting object (from schema)
+      if (setting.template_config) {
+        setTemplateConfig(setting.template_config);
+      } else if (setting.value && setting.value !== '{}') {
+        // Parse from value field (Redis override)
+        const config = JSON.parse(setting.value);
+        setTemplateConfig(config.template_config || config);
+      } else {
+        // Set default config
+        const templateName = templateKey.replace('whatsapp_template_', '');
+        setTemplateConfig({
+          enabled: true,
+          template_name: templateName,
+          variables: []
+        });
+      }
+    } catch (error) {
+      console.error('Failed to parse template config:', error);
+      // Set default config on error
+      const templateName = templateKey.replace('whatsapp_template_', '');
+      setTemplateConfig({
+        enabled: true,
+        template_name: templateName,
+        variables: []
+      });
+    }
+  }, [setting.value, templateKey, setting]);
+
+  const getTemplateDisplayName = (templateKey: string) => {
+    const nameMap: Record<string, string> = {
+      'whatsapp_template_ha_notification': 'Home Assistant Notification',
+      'whatsapp_template_meeting_reminder': 'Meeting Reminder',
+      'whatsapp_template_meeting_start': 'Meeting Start',
+      'whatsapp_template_daily_schedule': 'Daily Schedule'
+    };
+    return nameMap[templateKey] || templateKey.replace('whatsapp_template_', '').replace(/_/g, ' ');
+  };
+  
+  const displayName = getTemplateDisplayName(templateKey);
+
+  const testTemplate = async () => {
+    setTestingTemplate(true);
+    try {
+      const testData: any = {};
+      templateConfig?.variables?.forEach((variable: any, index: number) => {
+        testData[variable.parameter_name] = `Test ${variable.description}`;
+      });
+
+      const response = await api.testTemplate(templateKey.replace('whatsapp_template_', ''), testData);
+      
+      if (response.success) {
+        toast({
+          title: 'Success',
+          description: response.message,
+        });
+      } else {
+        toast({
+          title: 'Test Failed',
+          description: response.message,
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to test template',
+        variant: 'destructive',
+      });
+    } finally {
+      setTestingTemplate(false);
+    }
+  };
+
+  const toggleEnabled = async () => {
+    try {
+      const newConfig = {
+        ...templateConfig,
+        enabled: !templateConfig?.enabled
+      };
+      
+      await api.updateSetting(templateKey, {
+        value: JSON.stringify({ template_config: newConfig })
+      });
+      
+      setTemplateConfig(newConfig);
+      onUpdate();
+      
+      toast({
+        title: 'Success',
+        description: `Template ${newConfig.enabled ? 'enabled' : 'disabled'}`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to update template',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  if (!templateConfig) {
+    return <div>Loading template configuration...</div>;
+  }
+
+  return (
+    <div className="group/setting bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all duration-200">
+      {/* Template Header */}
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex-1">
+          <div className="flex items-center space-x-3 mb-2">
+            <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+              <MessageSquare className="h-4 w-4 text-green-600 dark:text-green-400" />
+            </div>
+            <div>
+              <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
+                {displayName}
+              </h4>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {setting.description}
+              </p>
+            </div>
+          </div>
+          
+          {/* Template Status Badges */}
+          <div className="flex items-center space-x-2">
+            <span className={`inline-flex items-center px-3 py-1 rounded-lg text-xs font-medium ${
+              templateConfig.enabled
+                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+            }`}>
+              {templateConfig.enabled ? 'Enabled' : 'Disabled'}
+            </span>
+            <span className="inline-flex items-center px-3 py-1 rounded-lg text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+              {templateConfig.variables?.length || 0} Variables
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Template Variables */}
+      {templateConfig.variables && templateConfig.variables.length > 0 && (
+        <div className="mb-4">
+          <h5 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Template Variables:</h5>
+          <div className="space-y-2">
+            {templateConfig.variables.map((variable: any, index: number) => (
+              <div key={index} className="flex items-center justify-between bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                <div className="flex items-center space-x-3">
+                  <span className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-1 rounded text-xs font-medium">
+                    {variable.position + 1}
+                  </span>
+                  <span className="font-medium text-gray-900 dark:text-white">
+                    {variable.parameter_name}
+                  </span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                    {variable.description}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Template Controls */}
+      <div className="flex items-center space-x-3">
+        <button
+          onClick={toggleEnabled}
+          className={`inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+            templateConfig.enabled
+              ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50'
+              : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/50'
+          }`}
+        >
+          {templateConfig.enabled ? 'Disable' : 'Enable'}
+        </button>
+        
+        <button
+          onClick={() => setShowEditModal(true)}
+          className="inline-flex items-center px-4 py-2 rounded-lg bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 text-sm font-medium hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-all duration-200"
+        >
+          <SettingsIcon className="h-4 w-4 mr-2" />
+          Edit Template
+        </button>
+        
+        {templateConfig.enabled && (
+          <button
+            onClick={testTemplate}
+            disabled={testingTemplate}
+            className="inline-flex items-center px-4 py-2 rounded-lg bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 text-sm font-medium hover:bg-blue-200 dark:hover:bg-blue-900/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+          >
+            {testingTemplate ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Testing...
+              </>
+            ) : (
+              <>
+                <TestTube className="h-4 w-4 mr-2" />
+                Test Template
+              </>
+            )}
+          </button>
+        )}
+      </div>
+      
+      {/* Template Edit Modal */}
+      {showEditModal && (
+        <TemplateEditModal
+          templateKey={templateKey}
+          templateConfig={templateConfig}
+          onSave={(newConfig) => {
+            setTemplateConfig(newConfig);
+            setShowEditModal(false);
+            onUpdate();
+          }}
+          onClose={() => setShowEditModal(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// Template Edit Modal Component
+interface TemplateEditModalProps {
+  templateKey: string;
+  templateConfig: any;
+  onSave: (config: any) => void;
+  onClose: () => void;
+}
+
+function TemplateEditModal({ templateKey, templateConfig, onSave, onClose }: TemplateEditModalProps) {
+  const [editingConfig, setEditingConfig] = useState(templateConfig);
+  const [saving, setSaving] = useState(false);
+  const { toast } = useToast();
+
+  const getTemplateDisplayName = (templateKey: string) => {
+    const nameMap: Record<string, string> = {
+      'whatsapp_template_ha_notification': 'Home Assistant Notification',
+      'whatsapp_template_meeting_reminder': 'Meeting Reminder',
+      'whatsapp_template_meeting_start': 'Meeting Start',
+      'whatsapp_template_daily_schedule': 'Daily Schedule'
+    };
+    return nameMap[templateKey] || templateKey.replace('whatsapp_template_', '').replace(/_/g, ' ');
+  };
+  
+  const displayName = getTemplateDisplayName(templateKey);
+
+  const addVariable = () => {
+    const newPosition = editingConfig.variables.length;
+    const newVariable = {
+      position: newPosition,
+      parameter_name: `param_${newPosition + 1}`,
+      description: `Parameter ${newPosition + 1} description`
+    };
+    
+    setEditingConfig({
+      ...editingConfig,
+      variables: [...editingConfig.variables, newVariable]
+    });
+  };
+
+  const updateVariable = (index: number, field: string, value: string) => {
+    const updatedVariables = [...editingConfig.variables];
+    updatedVariables[index] = {
+      ...updatedVariables[index],
+      [field]: value
+    };
+    
+    setEditingConfig({
+      ...editingConfig,
+      variables: updatedVariables
+    });
+  };
+
+  const removeVariable = (index: number) => {
+    const updatedVariables = editingConfig.variables.filter((_: any, i: number) => i !== index);
+    // Reorder positions
+    const reorderedVariables = updatedVariables.map((variable: any, i: number) => ({
+      ...variable,
+      position: i
+    }));
+    
+    setEditingConfig({
+      ...editingConfig,
+      variables: reorderedVariables
+    });
+  };
+
+  const moveVariable = (fromIndex: number, toIndex: number) => {
+    const updatedVariables = [...editingConfig.variables];
+    const [movedItem] = updatedVariables.splice(fromIndex, 1);
+    updatedVariables.splice(toIndex, 0, movedItem);
+    
+    // Reorder positions
+    const reorderedVariables = updatedVariables.map((variable: any, i: number) => ({
+      ...variable,
+      position: i
+    }));
+    
+    setEditingConfig({
+      ...editingConfig,
+      variables: reorderedVariables
+    });
+  };
+
+  const validateConfig = () => {
+    // Check for duplicate parameter names
+    const paramNames = editingConfig.variables.map((v: any) => v.parameter_name);
+    const uniqueNames = new Set(paramNames);
+    if (paramNames.length !== uniqueNames.size) {
+      toast({
+        title: 'Validation Error',
+        description: 'Parameter names must be unique',
+        variant: 'destructive',
+      });
+      return false;
+    }
+
+    // Check parameter name format
+    for (const variable of editingConfig.variables) {
+      if (!variable.parameter_name || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(variable.parameter_name)) {
+        toast({
+          title: 'Validation Error',
+          description: 'Parameter names must contain only letters, numbers, and underscores, and start with a letter or underscore',
+          variant: 'destructive',
+        });
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  const handleSave = async () => {
+    if (!validateConfig()) return;
+
+    setSaving(true);
+    try {
+      await api.updateSetting(templateKey, {
+        value: JSON.stringify({ template_config: editingConfig })
+      });
+      
+      toast({
+        title: 'Success',
+        description: 'Template configuration saved successfully',
+      });
+      
+      onSave(editingConfig);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to save template configuration',
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden">
+        {/* Modal Header */}
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                <MessageSquare className="h-5 w-5 text-green-600 dark:text-green-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Edit Template: {displayName}
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Configure template parameters and mappings
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            >
+              <X className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+            </button>
+          </div>
+        </div>
+
+        {/* Modal Body */}
+        <div className="px-6 py-4 max-h-[60vh] overflow-y-auto">
+          {/* Template Status */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Template Status
+              </label>
+              <button
+                onClick={() => setEditingConfig({ ...editingConfig, enabled: !editingConfig.enabled })}
+                className={`inline-flex items-center px-3 py-1 rounded-lg text-xs font-medium transition-all duration-200 ${
+                  editingConfig.enabled
+                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                    : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                }`}
+              >
+                {editingConfig.enabled ? 'Enabled' : 'Disabled'}
+              </button>
+            </div>
+          </div>
+
+          {/* Variables Section */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Template Variables ({editingConfig.variables.length})
+              </h4>
+              <button
+                onClick={addVariable}
+                className="inline-flex items-center px-3 py-1 rounded-lg bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 text-sm font-medium hover:bg-green-200 dark:hover:bg-green-900/50 transition-all duration-200"
+              >
+                <Check className="h-4 w-4 mr-1" />
+                Add Variable
+              </button>
+            </div>
+
+            {/* Variables List */}
+            <div className="space-y-3">
+              {editingConfig.variables.map((variable: any, index: number) => (
+                <div key={index} className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-1 rounded text-xs font-medium">
+                      Position {variable.position + 1}
+                    </span>
+                    <div className="flex items-center space-x-2">
+                      {index > 0 && (
+                        <button
+                          onClick={() => moveVariable(index, index - 1)}
+                          className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
+                          title="Move up"
+                        >
+                          <ChevronUp className="h-4 w-4 text-gray-500" />
+                        </button>
+                      )}
+                      {index < editingConfig.variables.length - 1 && (
+                        <button
+                          onClick={() => moveVariable(index, index + 1)}
+                          className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
+                          title="Move down"
+                        >
+                          <ChevronDown className="h-4 w-4 text-gray-500" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => removeVariable(index)}
+                        className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors"
+                        title="Remove variable"
+                      >
+                        <XCircle className="h-4 w-4 text-red-500" />
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        Parameter Name
+                      </label>
+                      <input
+                        type="text"
+                        value={variable.parameter_name}
+                        onChange={(e) => updateVariable(index, 'parameter_name', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:border-green-500 focus:ring-2 focus:ring-green-500 transition-all duration-200"
+                        placeholder="parameter_name"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        Description
+                      </label>
+                      <input
+                        type="text"
+                        value={variable.description}
+                        onChange={(e) => updateVariable(index, 'description', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:border-green-500 focus:ring-2 focus:ring-green-500 transition-all duration-200"
+                        placeholder="Variable description"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+              
+              {editingConfig.variables.length === 0 && (
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                  <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No variables defined yet</p>
+                  <p className="text-xs">Click "Add Variable" to get started</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Modal Footer */}
+        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-end space-x-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+          >
+            {saving ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin inline" />
+                Saving...
+              </>
+            ) : (
+              'Save Changes'
+            )}
+          </button>
         </div>
       </div>
     </div>
@@ -229,7 +790,7 @@ export default function SettingsPage() {
         return;
       }
 
-      await api.updateSetting(key, value);
+      await api.updateSetting(key, { value });
       
       const newEditing = new Set(editingSettings);
       newEditing.delete(key);
@@ -430,7 +991,20 @@ export default function SettingsPage() {
                 {isExpanded && (
                   <div className="border-t border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/20 rounded-b-xl">
                     <div className="p-6 space-y-6">
-                      {categorySettings.map(([key, setting]) => (
+                      {categorySettings.map(([key, setting]) => {
+                        // Special handling for WhatsApp template settings
+                        if (key.startsWith('whatsapp_template_')) {
+                          return (
+                            <WhatsAppTemplateCard
+                              key={key}
+                              templateKey={key}
+                              setting={setting}
+                              onUpdate={loadSettings}
+                            />
+                          );
+                        }
+                        
+                        return (
                         <div key={key} className="group/setting bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all duration-200">
                           {/* Setting Header */}
                           <div className="flex items-start justify-between mb-4">
@@ -613,7 +1187,8 @@ export default function SettingsPage() {
                             )}
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}

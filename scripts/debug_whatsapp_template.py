@@ -47,12 +47,12 @@ def main():
         'to': os.getenv('WHATSAPP_PHONE_NUMBER'),
         'type': 'template',
         'template': {
-            'name': 'ha_status',
+            'name': 'ha_notification',
             'language': {'code': 'en'}
         }
     }
     
-    success1 = test_template_structure('ha_status', test1, "Basic template without parameters")
+    success1 = test_template_structure('ha_notification', test1, "Basic template without parameters")
     
     if not success1:
         print("\n❌ Basic template failed - template might not be fully approved")
@@ -64,7 +64,7 @@ def main():
         'to': os.getenv('WHATSAPP_PHONE_NUMBER'),
         'type': 'template',
         'template': {
-            'name': 'ha_status',
+            'name': 'ha_notification',
             'language': {'code': 'en'},
             'components': [
                 {
@@ -80,7 +80,7 @@ def main():
         }
     }
     
-    success2 = test_template_structure('ha_status', test2, "Template with body parameter")
+    success2 = test_template_structure('ha_notification', test2, "Template with body parameter")
     
     # Test 3: Template with header and body components
     test3 = {
@@ -88,7 +88,7 @@ def main():
         'to': os.getenv('WHATSAPP_PHONE_NUMBER'),
         'type': 'template',
         'template': {
-            'name': 'ha_status',
+            'name': 'ha_notification',
             'language': {'code': 'en'},
             'components': [
                 {
@@ -108,7 +108,7 @@ def main():
         }
     }
     
-    success3 = test_template_structure('ha_status', test3, "Template with header + body components")
+    success3 = test_template_structure('ha_notification', test3, "Template with header + body components")
     
     # Test 4: Different parameter structure
     test4 = {
@@ -116,7 +116,7 @@ def main():
         'to': os.getenv('WHATSAPP_PHONE_NUMBER'),
         'type': 'template',
         'template': {
-            'name': 'ha_status',
+            'name': 'ha_notification',
             'language': {'code': 'en'},
             'components': [
                 {
@@ -129,7 +129,7 @@ def main():
         }
     }
     
-    success4 = test_template_structure('ha_status', test4, "Template with simple parameter format")
+    success4 = test_template_structure('ha_notification', test4, "Template with simple parameter format")
     
     # Summary
     print("\n" + "=" * 60)

@@ -43,7 +43,7 @@ def test_template_sending():
     
     templates_to_test = [
         {
-            "name": "ha_status",
+            "name": "ha_notification",
             "params": {"body": ["This is a test notification from your Meta Glasses bot"]},
             "description": "Home Assistant status template"
         },
@@ -87,7 +87,7 @@ def test_smart_messaging():
     print("1. Testing within conversation window:")
     success = send_smart_whatsapp_message(
         "Test message sent while within 24-hour conversation window",
-        "ha_status"
+        "ha_notification"
     )
     print(f"   Success: {success}")
     print(f"   Expected: Regular message sent")
@@ -99,7 +99,7 @@ def test_smart_messaging():
     # but we can test the template fallback
     success = send_smart_whatsapp_message(
         "Test notification that should use template when outside window",
-        "ha_status",
+        "ha_notification",
         {"body": ["Test notification that should use template when outside window"]}
     )
     print(f"   Success: {success}")

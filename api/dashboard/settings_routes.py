@@ -167,6 +167,61 @@ SETTINGS_SCHEMA = {
         "description": "Encoded Google OAuth credentials",
         "is_sensitive": True,
         "requires_restart": False
+    },
+    
+    # WhatsApp Templates
+    "whatsapp_template_ha_notification": {
+        "category": "whatsapp_templates",
+        "description": "Smart home automation notifications and alerts",
+        "is_sensitive": False,
+        "requires_restart": False,
+        "template_config": {
+            "enabled": True,
+            "template_name": "ha_notification",
+            "variables": [
+                {"position": 0, "parameter_name": "ha_message", "description": "Home Assistant message"}
+            ]
+        }
+    },
+    "whatsapp_template_meeting_reminder": {
+        "category": "whatsapp_templates",
+        "description": "Automated meeting reminders and alerts",
+        "is_sensitive": False,
+        "requires_restart": False,
+        "template_config": {
+            "enabled": True,
+            "template_name": "meeting_reminder",
+            "variables": [
+                {"position": 0, "parameter_name": "meeting_title", "description": "Meeting name"},
+                {"position": 1, "parameter_name": "meeting_time", "description": "Meeting time"}
+            ]
+        }
+    },
+    "whatsapp_template_meeting_start": {
+        "category": "whatsapp_templates",
+        "description": "Real-time meeting start notifications",
+        "is_sensitive": False,
+        "requires_restart": False,
+        "template_config": {
+            "enabled": True,
+            "template_name": "meeting_start",
+            "variables": [
+                {"position": 0, "parameter_name": "meeting_title", "description": "Meeting name"}
+            ]
+        }
+    },
+    "whatsapp_template_daily_schedule": {
+        "category": "whatsapp_templates",
+        "description": "Daily agenda and schedule summaries",
+        "is_sensitive": False,
+        "requires_restart": False,
+        "template_config": {
+            "enabled": True,
+            "template_name": "daily_schedule",
+            "variables": [
+                {"position": 0, "parameter_name": "schedule_details", "description": "Schedule information"}
+            ]
+        }
     }
 }
 
@@ -214,6 +269,7 @@ async def get_settings_schema(user: dict = Depends(verify_token)):
                 "system": "System Configuration",
                 "ai_services": "AI Services",
                 "communication": "Communication",
+                "whatsapp_templates": "WhatsApp Templates",
                 "productivity": "Productivity Tools", 
                 "home_automation": "Home Automation",
                 "external_services": "External Services",
@@ -503,6 +559,52 @@ async def test_home_assistant_connection(token: str, url: str) -> Dict[str, Any]
             "success": False,
             "message": f"Failed to connect to Home Assistant: {str(e)}"
         }
+
+@router.post("/test-template/{template_name}")
+async def test_whatsapp_template(template_name: str, test_data: dict, user: dict = Depends(verify_token)):
+    """Test WhatsApp template with sample data"""
+    try:
+        from utils.whatsapp import send_whatsapp_template
+        
+        # Validate template exists
+        setting_key = f"whatsapp_template_{template_name}"
+        if setting_key not in SETTINGS_SCHEMA:
+            raise HTTPException(status_code=404, detail="Template not found")
+        
+        # Get template configuration
+        template_config = SETTINGS_SCHEMA[setting_key].get("template_config", {})
+        if not template_config.get("enabled", False):
+            raise HTTPException(status_code=400, detail="Template is disabled")
+        
+        # Prepare test parameters
+        variables = template_config.get("variables", [])
+        test_params = {"body": []}
+        
+        for variable in sorted(variables, key=lambda x: x["position"]):
+            param_name = variable["parameter_name"]
+            if param_name in test_data:
+                test_params["body"].append(test_data[param_name])
+            else:
+                test_params["body"].append(f"Test {variable['description']}")
+        
+        # Send test template
+        template_name_clean = template_config.get("template_name", template_name.replace("whatsapp_template_", ""))
+        success = send_whatsapp_template(template_name_clean, test_params)
+        
+        if success:
+            return {
+                "success": True,
+                "message": f"Test template '{template_name_clean}' sent successfully"
+            }
+        else:
+            return {
+                "success": False,
+                "message": f"Failed to send test template '{template_name_clean}'"
+            }
+            
+    except Exception as e:
+        logger.error(f"Error testing template {template_name}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to test template: {str(e)}")
 
 @router.post("/change-password")
 async def change_admin_password(password_change: PasswordChange, user: dict = Depends(verify_token)):
