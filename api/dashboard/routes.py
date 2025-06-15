@@ -153,10 +153,10 @@ async def get_dashboard_stats(user_id: str = "60122873632"):
                 whatsapp_future = executor.submit(get_cached_or_check_whatsapp_status)
                 ai_future = executor.submit(get_cached_or_check_gemini_status)
                 
-                # Wait for both to complete with 4-second timeout total (reduced from 6s)
+                # Wait for both to complete with 2-second timeout total (aggressive for dashboard performance)
                 try:
-                    whatsapp_result = whatsapp_future.result(timeout=4)
-                    ai_result = ai_future.result(timeout=4)
+                    whatsapp_result = whatsapp_future.result(timeout=2)
+                    ai_result = ai_future.result(timeout=2)
                     return whatsapp_result, ai_result
                 except concurrent.futures.TimeoutError:
                     # Return cached or default values on timeout
