@@ -1466,51 +1466,23 @@ def create_consolidated_recording_memory(
 
 def get_context_from_title_and_summary(title: str, summary: str, is_single_speaker: bool = False, phone_number: str = None) -> str:
     """
-    Generate descriptive context based on recording title and summary using AI.
+    Generate descriptive context based on recording type.
     
     Args:
-        title: Recording title
-        summary: Recording summary
+        title: Recording title (unused - kept for backward compatibility)
+        summary: Recording summary (unused - kept for backward compatibility)
         is_single_speaker: Whether this is a single-speaker recording
-        phone_number: User's phone number for context
+        phone_number: User's phone number for context (unused - kept for backward compatibility)
         
     Returns:
         Descriptive context string
     """
-    try:
-        # Create a prompt for AI to analyze the recording context
-        prompt = f"""Based on this recording title and summary, provide a brief context description (max 5 words).
-
-Title: {title}
-Summary: {summary}
-Is single speaker: {is_single_speaker}
-
-Provide a short descriptive context like:
-- "Solo coding session"
-- "Team meeting discussion"
-- "Personal reflection"
-- "Technical brainstorming"
-- "Work planning session"
-- "Learning new concepts"
-- "Casual conversation"
-
-Return ONLY the context description, nothing else."""
-
-        # Use simple_prompt_request for quick context generation
-        context = simple_prompt_request(prompt, phone_number).strip()
-        
-        # Validate the response is reasonable length
-        if context and len(context.split()) <= 8:  # Allow up to 8 words for flexibility
-            return context
-        else:
-            # Fallback to generic context if AI response is too long or empty
-            logger.debug(f"AI context too long or empty: '{context}', using fallback")
-            return "Solo recording" if is_single_speaker else "General conversation"
-            
-    except Exception as e:
-        logger.debug(f"Error generating AI context: {e}, using fallback")
-        # Fallback to generic context on any error
-        return "Solo recording" if is_single_speaker else "General conversation"
+    # Simple deterministic context - no AI needed
+    # This optimization reduces speaker identification from ~35s to <0.1s
+    if is_single_speaker:
+        return "Solo recording"
+    else:
+        return "Participant in conversation"
 
 
 def extract_speakers_from_contents(log: Dict) -> List[Dict[str, str]]:
