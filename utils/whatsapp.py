@@ -51,17 +51,22 @@ def send_whatsapp_template(template_name: str, parameters: Optional[Dict[str, An
    }
    
    # Add parameters if provided
-   if parameters:
+   if parameters and 'body' in parameters:
        components = []
-       if 'body' in parameters:
-           body_params = [{"type": "text", "text": str(param)} for param in parameters['body']]
-           components.append({
-               "type": "body",
-               "parameters": body_params
+       body_params = []
+       
+       for param in parameters['body']:
+           body_params.append({
+               "type": "text",
+               "text": str(param)
            })
        
-       if components:
-           template_data["components"] = components
+       components.append({
+           "type": "body", 
+           "parameters": body_params
+       })
+       
+       template_data["components"] = components
    
    json_data = {
        'messaging_product': 'whatsapp',
