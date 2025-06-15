@@ -339,6 +339,18 @@ function LimitlessPerformanceContent({
   error: string;
   onRefresh: () => void;
 }) {
+  // Helper function to get display names for operations
+  const getOperationDisplayName = (operation: string): string => {
+    switch(operation) {
+      case 'speaker_identification': return 'Speaker Identification';
+      case 'natural_language_tasks': return 'Natural Language Tasks (Legacy)';
+      case 'gemini_extraction': return 'Combined AI Extraction';
+      case 'memory_creation': return 'Memory Creation';
+      case 'tasks_creation': return 'Task Creation';
+      case 'redis_caching': return 'Redis Caching';
+      default: return operation.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    }
+  };
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -501,8 +513,8 @@ function LimitlessPerformanceContent({
                 
                 const operationIcons: Record<string, string> = {
                   'speaker_identification': '🎭',
-                  'natural_language_tasks': '🧠',
-                  'gemini_extraction': '🤖',
+                  'natural_language_tasks': '🧠',  // Legacy - kept for backward compatibility
+                  'gemini_extraction': '🤖',      // Now includes task extraction
                   'memory_creation': '💾',
                   'tasks_creation': '✅',
                   'redis_caching': '🗄️'
@@ -513,7 +525,7 @@ function LimitlessPerformanceContent({
                     <div className="w-48 flex items-center">
                       <span className="mr-2">{operationIcons[operation] || '⚙️'}</span>
                       <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        {operation.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                        {getOperationDisplayName(operation)}
                       </span>
                       {isBottleneck && <span className="ml-2 text-xs bg-red-100 text-red-800 px-2 py-1 rounded">Bottleneck</span>}
                     </div>
@@ -580,7 +592,7 @@ function LimitlessPerformanceContent({
                         {primaryBottleneck ? (
                           <div>
                             <div className="font-medium">
-                              {primaryBottleneck[0].replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                              {getOperationDisplayName(primaryBottleneck[0])}
                             </div>
                             <div className="text-xs text-gray-500">
                               {primaryBottleneck[1].toFixed(1)}s

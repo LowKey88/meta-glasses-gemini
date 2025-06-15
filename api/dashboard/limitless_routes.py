@@ -578,6 +578,7 @@ async def get_performance_metrics(
             
             if timing_breakdowns:
                 # Calculate average for each operation
+                # Note: natural_language_tasks is kept for backward compatibility but will be 0 for new records
                 for operation in ['speaker_identification', 'natural_language_tasks', 'gemini_extraction', 'memory_creation', 'tasks_creation', 'redis_caching']:
                     times = [breakdown.get(operation, 0) for breakdown in timing_breakdowns if breakdown.get(operation, 0) > 0]
                     if times:
@@ -736,11 +737,11 @@ async def get_performance_metrics(
                     # Convert category name to display format
                     display_name = category.replace('_', ' ').title()
                     if category == 'gemini_extraction':
-                        display_name = 'Gemini AI Extraction'
+                        display_name = 'Combined AI Extraction'  # Updated to reflect it includes tasks
                     elif category == 'speaker_identification':
                         display_name = 'Speaker Identification'
                     elif category == 'natural_language_tasks':
-                        display_name = 'Natural Language Tasks'
+                        display_name = 'Natural Language Tasks (Legacy)'  # Mark as legacy
                     elif category == 'memory_creation':
                         display_name = 'Memory Creation'
                     elif category == 'tasks_creation':
