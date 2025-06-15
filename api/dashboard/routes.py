@@ -103,22 +103,33 @@ async def dashboard_login(request: LoginRequest, http_request: Request):
 async def get_dashboard_stats(user_id: str = "60122873632"):
     """Get overall system statistics"""
     try:
+        import time
+        start_total = time.time()
+        
         # Get memory counts efficiently without loading all data
+        start_time = time.time()
         memory_counts = MemoryManager.get_memory_counts_by_type(user_id)
         total_memories = sum(memory_counts.values())
+        logger.info(f"⏱️  Memory counting took: {(time.time() - start_time)*1000:.1f}ms")
         
         # Use DBSIZE instead of KEYS * for total count (much faster)
+        start_time = time.time()
         from utils.redis_monitor import redis_monitor
         total_redis_keys = redis_monitor.execute_with_monitoring("DBSIZE", "db", r.dbsize)
+        logger.info(f"⏱️  Redis DBSIZE took: {(time.time() - start_time)*1000:.1f}ms")
         
         # Use scan with pattern for reminders (more efficient than KEYS)
+        start_time = time.time()
         reminder_pattern = redis_keys.get_all_reminder_keys_pattern()
         active_reminders = 0
         for key in r.scan_iter(match=reminder_pattern, count=100):
             active_reminders += 1
+        logger.info(f"⏱️  Reminder scanning took: {(time.time() - start_time)*1000:.1f}ms")
         
         # Get today's message count from metrics
+        start_time = time.time()
         recent_messages = MetricsTracker.get_messages_today()
+        logger.info(f"⏱️  Message metrics took: {(time.time() - start_time)*1000:.1f}ms")
         
         # Calculate uptime
         uptime_seconds = int((datetime.now() - app_start_time).total_seconds())
@@ -137,10 +148,12 @@ async def get_dashboard_stats(user_id: str = "60122873632"):
             uptime = f"{seconds}s"
         
         # Get AI metrics
+        start_time = time.time()
         total_ai_requests = MetricsTracker.get_ai_requests_today()
         message_activity = MetricsTracker.get_message_activity(24)  # Last 24 hours
         weekly_activity = MetricsTracker.get_weekly_message_activity()  # Last 7 days
         today_vs_yesterday = MetricsTracker.get_today_vs_yesterday_hourly()  # Comparison
+        logger.info(f"⏱️  Chart data generation took: {(time.time() - start_time)*1000:.1f}ms")
         
         # Get WhatsApp and AI status concurrently for better performance
         import asyncio
@@ -162,11 +175,18 @@ async def get_dashboard_stats(user_id: str = "60122873632"):
                     # Return cached or default values on timeout
                     return {"status": "timeout", "is_valid": False}, {"status": "timeout", "is_available": False}
         
+        start_time = time.time()
         whatsapp_token_info, ai_status_info = get_concurrent_status()
         whatsapp_status = whatsapp_token_info.get('status', 'unknown')
+        logger.info(f"⏱️  API status checks took: {(time.time() - start_time)*1000:.1f}ms")
         
         # Get AI usage stats (Redis-only, fast)
+        start_time = time.time()
         ai_usage_stats = get_ai_usage_stats()
+        logger.info(f"⏱️  AI usage stats took: {(time.time() - start_time)*1000:.1f}ms")
+        
+        total_time = time.time() - start_total
+        logger.info(f"🚀 TOTAL dashboard stats took: {total_time*1000:.1f}ms")
         
         return DashboardStats(
             total_memories=total_memories,
