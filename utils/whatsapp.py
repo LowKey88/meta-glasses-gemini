@@ -21,7 +21,13 @@ CONVERSATION_WINDOW_HOURS = 24
 _last_user_message_time = None
 
 def get_whatsapp_url():
-   return f"{GRAPH_API_BASE}/{WHATSAPP_API_VERSION}/{os.getenv('WHATSAPP_PHONE_ID')}/messages"
+   phone_id = os.getenv('WHATSAPP_PHONE_ID')
+   if not phone_id:
+       logger.error("❌ WHATSAPP_PHONE_ID environment variable is not set!")
+       logger.error("💡 Get your Phone Number ID from WhatsApp Business Manager → API Setup")
+       logger.error("💡 It's different from your phone number - it's a long ID like 1234567890123456")
+       raise ValueError("WHATSAPP_PHONE_ID is required but not set")
+   return f"{GRAPH_API_BASE}/{WHATSAPP_API_VERSION}/{phone_id}/messages"
 
 def update_conversation_window():
    """Update the last user message time to current time."""
@@ -45,30 +51,57 @@ def send_whatsapp_template(template_name: str, parameters: Optional[Dict[str, An
    """Send a WhatsApp message template (for use outside 24-hour window)."""
    logger.info(f"Sending WhatsApp template: {template_name} with parameters: {parameters}")
    
-   # Check if templates are approved
-   if template_name == "ha_status":
-       logger.info("⚠️  Using ha_status template - ensure it's APPROVED in WhatsApp Business Manager")
-   
    template_data = {
        "name": template_name,
        "language": {"code": "en"}
    }
    
-   # Add parameters if provided - handle multiple parameters correctly
-   if parameters and 'body' in parameters and len(parameters['body']) > 0:
-       body_params = []
-       for param in parameters['body']:
-           body_params.append({
-               "type": "text", 
-               "text": str(param)
-           })
-       
-       template_data["components"] = [
-           {
-               "type": "body",
-               "parameters": body_params
-           }
-       ]
+   # Handle different template structures
+   if template_name == "ha_status":
+       # ha_status has Header + Body with 1 variable {{ha_message}}
+       if parameters and 'body' in parameters and len(parameters['body']) > 0:
+           template_data["components"] = [
+               {
+                   "type": "body",
+                   "parameters": [
+                       {
+                           "type": "text",
+                           "text": str(parameters['body'][0])
+                       }
+                   ]
+               }
+           ]
+       else:
+           logger.info("🧪 Testing ha_status template without parameters first")
+           
+   elif template_name == "meeting_reminder":
+       # meeting_reminder expects 2 parameters: title and time
+       if parameters and 'body' in parameters and len(parameters['body']) >= 2:
+           template_data["components"] = [
+               {
+                   "type": "body",
+                   "parameters": [
+                       {"type": "text", "text": str(parameters['body'][0])},  # meeting title
+                       {"type": "text", "text": str(parameters['body'][1])}   # meeting time
+                   ]
+               }
+           ]
+   else:
+       # Generic handling for other templates
+       if parameters and 'body' in parameters and len(parameters['body']) > 0:
+           body_params = []
+           for param in parameters['body']:
+               body_params.append({
+                   "type": "text", 
+                   "text": str(param)
+               })
+           
+           template_data["components"] = [
+               {
+                   "type": "body",
+                   "parameters": body_params
+               }
+           ]
    
    json_data = {
        'messaging_product': 'whatsapp',

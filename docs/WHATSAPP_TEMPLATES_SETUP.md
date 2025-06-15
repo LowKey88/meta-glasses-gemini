@@ -118,6 +118,12 @@ Check logs for these messages:
 - **Solution**: Ensure parameter count matches template variables
 - **Fix**: Verify `{{ha_message}}`, `{{meeting_title}}` variables align with code parameters
 
+### Missing Phone Number ID
+- **Symptom**: Error "Object with ID 'None' does not exist" or templates fail
+- **Solution**: Add WHATSAPP_PHONE_ID environment variable
+- **Fix**: Get Phone Number ID from WhatsApp Business Manager → API Setup → Phone Numbers
+- **Note**: This is different from your phone number - it's a long ID like 1234567890123456
+
 ### Conversation Window Not Updating
 - **Symptom**: System always uses templates even after user messages
 - **Solution**: Check webhook is calling `update_conversation_window()`
