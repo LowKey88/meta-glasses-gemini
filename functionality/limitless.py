@@ -802,17 +802,12 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
         
         # Only process transcript if available
         if has_transcript:
-            # ⏱️ TIMING: Natural language task extraction
-            natural_tasks_start = time.time()
+            # OPTIMIZATION: Skip separate natural language task extraction
+            # Tasks are now extracted in the main AI call to reduce API calls from 2 to 1
+            natural_tasks_created = 0
+            timing_data['natural_language_tasks'] = 0.0
             
-            # First, extract natural language tasks and reminders
-            natural_tasks_created, natural_tasks_data = extract_natural_language_tasks(transcript, log_id, phone_number, title)
-            results['tasks_created'] += natural_tasks_created
-            
-            timing_data['natural_language_tasks'] = time.time() - natural_tasks_start
-            logger.info(f"🧠 Natural language tasks: {timing_data['natural_language_tasks']:.1f}s - Created {natural_tasks_created} tasks")
-            
-            # ⏱️ TIMING: Gemini AI extraction
+            # ⏱️ TIMING: Combined Gemini AI extraction (includes natural language tasks)
             gemini_start = time.time()
             
             # ✅ ENHANCED: Use speaker-aware Gemini prompt with fallback
@@ -821,7 +816,7 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
             response = limitless_extraction_request(extraction_prompt, phone_number)
             
             timing_data['gemini_extraction'] = time.time() - gemini_start
-            logger.info(f"🤖 Gemini AI extraction: {timing_data['gemini_extraction']:.1f}s - Response length: {len(response)} chars")
+            logger.info(f"🤖 Combined AI extraction (facts, tasks, events): {timing_data['gemini_extraction']:.1f}s - Response length: {len(response)} chars")
             
             # Parse the response
             try:
@@ -856,11 +851,16 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
                 # ✅ ENHANCED: Merge AI extraction with speaker data
                 extracted['facts'] = extracted_ai.get('facts', [])
                 
-                # Mark AI-extracted tasks with source before storing
+                # Process tasks with proper source attribution
                 ai_tasks = extracted_ai.get('tasks', [])
                 for task in ai_tasks:
                     if isinstance(task, dict):
-                        task['source'] = 'ai_extracted'
+                        # If task already has source from AI, keep it; otherwise mark as ai_extracted
+                        if 'source' not in task:
+                            task['source'] = 'ai_extracted'
+                        # Count natural language tasks
+                        if task.get('source') == 'natural_language':
+                            natural_tasks_created += 1
                         
                 extracted['tasks'] = ai_tasks
                 extracted['events'] = extracted_ai.get('events', [])
@@ -1047,9 +1047,8 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
                         if task.get('source') in ['ai_extracted', 'natural_language']:
                             validated_tasks.append(task)
                         
-            # Merge natural language tasks with AI-extracted tasks
-            if natural_tasks_data:
-                validated_tasks.extend(natural_tasks_data)
+            # OPTIMIZATION: Natural language tasks are now included in AI extraction
+            # No need to merge separately as they're already in extracted['tasks']
             
             # CRITICAL FIX: Also preserve natural language tasks from previous cache
             # This handles cases where natural language tasks were skipped due to deduplication
@@ -1122,8 +1121,7 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
         logger.info(f"├─ 🎭 Speaker identification: {timing_data.get('speaker_identification', 0):.1f}s ({timing_data.get('speaker_identification', 0)/total_time*100:.1f}%)")
         
         if has_transcript:
-            logger.info(f"├─ 🧠 Natural language tasks: {timing_data.get('natural_language_tasks', 0):.1f}s ({timing_data.get('natural_language_tasks', 0)/total_time*100:.1f}%)")
-            logger.info(f"├─ 🤖 Gemini AI extraction: {timing_data.get('gemini_extraction', 0):.1f}s ({timing_data.get('gemini_extraction', 0)/total_time*100:.1f}%)")
+            logger.info(f"├─ 🤖 Combined AI extraction: {timing_data.get('gemini_extraction', 0):.1f}s ({timing_data.get('gemini_extraction', 0)/total_time*100:.1f}%)")
             logger.info(f"├─ 💾 Memory creation: {timing_data.get('memory_creation', 0):.1f}s ({timing_data.get('memory_creation', 0)/total_time*100:.1f}%)")
             logger.info(f"├─ ✅ Tasks creation: {timing_data.get('tasks_creation', 0):.1f}s ({timing_data.get('tasks_creation', 0)/total_time*100:.1f}%)")
         
@@ -1645,7 +1643,11 @@ def get_enhanced_extraction_prompt(title: str, summary: str, transcript: str) ->
         prompt = f"""Analyze this conversation transcript and extract ONLY the most important information:
 
 1. Key facts and decisions - MAXIMUM 3 most important facts only
-2. Action items and tasks - ONLY explicit tasks with clear actions
+2. Action items and tasks - Look for natural language patterns like:
+   - "remind me to...", "I need to...", "don't forget to..."
+   - "my wife/husband told me to...", "I should...", "I have to..."
+   - "make sure to...", "remember to..."
+   - Any clear, actionable tasks or reminders mentioned in conversation
 3. Important dates or events - ONLY specific dates mentioned
 4. People mentioned - MAXIMUM 3 most relevant people
 
@@ -1674,7 +1676,9 @@ Return a JSON object with:
         "description": "task description", 
         "due_date": "YYYY-MM-DD or null",
         "assigned_to": "You" or "Speaker 0" or exact name,
-        "assigned_by": "Speaker N who mentioned it"
+        "assigned_by": "Speaker N who mentioned it",
+        "source": "natural_language" or "ai_extracted",
+        "urgency": "high" or "medium" or "low"
     }}],
     "events": [{{"title": "event", "date": "YYYY-MM-DD", "time": "HH:MM or null"}}],
     "people": [{{
@@ -1691,7 +1695,11 @@ Be VERY selective. Quality over quantity. Extract only clearly important informa
         prompt = f"""Analyze this single-speaker recording and extract ONLY the most important information:
 
 1. Key facts and decisions - MAXIMUM 3 most important facts only
-2. Action items and tasks - ONLY explicit tasks with clear actions
+2. Action items and tasks - Look for natural language patterns like:
+   - "remind me to...", "I need to...", "don't forget to..."
+   - "my wife/husband told me to...", "I should...", "I have to..."
+   - "make sure to...", "remember to..."
+   - Any clear, actionable tasks or reminders mentioned in conversation
 3. Important dates or events - ONLY specific dates mentioned
 4. People mentioned - MAXIMUM 3 most relevant people
 
@@ -1716,7 +1724,9 @@ Return a JSON object with:
         "description": "task description", 
         "due_date": "YYYY-MM-DD or null",
         "assigned_to": "You",
-        "assigned_by": "You"
+        "assigned_by": "You",
+        "source": "natural_language" or "ai_extracted",
+        "urgency": "high" or "medium" or "low"
     }}],
     "events": [{{"title": "event", "date": "YYYY-MM-DD", "time": "HH:MM or null"}}],
     "people": [{{
