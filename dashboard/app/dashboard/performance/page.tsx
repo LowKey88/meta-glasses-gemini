@@ -343,8 +343,8 @@ function LimitlessPerformanceContent({
   const getOperationDisplayName = (operation: string): string => {
     switch(operation) {
       case 'speaker_identification': return 'Speaker Identification';
-      case 'natural_language_tasks': return 'Natural Language Tasks (Legacy)';
-      case 'gemini_extraction': return 'Combined AI Extraction';
+      case 'natural_language_tasks': return 'Natural Language Tasks';
+      case 'gemini_extraction': return 'AI Extraction';
       case 'memory_creation': return 'Memory Creation';
       case 'tasks_creation': return 'Task Creation';
       case 'redis_caching': return 'Redis Caching';
@@ -513,8 +513,8 @@ function LimitlessPerformanceContent({
                 
                 const operationIcons: Record<string, string> = {
                   'speaker_identification': '🎭',
-                  'natural_language_tasks': '🧠',  // Legacy - kept for backward compatibility
-                  'gemini_extraction': '🤖',      // Now includes task extraction
+                  'natural_language_tasks': '🧠',
+                  'gemini_extraction': '🤖',
                   'memory_creation': '💾',
                   'tasks_creation': '✅',
                   'redis_caching': '🗄️'

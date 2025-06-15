@@ -578,19 +578,30 @@ async def get_performance_metrics(
             
             if timing_breakdowns:
                 # Calculate average for each operation
-                # Note: natural_language_tasks is kept for backward compatibility but will be 0 for new records
                 for operation in ['speaker_identification', 'natural_language_tasks', 'gemini_extraction', 'memory_creation', 'tasks_creation', 'redis_caching']:
                     times = [breakdown.get(operation, 0) for breakdown in timing_breakdowns if breakdown.get(operation, 0) > 0]
                     if times:
                         avg_breakdown[operation] = sum(times) / len(times)
                         avg_breakdown[f"{operation}_count"] = len(times)
+                        
+            # Merge natural language tasks into AI extraction for cleaner presentation
+            if 'natural_language_tasks' in avg_breakdown and 'gemini_extraction' in avg_breakdown:
+                # For old data, merge natural language time into AI extraction
+                merged_time = avg_breakdown['gemini_extraction'] + avg_breakdown['natural_language_tasks']
+                avg_breakdown['gemini_extraction'] = merged_time
+                # Remove natural language tasks from breakdown
+                del avg_breakdown['natural_language_tasks']
+                if 'natural_language_tasks_count' in avg_breakdown:
+                    del avg_breakdown['natural_language_tasks_count']
             
             # Identify bottlenecks
             bottleneck_analysis = {}
             if avg_breakdown:
-                total_avg = sum(avg_breakdown.get(op, 0) for op in ['speaker_identification', 'natural_language_tasks', 'gemini_extraction', 'memory_creation', 'tasks_creation', 'redis_caching'])
+                # Calculate total without natural_language_tasks (it's been merged into gemini_extraction)
+                operations_to_analyze = ['speaker_identification', 'gemini_extraction', 'memory_creation', 'tasks_creation', 'redis_caching']
+                total_avg = sum(avg_breakdown.get(op, 0) for op in operations_to_analyze)
                 if total_avg > 0:
-                    for operation in ['speaker_identification', 'natural_language_tasks', 'gemini_extraction', 'memory_creation', 'tasks_creation', 'redis_caching']:
+                    for operation in operations_to_analyze:
                         if operation in avg_breakdown:
                             percentage = (avg_breakdown[operation] / total_avg) * 100
                             bottleneck_analysis[operation] = {
@@ -734,14 +745,18 @@ async def get_performance_metrics(
                 if stats['times']:
                     avg_time = sum(stats['times']) / len(stats['times'])
                     
+                    # Skip natural_language_tasks for new data (it's now part of AI extraction)
+                    if category == 'natural_language_tasks' and avg_time < 0.1:
+                        continue
+                        
                     # Convert category name to display format
                     display_name = category.replace('_', ' ').title()
                     if category == 'gemini_extraction':
-                        display_name = 'Combined AI Extraction'  # Updated to reflect it includes tasks
+                        display_name = 'AI Extraction'
                     elif category == 'speaker_identification':
                         display_name = 'Speaker Identification'
                     elif category == 'natural_language_tasks':
-                        display_name = 'Natural Language Tasks (Legacy)'  # Mark as legacy
+                        display_name = 'Natural Language Tasks'
                     elif category == 'memory_creation':
                         display_name = 'Memory Creation'
                     elif category == 'tasks_creation':
