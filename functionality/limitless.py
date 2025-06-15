@@ -680,7 +680,7 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
     import time
     
     # ⏱️ START: Overall processing timing
-    start_time = time.time()
+    processing_start_time = time.time()
     log_id = log.get('id', 'unknown')
     title = log.get('title', 'Untitled Recording')
     
@@ -1114,7 +1114,7 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
         timing_data['redis_caching'] = time.time() - cache_start
         
         # ⏱️ FINAL: Overall processing summary
-        total_time = time.time() - start_time
+        total_time = time.time() - processing_start_time
         timing_data['total_processing'] = total_time
         
         # Log detailed timing breakdown
@@ -1145,7 +1145,7 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
         redis_client.setex(performance_key, 3600, json.dumps(performance_data))  # 1 hour TTL
         
     except Exception as e:
-        total_time = time.time() - start_time
+        total_time = time.time() - processing_start_time
         logger.error(f"❌ Error processing Lifelog {log.get('id', 'unknown')[:8]}... after {total_time:.1f}s: {str(e)}")
         
     return results
