@@ -95,15 +95,15 @@ class MemoryManager:
         
         # OPTIMIZATION: Skip expensive AI deduplication for Limitless (they have their own duplicate checking)
         if not skip_deduplication:
-            # Check for existing similar memories using AI
-            existing_memories = MemoryManager.get_all_memories(user_id)
+            # Check for existing similar memories using optimized approach - only get recent memories of same type
+            recent_memories = MemoryManager._get_recent_memories_by_type(user_id, memory_type, limit=10)
             
             # Use AI to check if this memory already exists or conflicts
-            if existing_memories:
+            if recent_memories:
                 try:
                     from utils.gemini import simple_prompt_request
                     
-                    existing_content = "; ".join([f"{m['type']}: {m['content']}" for m in existing_memories[-5:]])  # Check last 5 memories
+                    existing_content = "; ".join([f"{m['type']}: {m['content']}" for m in recent_memories[:5]])  # Check last 5 memories
                     
                     dedup_prompt = f"""
                     New memory: "{content}" (type: {memory_type})
@@ -124,7 +124,7 @@ class MemoryManager:
                     elif dedup_response.startswith('CONFLICT'):
                         # Find and update the conflicting memory
                         conflict_text = dedup_response.replace('CONFLICT:', '').strip()
-                        for memory in existing_memories:
+                        for memory in recent_memories:
                             if conflict_text.lower() in memory['content'].lower():
                                 # Update existing memory with better version
                                 MemoryManager.update_memory(user_id, memory['id'], {
@@ -163,6 +163,9 @@ class MemoryManager:
         # Update index
         index_key = MemoryManager.get_index_key(user_id)
         monitored_sadd(index_key, memory_id)
+        
+        # Update memory type counters for instant dashboard performance
+        MemoryManager._increment_memory_counter(user_id, memory_type)
         
         logger.info(f"Created memory {memory_id} for user {user_id}: {content[:50]}...")
         return memory_id
@@ -253,9 +256,36 @@ class MemoryManager:
     @staticmethod
     @try_catch_decorator
     def get_memory_counts_by_type(user_id: str) -> Dict[str, int]:
-        """Get memory counts by type efficiently without loading all data."""
+        """Get memory counts by type using efficient Redis counters."""
+        # Use Redis hash to store memory counts by type
+        counters_key = redis_keys.get_user_memory_counters_key(user_id)
+        
+        # Check if counters exist, if not rebuild them once
+        if not r.exists(counters_key):
+            logger.info(f"Rebuilding memory counters for user {user_id}")
+            MemoryManager._rebuild_memory_counters(user_id)
+        
+        # Get all counts from Redis hash (single operation!)
+        type_counts = {}
+        counter_data = r.hgetall(counters_key)
+        
+        for mem_type, count in counter_data.items():
+            type_key = mem_type.decode() if isinstance(mem_type, bytes) else mem_type
+            count_val = int(count.decode() if isinstance(count, bytes) else count)
+            type_counts[type_key] = count_val
+        
+        return type_counts
+    
+    @staticmethod
+    @try_catch_decorator
+    def _rebuild_memory_counters(user_id: str):
+        """Rebuild memory counters from scratch (one-time operation)."""
         index_key = MemoryManager.get_index_key(user_id)
         memory_ids = monitored_smembers(index_key)
+        counters_key = redis_keys.get_user_memory_counters_key(user_id)
+        
+        # Clear existing counters
+        r.delete(counters_key)
         
         type_counts = {}
         
@@ -275,7 +305,61 @@ class MemoryManager:
             except (json.JSONDecodeError, KeyError):
                 continue
         
+        # Save counters to Redis hash
+        if type_counts:
+            r.hmset(counters_key, type_counts)
+            # Set expiry to 7 days (will be refreshed when memories are modified)
+            r.expire(counters_key, 86400 * 7)
+        
+        logger.info(f"Rebuilt memory counters: {type_counts}")
         return type_counts
+    
+    @staticmethod
+    @try_catch_decorator
+    def _increment_memory_counter(user_id: str, memory_type: str):
+        """Increment memory counter for a specific type."""
+        counters_key = redis_keys.get_user_memory_counters_key(user_id)
+        r.hincrby(counters_key, memory_type, 1)
+        # Refresh expiry to 7 days
+        r.expire(counters_key, 86400 * 7)
+    
+    @staticmethod
+    @try_catch_decorator
+    def _decrement_memory_counter(user_id: str, memory_type: str):
+        """Decrement memory counter for a specific type."""
+        counters_key = redis_keys.get_user_memory_counters_key(user_id)
+        current = r.hget(counters_key, memory_type)
+        if current and int(current) > 0:
+            r.hincrby(counters_key, memory_type, -1)
+        # Refresh expiry to 7 days
+        r.expire(counters_key, 86400 * 7)
+    
+    @staticmethod
+    @try_catch_decorator
+    def _get_recent_memories_by_type(user_id: str, memory_type: str, limit: int = 10) -> List[Dict]:
+        """Get recent memories of a specific type efficiently (for deduplication)."""
+        index_key = MemoryManager.get_index_key(user_id)
+        memory_ids = monitored_smembers(index_key)
+        
+        # Get memories of the specific type, sorted by creation date
+        matching_memories = []
+        
+        for memory_id in memory_ids:
+            memory_id = memory_id.decode() if isinstance(memory_id, bytes) else memory_id
+            memory = MemoryManager.get_memory(user_id, memory_id)
+            
+            if (memory and 
+                memory.get('status') == 'active' and 
+                memory.get('type') == memory_type):
+                matching_memories.append(memory)
+            
+            # Stop early if we have enough memories
+            if len(matching_memories) >= limit * 2:  # Get extra to sort properly
+                break
+        
+        # Sort by creation date (newest first) and return limited results
+        matching_memories.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+        return matching_memories[:limit]
     
     @staticmethod
     @try_catch_decorator
@@ -373,6 +457,10 @@ class MemoryManager:
         if not memory:
             return False
         
+        # Track type changes for counter updates
+        old_type = memory.get('type')
+        old_status = memory.get('status')
+        
         # Update fields
         for key, value in updates.items():
             if key not in ['id', 'user_id', 'created_at']:
@@ -383,6 +471,21 @@ class MemoryManager:
         # Save updated memory
         key = MemoryManager.get_memory_key(user_id, memory_id)
         monitored_set(key, json.dumps(memory))
+        
+        # Update counters if type changed or status changed
+        new_type = memory.get('type')
+        new_status = memory.get('status')
+        
+        if old_status == 'active' and new_status == 'archived':
+            # Memory was archived (soft deleted)
+            MemoryManager._decrement_memory_counter(user_id, old_type)
+        elif old_status == 'archived' and new_status == 'active':
+            # Memory was restored
+            MemoryManager._increment_memory_counter(user_id, new_type)
+        elif old_status == 'active' and new_status == 'active' and old_type != new_type:
+            # Type changed for active memory
+            MemoryManager._decrement_memory_counter(user_id, old_type)
+            MemoryManager._increment_memory_counter(user_id, new_type)
         
         logger.info(f"Updated memory {memory_id} for user {user_id}")
         return True

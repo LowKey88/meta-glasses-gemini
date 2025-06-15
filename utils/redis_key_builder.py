@@ -97,6 +97,11 @@ class RedisKeyBuilder:
         """Generate key for user memory index."""
         return cls._build_key(cls.USER, "memory_index", user_id)
     
+    @classmethod
+    def get_user_memory_counters_key(cls, user_id: str) -> str:
+        """Generate key for user memory type counters."""
+        return cls._build_key(cls.USER, "memory_counters", user_id)
+    
     # ====================
     # REMINDER & CALENDAR KEYS
     # ====================
