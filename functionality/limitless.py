@@ -1299,14 +1299,11 @@ def create_consolidated_recording_memory(
     Returns True if memory was created, False if skipped.
     """
     try:
-        # Check if we already have a memory for this recording
-        existing_memories = memory_manager.get_all_memories(phone_number)
-        for existing_mem in existing_memories:
-            metadata = existing_mem.get('metadata', {})
-            if (metadata.get('source') == 'limitless' and 
-                metadata.get('log_id') == log_id):
-                logger.debug(f"Memory already exists for recording {log_id[:8]}...")
-                return False
+        # OPTIMIZATION: Fast duplicate check using Redis key pattern instead of loading all memories
+        limitless_memory_key = f"meta-glasses:limitless:memory_created:{log_id}"
+        if redis_client.exists(limitless_memory_key):
+            logger.debug(f"Memory already exists for recording {log_id[:8]}...")
+            return False
         
         # Check quality thresholds
         facts = extracted.get('facts', [])
@@ -1427,29 +1424,36 @@ def create_consolidated_recording_memory(
             content=content,
             memory_type=memory_type,
             extracted_from='limitless',
-            importance=7  # Higher importance for consolidated memories
+            importance=7,  # Higher importance for consolidated memories
+            skip_deduplication=True  # OPTIMIZATION: Skip expensive AI deduplication - we already checked
         )
         
-        # Add metadata for tracking
+        # OPTIMIZATION: Efficient metadata update and tracking
         if memory_id and memory_id != "duplicate":
+            # Set tracking key to prevent future duplicates (TTL: 30 days)
+            redis_client.setex(limitless_memory_key, 86400 * 30, "1")
+            
+            # Single optimized metadata update
             memory_key = RedisKeyBuilder.get_user_memory_key(phone_number, memory_id)
             memory_data = redis_client.get(memory_key)
             if memory_data:
                 memory_obj = json.loads(memory_data.decode() if isinstance(memory_data, bytes) else memory_data)
-                memory_obj['metadata'] = memory_obj.get('metadata', {})
-                memory_obj['metadata']['source'] = 'limitless'
-                memory_obj['metadata']['log_id'] = log_id
-                memory_obj['metadata']['is_consolidated'] = True
-                memory_obj['metadata']['facts_count'] = len(meaningful_facts)
-                memory_obj['metadata']['people_count'] = len(meaningful_people)
-                # Store people data for visual graph without creating separate memories
-                memory_obj['metadata']['people_mentioned'] = [
-                    {
-                        'name': person['name'],
-                        'context': person.get('context', ''),
-                        'is_speaker': person.get('is_speaker', False)
-                    } for person in meaningful_people
-                ]
+                # Batch all metadata updates into single operation
+                memory_obj['metadata'] = {
+                    **memory_obj.get('metadata', {}),
+                    'source': 'limitless',
+                    'log_id': log_id,
+                    'is_consolidated': True,
+                    'facts_count': len(meaningful_facts),
+                    'people_count': len(meaningful_people),
+                    'people_mentioned': [
+                        {
+                            'name': person['name'],
+                            'context': person.get('context', ''),
+                            'is_speaker': person.get('is_speaker', False)
+                        } for person in meaningful_people
+                    ]
+                }
                 redis_client.set(memory_key, json.dumps(memory_obj))
             
             logger.info(f"Created consolidated memory for recording {log_id[:8]}... with {len(meaningful_facts)} facts and {len(meaningful_people)} people")

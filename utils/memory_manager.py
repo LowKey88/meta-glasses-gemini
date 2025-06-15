@@ -88,52 +88,55 @@ class MemoryManager:
         memory_type: str = 'note',
         tags: List[str] = None,
         importance: int = 5,
-        extracted_from: str = None
+        extracted_from: str = None,
+        skip_deduplication: bool = False
     ) -> str:
         """Create a new memory with intelligent deduplication."""
         
-        # Check for existing similar memories using AI
-        existing_memories = MemoryManager.get_all_memories(user_id)
-        
-        # Use AI to check if this memory already exists or conflicts
-        if existing_memories:
-            try:
-                from utils.gemini import simple_prompt_request
-                
-                existing_content = "; ".join([f"{m['type']}: {m['content']}" for m in existing_memories[-5:]])  # Check last 5 memories
-                
-                dedup_prompt = f"""
-                New memory: "{content}" (type: {memory_type})
-                Existing memories: {existing_content}
-                
-                Analyze if this new memory:
-                1. Is duplicate/very similar to existing → return "DUPLICATE"
-                2. Conflicts with existing (better/updated version) → return "CONFLICT: [text_to_replace]"
-                3. Is completely new information → return "CREATE"
-                """
-                
-                dedup_response = simple_prompt_request(dedup_prompt)
-                
-                if dedup_response.startswith('DUPLICATE'):
-                    logger.info(f"Skipping duplicate memory: {content}")
-                    return "duplicate"
-                
-                elif dedup_response.startswith('CONFLICT'):
-                    # Find and update the conflicting memory
-                    conflict_text = dedup_response.replace('CONFLICT:', '').strip()
-                    for memory in existing_memories:
-                        if conflict_text.lower() in memory['content'].lower():
-                            # Update existing memory with better version
-                            MemoryManager.update_memory(user_id, memory['id'], {
-                                'content': content,
-                                'importance': max(importance, memory.get('importance', 5)),
-                                'updated_at': datetime.now().isoformat()
-                            })
-                            logger.info(f"Updated conflicting memory {memory['id']}: {content}")
-                            return memory['id']
-                
-            except Exception as e:
-                logger.error(f"Error in AI deduplication: {e}")
+        # OPTIMIZATION: Skip expensive AI deduplication for Limitless (they have their own duplicate checking)
+        if not skip_deduplication:
+            # Check for existing similar memories using AI
+            existing_memories = MemoryManager.get_all_memories(user_id)
+            
+            # Use AI to check if this memory already exists or conflicts
+            if existing_memories:
+                try:
+                    from utils.gemini import simple_prompt_request
+                    
+                    existing_content = "; ".join([f"{m['type']}: {m['content']}" for m in existing_memories[-5:]])  # Check last 5 memories
+                    
+                    dedup_prompt = f"""
+                    New memory: "{content}" (type: {memory_type})
+                    Existing memories: {existing_content}
+                    
+                    Analyze if this new memory:
+                    1. Is duplicate/very similar to existing → return "DUPLICATE"
+                    2. Conflicts with existing (better/updated version) → return "CONFLICT: [text_to_replace]"
+                    3. Is completely new information → return "CREATE"
+                    """
+                    
+                    dedup_response = simple_prompt_request(dedup_prompt)
+                    
+                    if dedup_response.startswith('DUPLICATE'):
+                        logger.info(f"Skipping duplicate memory: {content}")
+                        return "duplicate"
+                    
+                    elif dedup_response.startswith('CONFLICT'):
+                        # Find and update the conflicting memory
+                        conflict_text = dedup_response.replace('CONFLICT:', '').strip()
+                        for memory in existing_memories:
+                            if conflict_text.lower() in memory['content'].lower():
+                                # Update existing memory with better version
+                                MemoryManager.update_memory(user_id, memory['id'], {
+                                    'content': content,
+                                    'importance': max(importance, memory.get('importance', 5)),
+                                    'updated_at': datetime.now().isoformat()
+                                })
+                                logger.info(f"Updated conflicting memory {memory['id']}: {content}")
+                                return memory['id']
+                    
+                except Exception as e:
+                    logger.error(f"Error in AI deduplication: {e}")
         
         # Create new memory
         memory_id = str(uuid.uuid4())[:8]
