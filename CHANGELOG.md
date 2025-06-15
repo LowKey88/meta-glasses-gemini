@@ -2,7 +2,48 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.4.0] - 2025-06-15
+## [1.5.0] - 2025-06-15 (PM)
+
+### Major Performance Breakthrough: 30x Limitless Processing Speed Improvement
+
+#### Critical Performance Optimizations
+- **Overall Impact**: Reduced Limitless recording processing from 60s to 2s (30x faster!)
+- **System Status**: Achieved "Optimal" performance rating with average 2s processing time
+
+#### Three Major Optimizations Implemented
+
+1. **Speaker Identification Optimization (35.6s → <0.1s)**
+   - **Issue**: AI API calls for generating simple speaker context descriptions
+   - **Solution**: Replaced AI-powered context generation with deterministic logic
+   - **Impact**: 356x speed improvement, eliminated major bottleneck
+
+2. **Natural Language Task Extraction Optimization (54.4s → 0s)**
+   - **Issue**: Separate AI API call just for task detection
+   - **Solution**: Merged task extraction into main AI extraction call
+   - **Implementation**: Enhanced extraction prompt to include natural language patterns
+   - **Impact**: Eliminated redundant API call, reduced from 2 calls to 1
+
+3. **Memory Creation Optimization (4.3s → <0.5s)**
+   - **Issue**: Loading all user memories (500+) for duplicate checking
+   - **Solution**: 
+     - Fast Redis key lookup instead of loading all memories
+     - Skip AI deduplication for Limitless (has own duplicate check)
+     - Batch metadata updates into single operation
+   - **Impact**: 8.5x speed improvement
+
+#### Dashboard Improvements
+- **Professional Naming**: Changed "Combined AI Extraction" to clean "AI Extraction"
+- **Legacy Handling**: Silently merge old data without showing "Legacy" labels
+- **Operation Filtering**: Hide operations with minimal time (<0.1s)
+- **User Experience**: Clean, professional interface without technical details
+
+#### Technical Details
+- **Variable Collision Fix**: Resolved timing variable name conflict causing type errors
+- **Redis Optimization**: Implemented TTL-based tracking keys for efficient lookups
+- **API Call Reduction**: From 3+ API calls to 1 per recording
+- **Smart Deduplication**: Added `skip_deduplication` parameter for performance
+
+## [1.4.0] - 2025-06-15 (AM)
 
 ### Major Feature: Limitless Performance Time-Based Charts & Advanced Analytics
 

@@ -1226,6 +1226,103 @@ open http://localhost:3000/dashboard/memories
 # 4. Verify card layout and touch interactions
 ```
 
+### Limitless Performance Breakthrough (June 2025 PM)
+
+#### Major Performance Optimizations - 30x Speed Improvement
+
+**Background**: Achieved breakthrough performance improvements for Limitless processing, reducing average processing time from 60 seconds to 2 seconds per recording.
+
+#### Performance Bottlenecks Identified & Fixed
+
+**1. Speaker Identification Optimization (35.6s → <0.1s)**
+- **Issue**: `get_context_from_title_and_summary()` was making Gemini AI API calls for each unrecognized speaker
+- **Root Cause**: Using AI to generate simple context descriptions like "Solo recording" or "Participant in conversation"
+- **Solution**: Replaced AI-powered context generation with deterministic logic
+- **Implementation**: Simple if/else logic instead of `simple_prompt_request()` API call
+- **Impact**: 356x speed improvement, eliminated the primary bottleneck
+
+**2. Natural Language Task Extraction Optimization (54.4s → 0s)**
+- **Issue**: Separate `extract_natural_language_tasks()` function making additional AI API call
+- **Root Cause**: Two separate AI calls - one for task detection, another for general extraction
+- **Solution**: Merged task extraction into main AI extraction call
+- **Implementation**: 
+  - Enhanced `get_enhanced_extraction_prompt()` to include natural language task patterns
+  - Skip separate natural language task extraction
+  - Handle both task types in single AI response
+- **Impact**: Eliminated redundant API call, reduced from 2 to 1 per recording
+
+**3. Memory Creation Optimization (4.3s → <0.5s)**
+- **Issue**: `create_consolidated_recording_memory()` calling expensive duplicate check
+- **Root Cause**: 
+  - `memory_manager.get_all_memories()` loading ALL user memories (500+) just to check duplicates
+  - Additional AI deduplication call in `create_memory()`
+- **Solution**: 
+  - Fast Redis key lookup: `meta-glasses:limitless:memory_created:{log_id}`
+  - Added `skip_deduplication=True` parameter to bypass AI deduplication
+  - Batch metadata updates into single operation
+  - TTL-based tracking keys (30 days) for efficient duplicate prevention
+- **Impact**: 8.5x speed improvement in memory creation
+
+#### Technical Implementation Details
+
+**Variable Collision Fix:**
+- **Issue**: `start_time` variable used for both timing measurement (float) and lifelog timestamp (string)
+- **Solution**: Renamed timing variable to `processing_start_time` to avoid type error
+
+**API Call Reduction:**
+- **Before**: 3+ API calls per recording (speaker context + task detection + general extraction)
+- **After**: 1 API call per recording (combined extraction)
+
+**Redis Optimization:**
+- **Tracking Keys**: `meta-glasses:limitless:memory_created:{log_id}` with 30-day TTL
+- **Fast Lookups**: Redis EXISTS instead of loading all memories
+- **Batch Operations**: Single metadata update instead of multiple Redis calls
+
+#### Dashboard Professional Refactoring
+
+**Operation Naming:**
+- Changed "Combined AI Extraction" → "AI Extraction"
+- Removed "(Legacy)" labels from UI
+- Silently merge natural language tasks data into AI extraction for old records
+
+**Backend Handling:**
+- Filter operations with <0.1s from display
+- Merge legacy data without exposing technical details
+- Professional operation names in performance metrics
+
+#### Performance Monitoring Commands
+
+```bash
+# Monitor Limitless processing performance
+docker-compose -f docker-compose.local.yml logs -f app | grep "COMPLETED recording"
+
+# Check specific operation timings
+docker-compose -f docker-compose.local.yml logs -f app | grep -E "(Speaker identification|AI extraction|Memory creation):"
+
+# View performance dashboard
+open http://localhost:3000/dashboard/performance
+# Switch to "Limitless Processing" tab
+```
+
+#### Debugging Performance Issues
+
+**If processing is slow, check:**
+1. Speaker identification time - should be <0.1s
+2. AI extraction time - should be 2-3s (only operation making API call)
+3. Memory creation time - should be <0.5s
+
+**Common issues:**
+- If speaker identification is slow: Check if `get_context_from_title_and_summary()` is making AI calls
+- If memory creation is slow: Check if duplicate checking is loading all memories
+- If natural language tasks appear separately: Ensure using latest code with merged extraction
+
+#### Key Files for Performance
+
+- `functionality/limitless.py` - Main processing logic and optimizations
+- `utils/memory_manager.py` - Memory creation with skip_deduplication parameter
+- `api/dashboard/limitless_routes.py` - Performance metrics and operation naming
+- `dashboard/app/dashboard/performance/page.tsx` - Performance visualization
+
 # important-instruction-reminders
 Do what has been asked; nothing more, nothing less.
 NEVER create files unless they're absolutely necessary for achieving your goal.
