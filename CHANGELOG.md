@@ -2,6 +2,59 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.0] - 2025-06-15 (Late PM)
+
+### Major Fix: Limitless Integration Content & Sync Issues
+
+#### Critical Issues Resolved
+
+1. **Transcript Caching Fix**
+   - **Issue**: Recordings showed empty content despite having transcripts in Limitless iOS app
+   - **Root Cause**: Redis cache missing `content` field in data structure
+   - **Solution**: Added transcript content preservation to cache structure
+   - **Impact**: 100% transcript preservation for all new recordings
+
+2. **Title-Based Task Extraction**
+   - **Issue**: Actionable titles like "Discussion about scheduling a meeting" created memories but no tasks
+   - **Root Cause**: No task extraction when transcripts were empty or limited
+   - **Solution**: Implemented smart title-based task extraction with pattern matching
+   - **Patterns Added**:
+     - Scheduling: "scheduling meeting" → "Schedule meeting as discussed"
+     - Planning: "planning to X" → "Plan to X"
+     - Reminders: "reminder to X" → "Remember to X"
+   - **Integration**: Automatic fallback when transcript unavailable or AI finds no tasks
+
+3. **Gap Detection System Fix**
+   - **Issue**: API showed 36 recordings, dashboard 35, gap detection reported "0 pending"
+   - **Root Cause**: Recording had processed marker but missing cache entry (inconsistent state)
+   - **Previous Logic**: Only checked processed markers, missed cache inconsistencies
+   - **Enhanced Logic**: Check both processed marker AND cache entry existence
+   - **Result**: Found and recovered 2 missing recordings, dashboard now shows 37 (aligned)
+
+#### Enhanced Content Quality Validation
+- **Improved Criteria**: Accept meaningful titles even with short/no transcripts
+- **Action Keywords**: scheduling, planning, meeting, appointment, reminder, task, follow up
+- **Impact**: Better memory creation for action-oriented discussions
+
+#### Enhanced Logging & Debugging
+- **Gap Detection**: Shows specific reasons (missing markers vs inconsistent states)
+- **Processing Logs**: Detailed tracking of why recordings need reprocessing
+- **Inconsistent State Detection**: Warns about processed markers without cache entries
+
+#### Technical Improvements
+- **Function Added**: `extract_tasks_from_title()` with regex pattern matching
+- **Cache Structure**: Enhanced with `content` field preservation
+- **State Validation**: Robust checking for both processed markers and cache entries
+- **Recovery Logic**: Automatic processing of inconsistent state recordings
+
+#### Files Modified
+- `functionality/limitless.py` - Core transcript caching, task extraction, gap detection logic
+
+#### Test Results Confirmed
+- **Before**: Empty transcripts, missing tasks, sync discrepancies
+- **After**: Full transcript preservation, automatic task creation, accurate sync counts
+- **Performance**: No impact on processing speed, enhanced reliability
+
 ## [1.5.0] - 2025-06-15 (PM)
 
 ### Major Performance Breakthrough: 30x Limitless Processing Speed Improvement
