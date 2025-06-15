@@ -61,12 +61,15 @@ def send_whatsapp_template(template_name: str, parameters: Optional[Dict[str, An
                "text": str(param)
            })
        
-       components.append({
-           "type": "body", 
-           "parameters": body_params
-       })
+       # Only add body component with parameters if there are parameters
+       if body_params:
+           components.append({
+               "type": "body", 
+               "parameters": body_params
+           })
        
-       template_data["components"] = components
+       if components:
+           template_data["components"] = components
    
    json_data = {
        'messaging_product': 'whatsapp',
@@ -74,6 +77,9 @@ def send_whatsapp_template(template_name: str, parameters: Optional[Dict[str, An
        'type': 'template',
        'template': template_data
    }
+   
+   # Debug logging
+   logger.info(f"Template JSON being sent: {json_data}")
    
    try:
        response = requests.post(get_whatsapp_url(), headers=headers, json=json_data)
@@ -85,6 +91,16 @@ def send_whatsapp_template(template_name: str, parameters: Optional[Dict[str, An
        
        if response.status_code != 200:
            logger.error(f"Template message failed: {response_data}")
+           # Check for specific error types
+           error_message = response_data.get('error', {}).get('message', '')
+           error_code = response_data.get('error', {}).get('code', 0)
+           
+           if 'Invalid parameter' in error_message:
+               logger.error("❌ Template issue: Either template not approved yet or parameter structure incorrect")
+               logger.error("💡 Check WhatsApp Business Manager: Templates must be 'APPROVED' status")
+           elif error_code == 131000:
+               logger.error("❌ Template not found or not approved")
+           
            return False
            
        logger.info(f"Template message sent successfully: {response_data}")
