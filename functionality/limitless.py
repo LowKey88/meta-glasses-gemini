@@ -961,6 +961,15 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
                     'is_speaker': True,
                     'role': 'primary_user'
                 }]
+            
+            # ✅ ENHANCED: Title-based task extraction fallback
+            # Extract tasks from title when transcript is empty/limited or AI extraction failed to find tasks
+            current_tasks = extracted.get('tasks', [])
+            if not current_tasks or not has_transcript:
+                title_tasks = extract_tasks_from_title(title, summary)
+                if title_tasks:
+                    logger.info(f"📝 Extracted {len(title_tasks)} task(s) from title (transcript: {'available' if has_transcript else 'empty'})")
+                    extracted['tasks'].extend(title_tasks)
                 
             # ⏱️ TIMING: Memory creation
             memory_start = time.time()
@@ -1092,6 +1101,7 @@ async def process_single_lifelog(log: Dict, phone_number: str) -> Dict[str, int]
             'id': log_id,
             'title': title,
             'summary': summary,
+            'content': transcript,  # ✅ FIX: Save transcript content to Redis
             'start_time': start_time,
             'end_time': end_time,
             'created_at': log.get('createdAt') or log.get('created_at'),
@@ -1370,11 +1380,16 @@ def create_consolidated_recording_memory(
         has_meaningful_content = (
             len(meaningful_facts) > 0 or  # Has important facts
             len(meaningful_people) > 0 or  # Has meaningful people
-            len(tasks) > 0 or  # Has tasks
+            len(tasks) > 0 or  # Has tasks (including title-extracted tasks)
             (transcript_length > 200 and any(keyword in title.lower() for keyword in [
                 'work', 'project', 'plan', 'buy', 'family', 'meeting', 'appointment',
                 'decision', 'important', 'remember', 'task', 'goal', 'problem', 'solution'
-            ]))  # Longer recording with meaningful keywords
+            ])) or  # Longer recording with meaningful keywords
+            # ✅ NEW: Enhanced title-based validation - accept meaningful titles even with short/no transcript
+            (transcript_length < 100 and any(keyword in title.lower() for keyword in [
+                'scheduling', 'planning', 'meeting', 'appointment', 'reminder', 'task',
+                'follow up', 'discussion about', 'need to', 'plan to', 'remember to'
+            ]))  # Short/empty recording but meaningful actionable title
         )
         
         if not has_meaningful_content:
@@ -1629,6 +1644,89 @@ def extract_speakers_from_contents(log: Dict) -> List[Dict[str, str]]:
     log['_speaker_mapping'] = speaker_id_mapping
     
     return speakers
+
+
+def extract_tasks_from_title(title: str, summary: str = "") -> List[Dict]:
+    """
+    Extract potential tasks from title when transcript is empty or limited.
+    Handles cases where Limitless API has title but no/minimal transcript content.
+    """
+    tasks = []
+    title_lower = title.lower()
+    
+    # Task extraction patterns for titles
+    task_patterns = {
+        # Scheduling patterns
+        r'(scheduling|schedule|plan|planning)\s+.*?(meeting|call|appointment)': 
+            lambda m: f"Schedule {m.group(2)} as discussed",
+        
+        # Meeting patterns  
+        r'discussion about (scheduling|planning|organizing)\s+(.+)':
+            lambda m: f"Follow up on {m.group(2).strip('.')}",
+        
+        # Planning patterns
+        r'(planning|plan)\s+to\s+(.+)':
+            lambda m: f"Plan to {m.group(2).strip('.')}",
+        
+        # Reminder patterns
+        r'(reminder|remind).*?(to\s+.+)':
+            lambda m: f"Remember {m.group(2).strip('.')}",
+        
+        # Task assignment patterns
+        r'(need|needs)\s+to\s+(.+)':
+            lambda m: f"Need to {m.group(2).strip('.')}",
+    }
+    
+    # Check for task patterns in title
+    for pattern, task_generator in task_patterns.items():
+        import re
+        match = re.search(pattern, title_lower)
+        if match:
+            try:
+                task_description = task_generator(match)
+                if len(task_description) > 10:  # Meaningful task description
+                    tasks.append({
+                        "description": task_description,
+                        "due_date": None,
+                        "assigned_to": "You",  # Assume user's task when extracting from title
+                        "assigned_by": "AI Extracted from title", 
+                        "source": "ai_extracted",
+                        "urgency": "medium"
+                    })
+                    logger.debug(f"Extracted task from title: {task_description}")
+                    break  # Only extract one task per title to avoid duplicates
+            except Exception as e:
+                logger.warning(f"Error generating task from title pattern: {e}")
+                continue
+    
+    # Additional keyword-based extraction for common scenarios
+    if not tasks:
+        action_keywords = {
+            'meeting': 'Schedule or attend meeting as discussed',
+            'appointment': 'Schedule appointment as mentioned', 
+            'buy': 'Purchase item as planned',
+            'call': 'Make phone call as discussed',
+            'email': 'Send email as mentioned',
+            'task': 'Complete task as discussed',
+            'reminder': 'Act on reminder',
+            'follow up': 'Follow up as planned'
+        }
+        
+        for keyword, default_task in action_keywords.items():
+            if keyword in title_lower and 'discussion' in title_lower:
+                # Only create task if title suggests actual planning/discussion
+                tasks.append({
+                    "description": default_task,
+                    "due_date": None,
+                    "assigned_to": "You",
+                    "assigned_by": "AI Extracted from title",
+                    "source": "ai_extracted", 
+                    "urgency": "low"
+                })
+                logger.debug(f"Extracted keyword-based task: {default_task}")
+                break
+    
+    return tasks
 
 
 def get_enhanced_extraction_prompt(title: str, summary: str, transcript: str) -> str:
