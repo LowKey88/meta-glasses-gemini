@@ -56,7 +56,7 @@ def send_whatsapp_template(template_name: str, parameters: Optional[Dict[str, An
        "language": {"code": "en"}
    }
    
-   # Handle different template structures
+   # Handle different template structures with named parameters
    if template_name == "ha_status":
        # ha_status has Header + Body with 1 variable {{ha_message}}
        if parameters and 'body' in parameters and len(parameters['body']) > 0:
@@ -66,6 +66,7 @@ def send_whatsapp_template(template_name: str, parameters: Optional[Dict[str, An
                    "parameters": [
                        {
                            "type": "text",
+                           "parameter_name": "ha_message",  # Named parameter for {{ha_message}}
                            "text": str(parameters['body'][0])
                        }
                    ]
@@ -75,25 +76,65 @@ def send_whatsapp_template(template_name: str, parameters: Optional[Dict[str, An
            logger.info("🧪 Testing ha_status template without parameters first")
            
    elif template_name == "meeting_reminder":
-       # meeting_reminder expects 2 parameters: title and time
+       # meeting_reminder expects 2 parameters: {{meeting_title}} and {{meeting_time}}
        if parameters and 'body' in parameters and len(parameters['body']) >= 2:
            template_data["components"] = [
                {
                    "type": "body",
                    "parameters": [
-                       {"type": "text", "text": str(parameters['body'][0])},  # meeting title
-                       {"type": "text", "text": str(parameters['body'][1])}   # meeting time
+                       {
+                           "type": "text", 
+                           "parameter_name": "meeting_title",  # Named parameter for {{meeting_title}}
+                           "text": str(parameters['body'][0])
+                       },
+                       {
+                           "type": "text", 
+                           "parameter_name": "meeting_time",   # Named parameter for {{meeting_time}}
+                           "text": str(parameters['body'][1])
+                       }
+                   ]
+               }
+           ]
+           
+   elif template_name == "meeting_start":
+       # meeting_start expects 1 parameter: {{meeting_title}}
+       if parameters and 'body' in parameters and len(parameters['body']) > 0:
+           template_data["components"] = [
+               {
+                   "type": "body",
+                   "parameters": [
+                       {
+                           "type": "text",
+                           "parameter_name": "meeting_title",  # Named parameter for {{meeting_title}}
+                           "text": str(parameters['body'][0])
+                       }
+                   ]
+               }
+           ]
+           
+   elif template_name == "daily_schedule":
+       # daily_schedule expects 1 parameter: {{schedule_details}}
+       if parameters and 'body' in parameters and len(parameters['body']) > 0:
+           template_data["components"] = [
+               {
+                   "type": "body",
+                   "parameters": [
+                       {
+                           "type": "text",
+                           "parameter_name": "schedule_details",  # Named parameter for {{schedule_details}}
+                           "text": str(parameters['body'][0])
+                       }
                    ]
                }
            ]
    else:
-       # Generic handling for other templates
+       # Generic handling for other templates (fallback)
        if parameters and 'body' in parameters and len(parameters['body']) > 0:
            body_params = []
-           for param in parameters['body']:
+           for i, param in enumerate(parameters['body']):
                body_params.append({
                    "type": "text", 
-                   "text": str(param)
+                   "text": str(param)  # Use positional format as fallback
                })
            
            template_data["components"] = [
