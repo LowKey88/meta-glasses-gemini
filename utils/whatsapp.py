@@ -194,6 +194,13 @@ def send_whatsapp_template(template_name: str, parameters: Optional[Dict[str, An
            
            return False
            
+       # Track outgoing template message if successful
+       if 'messages' in response_data:
+           from utils.metrics import MetricsTracker
+           user_id = os.getenv('WHATSAPP_PHONE_NUMBER', 'system')
+           MetricsTracker.track_message(user_id, "outgoing_template")
+           logger.debug("Tracked outgoing template message")
+           
        logger.info(f"Template message sent successfully: {response_data}")
        return True
        
@@ -221,6 +228,13 @@ def send_whatsapp_message(text: str):
             logger.error(f"Token error details: {error_msg}")
             return
             
+        # Track outgoing message if successful
+        if response.status_code == 200 and 'messages' in response_data:
+            from utils.metrics import MetricsTracker
+            user_id = os.getenv('WHATSAPP_PHONE_NUMBER', 'system')
+            MetricsTracker.track_message(user_id, "outgoing_text")
+            logger.debug("Tracked outgoing text message")
+            
         logger.info(f"send_whatsapp_message response: {response_data}")
     except Exception as e:
         logger.error(f"Failed to send WhatsApp message: {e}")
@@ -233,8 +247,20 @@ def send_whatsapp_image(content):
         'type': 'image',
         'image': {'link': content}
     }
-    response = requests.post(get_whatsapp_url(), headers=headers, json=json_data)
-    logger.info(f"send_whatsapp_image response: {response.json()}")
+    try:
+        response = requests.post(get_whatsapp_url(), headers=headers, json=json_data)
+        response_data = response.json()
+        
+        # Track outgoing image if successful
+        if response.status_code == 200 and 'messages' in response_data:
+            from utils.metrics import MetricsTracker
+            user_id = os.getenv('WHATSAPP_PHONE_NUMBER', 'system')
+            MetricsTracker.track_message(user_id, "outgoing_image")
+            logger.debug("Tracked outgoing image message")
+            
+        logger.info(f"send_whatsapp_image response: {response_data}")
+    except Exception as e:
+        logger.error(f"Failed to send WhatsApp image: {e}")
 
 def download_file(file_data):
     logger.info(f"download_file: processing file data {file_data}")

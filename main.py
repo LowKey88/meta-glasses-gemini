@@ -165,8 +165,8 @@ def process_text_message(text: str, message_data: dict):
     text_lower = text.lower().strip()
     user_id = message_data.get('from', 'unknown')
     
-    # Track message
-    MetricsTracker.track_message(user_id, "text")
+    # Track incoming message
+    MetricsTracker.track_message(user_id, "incoming_text")
     
     # Extract user name and preferences if mentioned
     ContextManager.extract_user_name(text, user_id)
@@ -1005,7 +1005,7 @@ def logic(message: dict):
         if message['type'] == 'image':
             logger.info("Processing image message")
             user_id = message.get('from', 'unknown')
-            MetricsTracker.track_message(user_id, "image")
+            MetricsTracker.track_message(user_id, "incoming_image")
             
             image_start = time.time()
             try:
@@ -1030,7 +1030,7 @@ def logic(message: dict):
         elif message['type'] == 'audio':
             logger.info("Processing audio message")
             user_id = message.get('from', 'unknown')
-            MetricsTracker.track_message(user_id, "audio")
+            MetricsTracker.track_message(user_id, "incoming_audio")
             
             audio_start = time.time()
             try:
@@ -1054,11 +1054,17 @@ def logic(message: dict):
 
         processing_time = time.time() - start_time
         logger.info(f"Message processing completed in {processing_time:.2f} seconds")
+        
+        # Track overall webhook processing performance
+        PerformanceTracker.track_response_performance("WhatsApp Message", processing_time, True)
         return result
 
     except Exception as e:
         processing_time = time.time() - start_time
         logger.error(f"Error processing message after {processing_time:.2f} seconds: {str(e)}")
+        
+        # Track failed webhook processing performance
+        PerformanceTracker.track_response_performance("WhatsApp Message", processing_time, False)
         raise
 
 async def check_reminders_task():
