@@ -46,7 +46,8 @@ def send_whatsapp_template(template_name: str, parameters: Optional[Dict[str, An
    logger.info(f"Sending WhatsApp template: {template_name} with parameters: {parameters}")
    
    template_data = {
-       "name": template_name
+       "name": template_name,
+       "language": {"code": "en"}
    }
    
    # Add parameters if provided
