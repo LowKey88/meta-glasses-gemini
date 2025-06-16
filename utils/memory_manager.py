@@ -493,7 +493,7 @@ class MemoryManager:
                     'memories': page_memories,
                     'total': total_count
                 }
-                monitored_setex(cache_key, 120, json.dumps(cache_data))
+                monitored_set(cache_key, json.dumps(cache_data), ex=120)
                 logger.info(f"⏱️  Cached memory page {page} for 2 minutes")
             
             total_method_time = time.time() - start_method
