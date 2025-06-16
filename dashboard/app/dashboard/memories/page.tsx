@@ -125,12 +125,9 @@ export default function MemoriesPage() {
   useEffect(() => {
     if (currentPage !== 1) {
       setCurrentPage(1);
-    } else {
-      // If already on page 1, trigger fetch immediately for filter type changes
-      if (filterType !== 'all') {
-        fetchMemories();
-      }
     }
+    // Note: fetchMemories() will be called automatically by the main useEffect
+    // when filterType changes due to the fetchMemories dependency
   }, [filterType]);
 
   // Debounce search input
@@ -138,9 +135,9 @@ export default function MemoriesPage() {
     const timeoutId = setTimeout(() => {
       if (currentPage !== 1) {
         setCurrentPage(1);
-      } else {
-        fetchMemories();
       }
+      // Note: fetchMemories() will be called automatically by the main useEffect
+      // when searchTerm changes due to the fetchMemories dependency
     }, 300);
     return () => clearTimeout(timeoutId);
   }, [searchTerm]);
