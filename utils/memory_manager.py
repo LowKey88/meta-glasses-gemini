@@ -167,6 +167,9 @@ class MemoryManager:
         # Update memory type counters for instant dashboard performance
         MemoryManager._increment_memory_counter(user_id, memory_type)
         
+        # Clear memory page cache
+        MemoryManager._clear_memory_page_cache(user_id)
+        
         logger.info(f"Created memory {memory_id} for user {user_id}: {content[:50]}...")
         return memory_id
     
@@ -277,6 +280,19 @@ class MemoryManager:
         return type_counts
     
     @staticmethod
+    def _clear_memory_page_cache(user_id: str):
+        """Clear all cached memory pages for a user when data changes."""
+        try:
+            # Use pattern to match all cache keys for this user
+            pattern = f"meta-glasses:memory_page:{user_id}:*"
+            keys = r.keys(pattern)
+            if keys:
+                r.delete(*keys)
+                logger.info(f"Cleared {len(keys)} cached memory pages for user {user_id}")
+        except Exception as e:
+            logger.error(f"Error clearing memory cache: {e}")
+    
+    @staticmethod
     @try_catch_decorator
     def _rebuild_memory_counters(user_id: str):
         """Rebuild memory counters from scratch (one-time operation)."""
@@ -374,12 +390,33 @@ class MemoryManager:
     ) -> Tuple[List[Dict], int]:
         """Get paginated memories with filtering and sorting - much more efficient for large datasets."""
         try:
+            import time
+            start_method = time.time()
+            
+            # Build cache key for this specific query
+            cache_key = f"meta-glasses:memory_page:{user_id}:{page}:{page_size}:{sort_by}:{sort_order}:{memory_type or 'all'}:{search_query or 'none'}"
+            
+            # Check cache first (only for non-search queries to avoid stale results)
+            if not search_query:
+                cached_result = monitored_get(cache_key)
+                if cached_result:
+                    try:
+                        result = json.loads(cached_result)
+                        logger.info(f"⏱️  Cache hit for memory page {page} - returning cached result")
+                        return result['memories'], result['total']
+                    except json.JSONDecodeError:
+                        pass
+            
             # Get all memory IDs first
+            start_time = time.time()
             index_key = MemoryManager.get_index_key(user_id)
             memory_ids = monitored_smembers(index_key)
+            logger.info(f"⏱️  Memory ID fetch took: {(time.time() - start_time)*1000:.1f}ms for {len(memory_ids)} IDs")
             
             # Load and filter memories
+            start_time = time.time()
             valid_memories = []
+            load_errors = 0
             for memory_id in memory_ids:
                 memory_id = memory_id.decode() if isinstance(memory_id, bytes) else memory_id
                 memory_key = MemoryManager.get_memory_key(user_id, memory_id)
@@ -411,9 +448,13 @@ class MemoryManager:
                     valid_memories.append(memory)
                     
                 except (json.JSONDecodeError, KeyError, TypeError):
+                    load_errors += 1
                     continue
             
+            logger.info(f"⏱️  Memory loading/filtering took: {(time.time() - start_time)*1000:.1f}ms ({len(valid_memories)} valid, {load_errors} errors)")
+            
             # Sort memories
+            start_time = time.time()
             def get_sort_value(memory):
                 if sort_by == 'created_at':
                     return memory.get('created_at', '')
@@ -426,8 +467,10 @@ class MemoryManager:
             
             reverse_sort = sort_order == 'desc'
             valid_memories.sort(key=get_sort_value, reverse=reverse_sort)
+            logger.info(f"⏱️  Memory sorting took: {(time.time() - start_time)*1000:.1f}ms for {len(valid_memories)} memories")
             
             # Calculate pagination
+            start_time = time.time()
             total_count = len(valid_memories)
             start_idx = (page - 1) * page_size
             end_idx = start_idx + page_size
@@ -442,6 +485,19 @@ class MemoryManager:
                 # Note: We're not updating Redis here for performance reasons
                 # Consider updating only when memories are actually viewed/edited
             
+            logger.info(f"⏱️  Pagination slicing took: {(time.time() - start_time)*1000:.1f}ms")
+            
+            # Cache the result for non-search queries (2 minutes TTL)
+            if not search_query:
+                cache_data = {
+                    'memories': page_memories,
+                    'total': total_count
+                }
+                monitored_setex(cache_key, 120, json.dumps(cache_data))
+                logger.info(f"⏱️  Cached memory page {page} for 2 minutes")
+            
+            total_method_time = time.time() - start_method
+            logger.info(f"⏱️  Total get_memories_paginated took: {total_method_time*1000:.1f}ms")
             logger.debug(f"Retrieved page {page} ({len(page_memories)} memories) from {total_count} total for user {user_id}")
             return page_memories, total_count
             
@@ -486,6 +542,9 @@ class MemoryManager:
             # Type changed for active memory
             MemoryManager._decrement_memory_counter(user_id, old_type)
             MemoryManager._increment_memory_counter(user_id, new_type)
+        
+        # Clear memory page cache after update
+        MemoryManager._clear_memory_page_cache(user_id)
         
         logger.info(f"Updated memory {memory_id} for user {user_id}")
         return True

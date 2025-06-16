@@ -224,7 +224,11 @@ async def get_memories(
 ):
     """Get user memories with pagination, filtering, and sorting"""
     try:
+        import time
+        start_total = time.time()
+        
         # Validate parameters
+        start_time = time.time()
         if page < 1:
             page = 1
         if page_size < 1 or page_size > 100:
@@ -233,16 +237,20 @@ async def get_memories(
             sort_by = "created_at"
         if sort_order not in ["asc", "desc"]:
             sort_order = "desc"
+        logger.info(f"⏱️  Memory param validation took: {(time.time() - start_time)*1000:.1f}ms")
         
         # Use legacy behavior if limit is specified (for backward compatibility)
         if limit is not None:
             logger.warning("Using legacy limit parameter - consider switching to pagination")
+            start_time = time.time()
             if search:
                 memories = MemoryManager.search_memories(user_id, search, memory_type, limit)
             elif memory_type:
                 memories = MemoryManager.get_memories_by_type(user_id, memory_type)[:limit]
             else:
                 memories = MemoryManager.get_all_memories(user_id)[:limit]
+            
+            logger.info(f"⏱️  Legacy memory fetch took: {(time.time() - start_time)*1000:.1f}ms for {len(memories)} memories")
             
             return {
                 "memories": memories, 
@@ -255,6 +263,7 @@ async def get_memories(
             }
         
         # Use new pagination method
+        start_time = time.time()
         memories, total_count = MemoryManager.get_memories_paginated(
             user_id=user_id,
             page=page,
@@ -264,11 +273,17 @@ async def get_memories(
             memory_type=memory_type,
             search_query=search
         )
+        logger.info(f"⏱️  Memory pagination took: {(time.time() - start_time)*1000:.1f}ms for page {page} ({len(memories)}/{total_count} memories)")
         
         # Calculate pagination metadata
+        start_time = time.time()
         total_pages = (total_count + page_size - 1) // page_size
         has_next = page < total_pages
         has_prev = page > 1
+        logger.info(f"⏱️  Pagination metadata took: {(time.time() - start_time)*1000:.1f}ms")
+        
+        total_time = time.time() - start_total
+        logger.info(f"🚀 TOTAL memory fetch took: {total_time*1000:.1f}ms (page {page}, {len(memories)} items)")
         
         return {
             "memories": memories,
@@ -290,6 +305,9 @@ async def get_memories(
 async def create_memory(memory: MemoryCreate):
     """Create a new memory"""
     try:
+        import time
+        start_time = time.time()
+        
         # Use default importance of 6 for manual memories created via dashboard
         memory_id = MemoryManager.create_memory(
             user_id=memory.user_id,
@@ -302,6 +320,8 @@ async def create_memory(memory: MemoryCreate):
         
         if memory_id == "duplicate":
             raise HTTPException(status_code=409, detail="Memory already exists")
+        
+        logger.info(f"⏱️  Memory creation took: {(time.time() - start_time)*1000:.1f}ms")
         
         return {"success": True, "message": "Memory created", "id": memory_id}
     except Exception as e:

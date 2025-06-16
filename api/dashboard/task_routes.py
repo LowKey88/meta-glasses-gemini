@@ -47,7 +47,11 @@ async def get_all_tasks(
 ):
     """Get all tasks with optional filtering and sorting"""
     try:
+        import time
+        start_total = time.time()
+        
         # Get tasks from Google Tasks API
+        start_time = time.time()
         try:
             tasks = get_tasks(include_completed=include_completed)
         except Exception as e:
@@ -57,9 +61,11 @@ async def get_all_tasks(
                 tasks = get_mock_tasks(include_completed)
             else:
                 raise e
+        logger.info(f"⏱️  Task fetch from Google API took: {(time.time() - start_time)*1000:.1f}ms for {len(tasks)} tasks")
         
         # Apply due date filtering
         if due_filter:
+            start_time = time.time()
             now = datetime.now()
             today = now.replace(hour=23, minute=59, second=59)
             week_end = now + timedelta(days=7)
@@ -83,8 +89,10 @@ async def get_all_tasks(
                     continue
             
             tasks = filtered_tasks
+            logger.info(f"⏱️  Task filtering took: {(time.time() - start_time)*1000:.1f}ms, filtered to {len(tasks)} tasks")
         
         # Add source information (this will need to be enhanced based on task notes/metadata)
+        start_time = time.time()
         for task in tasks:
             task['source'] = determine_task_source(task)
             task['source_icon'] = get_source_icon(task['source'])
@@ -109,8 +117,10 @@ async def get_all_tasks(
                 task['due_formatted'] = None
                 task['due_display'] = None
                 task['is_overdue'] = False
+        logger.info(f"⏱️  Task enrichment took: {(time.time() - start_time)*1000:.1f}ms")
         
         # Sort tasks
+        start_time = time.time()
         if sort_by == 'due':
             # Sort by due date, putting tasks without due dates at the end
             tasks.sort(
@@ -126,6 +136,10 @@ async def get_all_tasks(
             # Google Tasks API doesn't provide creation date, so we'll keep the default order
             if sort_order == 'asc':
                 tasks.reverse()
+        logger.info(f"⏱️  Task sorting took: {(time.time() - start_time)*1000:.1f}ms")
+        
+        total_time = time.time() - start_total
+        logger.info(f"🚀 TOTAL task fetch took: {total_time*1000:.1f}ms for {len(tasks)} tasks")
         
         return {
             "tasks": tasks,
@@ -292,7 +306,11 @@ async def get_upcoming_tasks_endpoint(days: int = Query(7, description="Number o
 async def get_task_statistics():
     """Get task completion statistics"""
     try:
+        import time
+        start_total = time.time()
+        
         # Get all tasks
+        start_time = time.time()
         try:
             all_tasks = get_tasks(include_completed=True)
         except Exception as e:
@@ -301,8 +319,10 @@ async def get_task_statistics():
                 all_tasks = get_mock_tasks(include_completed=True)
             else:
                 raise e
+        logger.info(f"⏱️  Task stats fetch took: {(time.time() - start_time)*1000:.1f}ms for {len(all_tasks)} tasks")
         
         # Calculate basic stats
+        start_time = time.time()
         total_tasks = len(all_tasks)
         completed_tasks = len([t for t in all_tasks if t.get('status') == 'completed'])
         pending_tasks = total_tasks - completed_tasks
@@ -353,6 +373,11 @@ async def get_task_statistics():
         for task in all_tasks:
             source = determine_task_source(task)
             source_distribution[source] = source_distribution.get(source, 0) + 1
+        
+        logger.info(f"⏱️  Task statistics calculation took: {(time.time() - start_time)*1000:.1f}ms")
+        
+        total_time = time.time() - start_total
+        logger.info(f"🚀 TOTAL task stats took: {total_time*1000:.1f}ms")
         
         return TaskStats(
             total_tasks=total_tasks,

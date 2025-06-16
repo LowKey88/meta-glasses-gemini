@@ -1521,6 +1521,36 @@ docker-compose -f docker-compose.local.yml logs -f app | grep "Template message"
 
 **User Validation**: All templates successfully tested and verified working on user's WhatsApp, delivering proper notifications with dynamic content including Home Assistant sensor data, meeting information, and daily schedules.
 
+## Next Development Tasks
+
+### Dashboard Performance Debugging - Memories & Actions Pages
+
+Following the successful overview page optimization (3s → 0.13s), the next priority is to debug and optimize the remaining dashboard pages:
+
+#### Todo List:
+1. **Debug Memories Page Performance**
+   - Add timing logs to Memory Management page API endpoints
+   - Profile memory pagination, filtering, and search operations
+   - Identify bottlenecks in memory loading with 1999+ memories
+   - Optimize any slow operations found
+
+2. **Debug Actions Page Performance**  
+   - Add timing logs to Actions & Tasks page API endpoints
+   - Profile task loading, creation, and filtering operations
+   - Check Google Tasks API integration performance
+   - Optimize task management operations
+
+3. **Apply Similar Optimization Strategies**
+   - Implement Redis caching for frequently accessed data
+   - Add performance counters where needed
+   - Optimize database queries and Redis operations
+   - Ensure all pages load under 1 second
+
+4. **Performance Monitoring**
+   - Add comprehensive timing logs similar to overview page
+   - Monitor VPS performance with 1999 memories
+   - Validate improvements on production environment
+
 # important-instruction-reminders
 Do what has been asked; nothing more, nothing less.
 NEVER create files unless they're absolutely necessary for achieving your goal.
