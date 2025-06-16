@@ -1,11 +1,26 @@
 import os
+import json
 import logging
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 from utils.google_api import get_tasks_service
+from utils.redis_monitor import monitored_get, monitored_set
+from utils.redis_utils import r
 
 # Configure logging
 logger = logging.getLogger("uvicorn")
+
+def _clear_task_cache():
+    """Clear all cached task data when tasks are modified."""
+    try:
+        # Clear all task cache keys
+        pattern = "meta-glasses:tasks:*"
+        keys = r.keys(pattern)
+        if keys:
+            r.delete(*keys)
+            logger.info(f"⏱️  Cleared {len(keys)} cached task entries")
+    except Exception as e:
+        logger.error(f"Error clearing task cache: {e}")
 
 def get_task_lists() -> List[Dict]:
     """Get all task lists for the user."""
@@ -87,23 +102,43 @@ def create_task(title: str, notes: Optional[str] = None, due_date: Optional[str]
         
         result = service.tasks().insert(tasklist=list_id, body=task).execute()
         logger.info(f"Task created successfully with ID: {result.get('id')}")
+        
+        # Clear task cache after creation
+        _clear_task_cache()
+        
         return result
     except Exception as e:
         logger.error(f"Error creating task: {str(e)}")
         return None
 
-def get_tasks(list_id: Optional[str] = None, include_completed: bool = False) -> List[Dict]:
+def get_tasks(list_id: Optional[str] = None, include_completed: bool = False, use_cache: bool = True) -> List[Dict]:
     """
     Get tasks from a specified list or default list.
     
     Args:
         list_id: Optional task list ID (uses default if not provided)
         include_completed: Whether to include completed tasks
+        use_cache: Whether to use Redis cache (default True)
     
     Returns:
         List of task dictionaries
     """
     logger.info(f"Fetching tasks (include_completed={include_completed})")
+    
+    # Build cache key
+    cache_key = f"meta-glasses:tasks:{list_id or 'default'}:{include_completed}"
+    
+    # Check cache first
+    if use_cache:
+        cached_tasks = monitored_get(cache_key)
+        if cached_tasks:
+            try:
+                tasks = json.loads(cached_tasks)
+                logger.info(f"⏱️  Cache hit for tasks - returning {len(tasks)} cached tasks")
+                return tasks
+            except json.JSONDecodeError:
+                pass
+    
     service = get_tasks_service()
     if not service:
         logger.error("No valid credentials for Tasks API")
@@ -131,6 +166,11 @@ def get_tasks(list_id: Optional[str] = None, include_completed: bool = False) ->
         if not include_completed:
             tasks = [task for task in tasks if task.get('status') != 'completed']
             logger.info(f"Filtered to {len(tasks)} incomplete tasks")
+        
+        # Cache the result for 5 minutes (tasks don't change frequently)
+        if use_cache:
+            monitored_set(cache_key, json.dumps(tasks), ex=300)
+            logger.info(f"⏱️  Cached {len(tasks)} tasks for 5 minutes")
         
         return tasks
     except Exception as e:
@@ -182,6 +222,10 @@ def update_task_status(task_id: str, completed: bool, list_id: Optional[str] = N
             body=task
         ).execute()
         logger.info("Task status updated successfully")
+        
+        # Clear task cache after update
+        _clear_task_cache()
+        
         return True
     except Exception as e:
         logger.error(f"Error updating task status: {str(e)}")
@@ -214,6 +258,10 @@ def delete_task(task_id: str, list_id: Optional[str] = None) -> bool:
         
         service.tasks().delete(tasklist=list_id, task=task_id).execute()
         logger.info("Task deleted successfully")
+        
+        # Clear task cache after deletion
+        _clear_task_cache()
+        
         return True
     except Exception as e:
         logger.error(f"Error deleting task: {str(e)}")
